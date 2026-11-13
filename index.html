@@ -1,0 +1,1858 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cursillo VIBE · App</title>
+<meta name="theme-color" content="#FB8500">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<meta name="description" content="App del Cursillo VIBE: inscripción, cuotas, notas y asistencia.">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="VIBE">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: app shell — sidebar on desktop, bottom tabs on phone; dense rows inside bordered cards; orange only for brand and focus */
+:root{
+  --bg:#F6F5F2; --surface:#FFFFFF; --sunken:#EFEDE8; --ink:#17140F; --muted:#68625A; --line:#E4E0D9;
+  --accent:#FB8500; --accent-ink:#9A5200; --accent-soft:#FFF0DC;
+  --ok:#1E7D46; --ok-soft:#E2F2E7; --bad:#BF3328; --bad-soft:#FBE5E2; --pend:#4A5A7C; --pend-soft:#E7EBF3; --late:#9A6E00; --late-soft:#F7EDD2;
+  --font-display:"Montserrat", "Segoe UI", system-ui, sans-serif;
+  --font-body:"Figtree", "Segoe UI", system-ui, sans-serif;
+  --r:12px; --shadow:0 1px 2px rgba(23,20,15,.05), 0 6px 20px rgba(23,20,15,.06);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121110; --surface:#1A1917; --sunken:#23211E; --ink:#F3F0EB; --muted:#A49E95; --line:#302D29;
+    --accent:#FF9426; --accent-ink:#FFB565; --accent-soft:#3A2510;
+    --ok:#56C485; --ok-soft:#163322; --bad:#FF7A6C; --bad-soft:#3B1B17; --pend:#A3B5DA; --pend-soft:#1F2637; --late:#E8BA45; --late-soft:#352A0F;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121110; --surface:#1A1917; --sunken:#23211E; --ink:#F3F0EB; --muted:#A49E95; --line:#302D29;
+  --accent:#FF9426; --accent-ink:#FFB565; --accent-soft:#3A2510;
+  --ok:#56C485; --ok-soft:#163322; --bad:#FF7A6C; --bad-soft:#3B1B17; --pend:#A3B5DA; --pend-soft:#1F2637; --late:#E8BA45; --late-soft:#352A0F;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--font-body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{font-family:var(--font-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:24px;font-weight:800}
+h2{font-size:16px;font-weight:700}
+h3{font-size:14px;font-weight:700}
+small,.muted{color:var(--muted)}
+.num{font-family:var(--font-display);font-variant-numeric:tabular-nums;font-weight:700}
+a{color:var(--accent-ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* shell */
+#app{display:grid;grid-template-columns:236px 1fr;min-height:100%}
+#app.solo{display:block}
+#side{position:sticky;top:0;height:100vh;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 14px;gap:18px;overflow-y:auto}
+#topbar,#tabs{display:none}
+#app.solo #side,#app.solo #topbar,#app.solo #tabs{display:none!important}
+.brand{display:flex;align-items:baseline;gap:8px;padding:0 8px}
+.wm{font-family:var(--font-display);font-weight:800;font-size:26px;letter-spacing:.02em;line-height:1}
+.logo{display:block;height:auto;max-width:100%}
+.logo.osc{display:none}
+@media (prefers-color-scheme: dark){ .logo.cla{display:none} .logo.osc{display:block} }
+.brand .logo{width:168px}
+.auth-card .logo{width:230px}
+.linkbox{display:flex;gap:8px;align-items:center;background:var(--sunken);border-radius:10px;padding:8px 10px;font-size:13px;overflow-wrap:anywhere}
+.wm i{font-style:normal;color:var(--accent)}
+.wm-sub{font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:12px;border:0;background:none;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600;color:var(--muted);text-align:left;position:relative}
+.nav button:hover{background:var(--sunken);color:var(--ink)}
+.nav button[aria-current="page"]{background:var(--accent-soft);color:var(--ink)}
+.nav button[aria-current="page"] svg{color:var(--accent-ink)}
+.badge{margin-left:auto;background:var(--bad);color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-family:var(--font-display)}
+.side-foot{margin-top:auto;padding:12px 8px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.role{display:inline-flex;align-self:flex-start;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--sunken);color:var(--muted)}
+svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+main{padding:28px 32px 48px;max-width:1160px;width:100%;display:flex;flex-direction:column;gap:20px;min-width:0}
+
+@media (max-width: 860px){
+  #app{grid-template-columns:1fr}
+  #side{display:none}
+  #topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  #tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:30;padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  #tabs button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;font-size:11px;font-weight:600;color:var(--muted);border-radius:10px;cursor:pointer;position:relative}
+  #tabs button[aria-current="page"]{color:var(--ink)}
+  #tabs button[aria-current="page"] svg{color:var(--accent-ink)}
+  #tabs .badge{position:absolute;top:0;right:calc(50% - 22px);min-width:16px;height:16px;font-size:10px}
+  main{padding:18px 16px 96px;gap:16px}
+  h1{font-size:21px}
+}
+.tb-r{display:flex;align-items:center;gap:8px}
+.icon-btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
+
+/* page head */
+.ph{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ph p{margin:4px 0 0;color:var(--muted)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.back{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:var(--muted);font-weight:600;cursor:pointer;padding:4px 0}
+.back:hover{color:var(--ink)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--surface);padding:9px 14px;border-radius:10px;font-weight:600;cursor:pointer;text-decoration:none;color:var(--ink);white-space:nowrap;min-height:40px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#17140F}
+.btn.primary:hover{filter:brightness(.96)}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.btn.danger{color:var(--bad)}
+.btn.ghost{border-color:transparent;background:none}
+.btn.sm{padding:5px 10px;min-height:32px;font-size:13px;border-radius:8px}
+.btn.block{width:100%}
+.btn[disabled],.btn.disabled{opacity:.45;pointer-events:none}
+.btn svg.i{width:18px;height:18px}
+.btn.wa{color:var(--ok)}
+
+/* cards and sections */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.card-b{padding:14px 16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width: 1000px){.grid2{grid-template-columns:1fr}}
+
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width: 860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
+.kpi .l{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.kpi .v{font-family:var(--font-display);font-weight:800;font-size:24px;font-variant-numeric:tabular-nums;line-height:1.15;overflow-wrap:anywhere}
+.kpi .s{font-size:13px;color:var(--muted)}
+.kpi.bad{border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+.kpi.bad .v{color:var(--bad)}
+.kpi.bad::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--bad)}
+
+/* rows */
+.rows{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 14px;padding:11px 16px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row.click{cursor:pointer}
+.row.click:hover{background:var(--sunken)}
+.row .t{font-weight:600;overflow-wrap:anywhere}
+.row .t small{display:block;font-weight:400}
+.row .r{display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);margin-bottom:4px;font-family:var(--font-display)}
+
+/* table */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface)}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--sunken)}
+
+/* pills */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--sunken);color:var(--muted)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.pend{background:var(--pend-soft);color:var(--pend)}
+.pill.late{background:var(--late-soft);color:var(--late)}
+.pill.acc{background:var(--accent-soft);color:var(--accent-ink)}
+.bad-t{color:var(--bad)} .ok-t{color:var(--ok)}
+
+/* bars */
+.bar{height:6px;border-radius:99px;background:var(--sunken);overflow:hidden;min-width:60px}
+.bar>i{display:block;height:100%;background:var(--ok);border-radius:99px}
+.bar.mid>i{background:var(--late)} .bar.low>i{background:var(--bad)}
+
+/* chips / filters */
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.chip[disabled]{opacity:.45;cursor:default}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.inp,select.inp,textarea.inp{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 12px;min-height:40px;width:100%}
+textarea.inp{min-height:90px;resize:vertical;line-height:1.45}
+.inp:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.search{position:relative;flex:1 1 220px}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.search .inp{padding-left:38px}
+.filters select.inp{width:auto}
+.chk{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:14px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--accent)}
+
+.tabsbar{display:flex;gap:4px;background:var(--sunken);padding:4px;border-radius:12px;align-self:flex-start;flex-wrap:wrap}
+.tabsbar button{border:0;background:none;padding:8px 14px;border-radius:9px;font-weight:700;color:var(--muted);cursor:pointer}
+.tabsbar button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+
+/* forms */
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.form .full{grid-column:1/-1}
+.fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fld label{font-size:13px;font-weight:700;color:var(--muted)}
+.fld label .req{color:var(--bad)}
+.fld .hint{font-size:12px;color:var(--muted)}
+.fsec{grid-column:1/-1;font-family:var(--font-display);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-ink);padding-top:8px;border-top:1px solid var(--line);margin-top:4px}
+.form .fsec:first-child{border-top:0;padding-top:0;margin-top:0}
+@media (max-width: 560px){.form{grid-template-columns:1fr}}
+.err{color:var(--bad);font-size:13px;font-weight:600}
+.inp.inv{border-color:var(--bad)}
+
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(15,12,8,.45);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+.dlg{background:var(--surface);border-radius:16px;width:100%;max-width:620px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;border:1px solid var(--line)}
+.dlg.wide{max-width:900px}
+.dlg.narrow{max-width:440px}
+.dlg-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.dlg-b{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.dlg-f{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--line);flex-wrap:wrap}
+.x{border:0;background:none;cursor:pointer;color:var(--muted);padding:4px;border-radius:8px}
+.x:hover{background:var(--sunken);color:var(--ink)}
+@media (max-width: 560px){.ov{padding:0;align-items:flex-end}.dlg{border-radius:16px 16px 0 0;max-height:94vh;overflow-y:auto}}
+
+/* toasts */
+#toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;box-shadow:var(--shadow);max-width:90vw}
+.toast.error{background:var(--bad);color:#fff}
+@media (max-width: 860px){#toasts{bottom:84px}}
+
+/* banner */
+.banner{border:1px solid var(--line);background:var(--surface);border-left:4px solid var(--accent);padding:12px 14px;border-radius:10px;font-size:14px}
+.banner.bad{border-left-color:var(--bad)}
+.banner.ok{border-left-color:var(--ok)}
+.banner.click{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px}
+
+/* attendance */
+.att{display:flex;gap:6px}
+.att button{width:40px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-family:var(--font-display);font-weight:800;cursor:pointer;color:var(--muted)}
+.att button[aria-pressed="true"][data-v="P"]{background:var(--ok);border-color:var(--ok);color:#fff}
+.att button[aria-pressed="true"][data-v="A"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.att button[aria-pressed="true"][data-v="T"]{background:var(--late);border-color:var(--late);color:#fff}
+.att button[aria-pressed="true"][data-v="J"]{background:var(--pend);border-color:var(--pend);color:#fff}
+.savebar{position:sticky;bottom:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px;background:var(--surface);border-top:1px solid var(--line);border-radius:0 0 var(--r) var(--r)}
+@media (max-width: 860px){.savebar{bottom:64px}}
+.cnt{display:flex;gap:12px;font-size:13px;font-weight:700;flex-wrap:wrap}
+.cnt span{display:inline-flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+.d-P{background:var(--ok)} .d-A{background:var(--bad)} .d-T{background:var(--late)} .d-J{background:var(--pend)} .d-0{background:var(--sunken);border:1px solid var(--line)}
+.mx td,.mx th{padding:6px 8px;text-align:center}
+.mx td:first-child,.mx th:first-child{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1;min-width:170px}
+.mx .c{display:inline-flex;width:24px;height:24px;border-radius:6px;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;font-family:var(--font-display)}
+.mx .c.e{background:var(--sunken);color:var(--muted)}
+.mx th button{border:0;background:none;color:inherit;font:inherit;cursor:pointer;text-transform:none;letter-spacing:0}
+.strip{display:flex;gap:3px;flex-wrap:wrap}
+.strip i{width:12px;height:12px;border-radius:3px}
+
+/* group cards */
+.gcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.gcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px;cursor:pointer;text-align:left}
+.gcard:hover{border-color:var(--muted)}
+.gcard .meta{display:grid;grid-template-columns:auto 1fr auto;gap:6px 10px;align-items:center;font-size:13px}
+
+/* detail */
+.dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;font-size:14px;margin:0}
+.dl dt{color:var(--muted);font-weight:600}
+.dl dd{margin:0;overflow-wrap:anywhere}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width: 860px){.steps{grid-template-columns:1fr}}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.step .k{font-family:var(--font-display);font-weight:800;font-size:13px;color:var(--accent-ink)}
+
+/* login */
+.auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.auth-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px 24px;display:flex;flex-direction:column;gap:16px;box-shadow:var(--shadow)}
+.auth-card .wm{font-size:40px}
+.auth-card form{display:flex;flex-direction:column;gap:12px}
+.linkbtn{border:0;background:none;color:var(--accent-ink);font-weight:600;cursor:pointer;padding:0;text-align:left}
+.onb{max-width:760px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:18px}
+
+/* receipt */
+.rcb{background:#fff;color:#17140F;border:1px solid #E4E0D9;border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.rcb-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:3px solid #FB8500;padding-bottom:14px}
+.rcb-top img{max-height:56px;max-width:180px}
+.rcb-top .wm{font-size:30px;color:#17140F}
+.rcb-no{text-align:right;font-family:var(--font-display);font-weight:700;font-size:12px;letter-spacing:.1em;color:#68625A}
+.rcb-no b{display:block;font-size:20px;color:#17140F;letter-spacing:0}
+.rcb-amt{font-family:var(--font-display);font-weight:800;font-size:30px;font-variant-numeric:tabular-nums}
+.rcb-words{font-size:14px;color:#68625A;margin-top:-10px}
+.rcb .dl dt{color:#68625A}
+.rcb-sign{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:10px;font-size:12px;color:#68625A}
+.rcb-sign .ln{border-top:1px solid #17140F;padding-top:4px;min-width:160px;text-align:center}
+@media print{
+  body.print-rcb #app, body.print-rcb #toasts, body.print-rcb .dlg-h, body.print-rcb .dlg-f, body.print-rcb .rcb-extra{display:none!important}
+  body.print-rcb .ov{position:static;background:none;padding:0}
+  body.print-rcb .dlg{box-shadow:none;border:0;max-width:none}
+}
+
+/* plan editor */
+.pl{display:flex;flex-direction:column;gap:6px}
+.pl-r{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:center}
+.pl-r .inp{min-height:36px;padding:6px 9px}
+@media (max-width: 560px){.pl-r{grid-template-columns:1fr 1fr}.pl-r .inp:first-child{grid-column:1/-1}}
+.gen{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;background:var(--sunken);padding:12px;border-radius:10px}
+@media (max-width: 680px){.gen{grid-template-columns:1fr 1fr}}
+.loading{padding:40px;text-align:center;color:var(--muted)}
+.spark{display:block}
+.mapt td{padding:8px}
+.mapt select{min-width:170px}
+.prog{height:10px;background:var(--sunken);border-radius:99px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+.sheet-list{display:flex;flex-direction:column;gap:4px}
+.sheet-list button{display:flex;align-items:center;gap:12px;border:0;background:none;padding:14px 12px;border-radius:10px;font-weight:600;font-size:16px;cursor:pointer;text-align:left}
+.sheet-list button:hover{background:var(--sunken)}
+.nota{width:90px!important;text-align:right}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+</style>
+</head>
+<body>
+<div id="app" class="solo">
+  <aside id="side"></aside>
+  <div id="topbar"></div>
+  <main id="main"><div class="loading">Cargando…</div></main>
+  <nav id="tabs"></nav>
+</div>
+<div id="modal-root"></div>
+<div id="toasts" aria-live="polite"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+   FICHA DE INSCRIPCIÓN — preguntas que completa el alumno.
+   col: true = columna propia en la base. El resto se guarda en "ficha".
+   Para agregar o quitar preguntas, editá solo esta lista.
+   ===================================================================== */
+const FICHA = [
+  { sec: 'Datos personales' },
+  { k: 'nombre', l: 'Nombres', req: true, col: true },
+  { k: 'apellido', l: 'Apellidos', req: true, col: true },
+  { k: 'ci', l: 'Número de cédula', req: true, col: true, im: 'numeric' },
+  { k: 'tel', l: 'Número de teléfono (WhatsApp)', req: true, col: true, im: 'tel', ph: '0981 123 456' },
+  { k: 'nacionalidad', l: 'Nacionalidad', req: true, ph: 'Paraguaya' },
+  { k: 'ciudad', l: 'Ciudad', req: true, col: true },
+  { k: 'direccion', l: 'Dirección', full: true },
+  { k: 'vive_con', l: '¿Con quién vivís?', t: 'select', req: true, ops: ['Solo/a', 'Padres', 'Abuelos', 'Otros'], solo: ['Ingeniería', 'Medicina'] },
+  { k: 'trabaja', l: '¿Trabajás?', t: 'select', req: true, ops: ['Sí', 'No'], solo: ['Ingeniería'] },
+  { sec: 'Estudios' },
+  { k: 'colegio', l: 'Colegio del que venís', req: true, col: true },
+  { k: 'carrera', l: 'Carrera a la que querés ingresar', t: 'select', req: true, ops: ['Civil', 'Eléctrica', 'Electrónica', 'Informática', 'Otra'], solo: ['Ingeniería'] },
+  { k: 'bachiller', l: '¿A qué bachillerato querés ingresar?', ph: 'Técnico, científico, social…', solo: ['Ingreso a colegios'] },
+  { k: 'colegio_destino', l: '¿A qué colegio querés ingresar?', solo: ['Ingreso a colegios'] },
+  { sec: 'Padres y encargado' },
+  { k: 'madre_nombre', l: 'Nombre de la madre' },
+  { k: 'madre_tel', l: 'Celular de la madre', im: 'tel' },
+  { k: 'padre_nombre', l: 'Nombre del padre' },
+  { k: 'padre_tel', l: 'Celular del padre', im: 'tel' },
+  { k: 'encargado', l: 'Encargado o tutor', req: true, col: true, ph: 'Puede ser tu mamá o tu papá', hint: 'La persona a la que llamamos si pasa algo y a la que le llegan los avisos de cuotas.' },
+  { k: 'encargado_tel', l: 'Celular del encargado', req: true, col: true, im: 'tel' },
+  { sec: 'Factura y otros' },
+  { k: 'dia_pago', l: '¿Qué fecha te queda mejor para pagar la cuota?', t: 'select', ops: ['Del 1 al 10 de cada mes', 'Del 11 al 20 de cada mes', 'Del 21 a fin de mes'], solo: ['Ingeniería'], hint: 'Tus vencimientos se acomodan a esta fecha.' },
+  { k: 'factura', l: 'Si querés factura: RUC y nombre o razón social', full: true },
+  { k: 'como_conocio', l: '¿Cómo te enteraste del cursillo?', t: 'select', req: true, ops: ['Redes sociales', 'Recomendación de alguien'] },
+  { k: 'recomendado_por', l: 'Si te recomendó alguien, ¿quién?', reqSi: ['como_conocio', 'Recomendación de alguien'] }
+];
+const PROGRAMAS = ['Ingeniería', 'Medicina', 'Becas', 'Ingreso a colegios', 'Repaso', 'Otro'];
+const progDe = a => a.programa || S.grupos[a.grupoId]?.programa || '';
+const aplica = (f, a, todos) => todos || !f.solo || f.solo.includes(progDe(a));
+const CODIGO = (new URLSearchParams(location.search).get('i') || '').toLowerCase().trim();
+const APP_URL = location.origin + location.pathname;
+const linkUrl = l => APP_URL + '?i=' + l.codigo;
+const COL2CAMEL = { nombre: 'nombre', apellido: 'apellido', ci: 'ci', fecha_nac: 'fechaNac', tel: 'tel', ciudad: 'ciudad', colegio: 'colegio', encargado: 'encargado', encargado_tel: 'encargadoTel' };
+
+/* ---------- utilidades ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+const sum = a => a.reduce((x, y) => x + num(y), 0);
+const fmtN = n => String(Math.round(num(n))).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const money = n => 'Gs. ' + fmtN(n);
+const parseMoney = s => num(String(s ?? '').replace(/[^\d]/g, ''));
+const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const hoy = () => ymd(new Date());
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '';
+const fmtF = d => d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—';
+const fmtCorta = d => d ? (+d.slice(8, 10)) + ' ' + MESES[+d.slice(5, 7) - 1].slice(0, 3) : '—';
+const fechaLarga = d => { const dt = new Date(d + 'T12:00:00'); return cap(DIAS[dt.getDay()]) + ' ' + dt.getDate() + ' de ' + MESES[dt.getMonth()] + ' de ' + dt.getFullYear(); };
+const addDays = (d, k) => { const dt = new Date(d + 'T12:00:00'); dt.setDate(dt.getDate() + k); return ymd(dt); };
+function addMonths(d, k) { const [y, m, dd] = d.split('-').map(Number); const dt = new Date(y, m - 1 + k, 1); const last = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate(); dt.setDate(Math.min(dd, last)); return ymd(dt); }
+const newKey = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const norm = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+const nombreA = a => [a.nombre, a.apellido].filter(Boolean).join(' ').trim() || a.email || '(sin nombre)';
+const cmpA = (x, y) => norm(nombreA(x)).localeCompare(norm(nombreA(y)), 'es');
+const pct = (a, b) => b ? Math.round(a / b * 100) : null;
+const idx = arr => Object.fromEntries(arr.map(x => [x.id, x]));
+function waNum(t) { let d = String(t || '').replace(/\D/g, ''); if (!d) return ''; if (d.startsWith('595')) return d; if (d.startsWith('0')) d = d.slice(1); return d.length >= 8 ? '595' + d : ''; }
+function letras(n) {
+  n = Math.floor(num(n)); if (n === 0) return 'cero';
+  const U = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte','veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve'];
+  const D = ['','','','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa'];
+  const C = ['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos'];
+  const apo = s => s.replace(/veintiuno$/, 'veintiún').replace(/uno$/, 'un');
+  const dec = x => x < 30 ? U[x] : D[Math.floor(x / 10)] + (x % 10 ? ' y ' + U[x % 10] : '');
+  const cen = x => x === 100 ? 'cien' : (C[Math.floor(x / 100)] + (x % 100 ? (x >= 100 ? ' ' : '') + dec(x % 100) : '')).trim();
+  const mil = x => { const m = Math.floor(x / 1000), r = x % 1000; let s = m === 1 ? 'mil' : m > 1 ? apo(cen(m)) + ' mil' : ''; if (r) s += (s ? ' ' : '') + cen(r); return s; };
+  const M = Math.floor(n / 1e6), r = n % 1e6; let s = M === 1 ? 'un millón' : M > 1 ? apo(mil(M)) + ' millones' : '';
+  if (r) s += (s ? ' ' : '') + mil(r);
+  return s;
+}
+
+/* ---------- íconos ---------- */
+const ICONS = {
+  home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.8c2 .7 3.2 2.4 3.6 5.2"/>',
+  layers:'<path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="m2.5 12.5 9.5 5 9.5-5"/><path d="m2.5 17 9.5 5 9.5-5"/>',
+  check:'<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2.5h6v3H9z"/><path d="m8.5 13 2.5 2.5 4.5-5"/>',
+  wallet:'<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M16 15h2"/><path d="M6 6V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+  award:'<circle cx="12" cy="9" r="5.5"/><path d="M8.5 13.5 7 21l5-2.5 5 2.5-1.5-7.5"/>',
+  gear:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  more:'<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  back:'<path d="m15 18-6-6 6-6"/>',
+  wa:'<path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9.2 8.6c.3 2.6 2.5 5 5.2 5.6l1-1.1-1.6-.9-.8.6c-.9-.4-1.8-1.3-2.2-2.2l.6-.8-.9-1.6z"/>',
+  search:'<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+  download:'<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
+  upload:'<path d="M12 20V9"/><path d="m7 14 5-5 5 5"/><path d="M5 4h14"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  trash:'<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>',
+  receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  chevL:'<path d="m15 18-6-6 6-6"/>', chevR:'<path d="m9 18 6-6-6-6"/>',
+  inbox:'<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z"/>',
+  team:'<circle cx="12" cy="7" r="3.5"/><path d="M5 21c.8-4 3.6-6.5 7-6.5s6.2 2.5 7 6.5"/><path d="M19.5 9.5l1.5 1.5 3-3"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4.5 21c.9-4 3.9-6.5 7.5-6.5s6.6 2.5 7.5 6.5"/>',
+  logout:'<path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
+  print:'<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
+  ext:'<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
+};
+const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+
+/* ---------- estado ---------- */
+const S = {
+  sb: null, session: null, perfil: null, authView: CODIGO ? 'registro' : 'login', authMsg: '', needPassword: false, linkInfo: null, links: {},
+  grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {},
+  loaded: {}, lastLoad: 0, idx: { pagosByAlumno: {}, asisByGrupo: {}, examsByGrupo: {} },
+  view: 'inicio', selAlumno: null, selGrupo: null,
+  ui: { q: '', fGrupo: '', fEstado: 'activos', fDeuda: false, asisTab: 'tomar', asisGrupo: '', asisFecha: hoy(), histGrupo: '',
+        cobTab: 'porcobrar', cobGrupo: '', cobMes: hoy().slice(0, 7), cobSoloVenc: true, exGrupo: '', exSel: null, alTab: 'cuenta' },
+  draftAsis: null, draftExam: null
+};
+const rol = () => S.perfil?.rol || '';
+const isAdmin = () => rol() === 'admin';
+const isStaff = () => rol() === 'admin' || rol() === 'oficina';
+const isProfe = () => rol() === 'profe';
+const isAlumno = () => rol() === 'alumno';
+const ROLE_LBL = { admin: 'Dirección', oficina: 'Oficina', profe: 'Profe', alumno: 'Alumno' };
+const DEFAULT_MSG = 'Hola {encargado}, ¿cómo estás? Te escribimos del {cursillo}. Te recordamos que {alumno} tiene pendiente:\n{detalle}\nTotal: {total}\n\n{transferencia}\nCualquier consulta estamos a disposición. ¡Gracias!';
+const yo = () => isAlumno() ? Object.values(S.alumnos).find(a => a.userId === S.session?.user?.id) : null;
+
+/* ---------- mapeo base ↔ app ---------- */
+const mapG = r => ({ id: r.id, nombre: r.nombre, programa: r.programa || '', horario: r.horario || '', inicio: r.inicio || '', fin: r.fin || '', activo: r.activo !== false, plan: Array.isArray(r.plan) ? r.plan : [] });
+const mapA = r => ({ id: r.id, userId: r.user_id, email: r.email || '', nombre: r.nombre || '', apellido: r.apellido || '', ci: r.ci || '', fechaNac: r.fecha_nac || '', tel: r.tel || '', ciudad: r.ciudad || '', colegio: r.colegio || '',
+  encargado: r.encargado || '', encargadoTel: r.encargado_tel || '', programa: r.programa || '', linkId: r.link_id || '', ficha: r.ficha || {}, fichaCompleta: !!r.ficha_completa, fichaFecha: r.ficha_fecha || '', grupoId: r.grupo_id || '', estado: r.estado,
+  desc: num(r.descuento), cuotaEsp: r.cuota_especial, matExon: !!r.mat_exonerada, obs: r.obs || '', inscripcion: (r.creado || '').slice(0, 10) });
+const mapP = r => ({ id: r.id, nro: r.nro, alumnoId: r.alumno_id, grupoId: r.grupo_id, itemId: r.item, concepto: r.concepto, monto: num(r.monto), fecha: r.fecha, metodo: r.metodo, obs: r.obs || '', por: r.registrado_por });
+
+/* ---------- índices y cálculos ---------- */
+function rebuild(which) {
+  if (which === 'pagos') { const m = {}; Object.values(S.pagos).forEach(p => (m[p.alumnoId] ||= []).push(p)); Object.values(m).forEach(l => l.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || num(b.nro) - num(a.nro))); S.idx.pagosByAlumno = m; }
+  if (which === 'asis') { const m = {}; Object.values(S.asis).forEach(d => (m[d.grupoId] ||= []).push(d)); Object.values(m).forEach(l => l.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))); S.idx.asisByGrupo = m; }
+  if (which === 'exams') { const m = {}; Object.values(S.exams).forEach(d => (m[d.grupoId] ||= []).push(d)); Object.values(m).forEach(l => l.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))); S.idx.examsByGrupo = m; }
+}
+const gruposOrden = () => Object.values(S.grupos).sort((a, b) => (b.activo !== false) - (a.activo !== false) || (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+const gruposActivos = () => gruposOrden().filter(g => g.activo !== false);
+const alumnosDe = (gid, bajas = false) => Object.values(S.alumnos).filter(a => a.grupoId === gid && (a.estado === 'activo' || (bajas && a.estado === 'baja'))).sort(cmpA);
+const activos = () => Object.values(S.alumnos).filter(a => a.estado === 'activo');
+const pendientes = () => Object.values(S.alumnos).filter(a => a.fichaCompleta && (a.estado === 'pendiente' || (a.estado === 'activo' && !a.grupoId))).sort((a, b) => (a.fichaFecha || '').localeCompare(b.fichaFecha || ''));
+const invitados = () => Object.values(S.alumnos).filter(a => a.estado === 'invitado').sort(cmpA);
+const gName = id => S.grupos[id]?.nombre || 'Sin grupo';
+
+function debido(a, it) {
+  if (it.id === 'mat') return a.matExon ? 0 : num(it.monto);
+  if (a.cuotaEsp !== undefined && a.cuotaEsp !== null && a.cuotaEsp !== '') return num(a.cuotaEsp);
+  return Math.round(num(it.monto) * (1 - Math.min(100, num(a.desc)) / 100));
+}
+function vencDe(a, it) {
+  const dp = a.ficha?.dia_pago; if (!it.venc || it.id === 'mat' || !dp) return it.venc || '';
+  const [y, m] = it.venc.split('-').map(Number); const ult = new Date(y, m, 0).getDate();
+  const d = /^Del 1 /.test(dp) ? 10 : /^Del 11/.test(dp) ? 20 : /^Del 21/.test(dp) ? ult : null;
+  return d ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : it.venc;
+}
+function cuenta(a) {
+  const g = S.grupos[a.grupoId]; const plan = Array.isArray(g?.plan) ? g.plan.map(it => ({ ...it, venc: vencDe(a, it) })) : []; const t = hoy();
+  const pagosA = (S.idx.pagosByAlumno[a.id] || []).filter(p => p.grupoId === a.grupoId);
+  const items = plan.map(it => {
+    const deb = debido(a, it); const pag = sum(pagosA.filter(p => p.itemId === it.id).map(p => p.monto));
+    const saldo = Math.max(0, deb - pag);
+    let est = deb === 0 ? 'exento' : saldo === 0 ? 'pagado' : (it.venc && it.venc < t ? 'vencido' : 'pendiente');
+    return { ...it, deb, pag, saldo, est };
+  });
+  const venc = items.filter(i => i.est === 'vencido');
+  return { items, vencido: sum(venc.map(i => i.saldo)), nVenc: venc.length, pendiente: sum(items.filter(i => i.est === 'pendiente').map(i => i.saldo)),
+           pagado: sum(pagosA.map(p => p.monto)), proximo: items.find(i => i.est === 'pendiente') };
+}
+function asisAlumno(a) {
+  const r = { P: 0, A: 0, T: 0, J: 0, faltas: [], marcas: [] };
+  Object.values(S.asis).filter(d => d.marcas?.[a.id]).sort((x, y) => (x.fecha || '').localeCompare(y.fecha || '')).forEach(d => {
+    const m = d.marcas[a.id]; r[m] = (r[m] || 0) + 1; r.marcas.push({ f: d.fecha, m }); if (m === 'A') r.faltas.push(d.fecha);
+  });
+  r.pct = pct(r.P + r.T, r.P + r.T + r.A); return r;
+}
+function asisGrupo(gid, desde) {
+  let pres = 0, base = 0;
+  (S.idx.asisByGrupo[gid] || []).forEach(d => { if (desde && d.fecha < desde) return; Object.entries(d.marcas || {}).forEach(([aid, m]) => { if (!S.alumnos[aid]) return; if (m === 'P' || m === 'T') { pres++; base++; } else if (m === 'A') base++; }); });
+  return pct(pres, base);
+}
+function asis7() { let pres = 0, base = 0; const d0 = addDays(hoy(), -6); Object.values(S.asis).forEach(d => { if ((d.fecha || '') < d0) return; Object.values(d.marcas || {}).forEach(m => { if (m === 'P' || m === 'T') { pres++; base++; } else if (m === 'A') base++; }); }); return pct(pres, base); }
+function statsGrupo(g) {
+  const al = alumnosDe(g.id); const t = hoy(); let esp = 0, cob = 0, venc = 0, deud = 0;
+  al.forEach(a => { const c = cuenta(a); c.items.forEach(i => { if (i.venc && i.venc <= t) { esp += i.deb; cob += Math.min(i.pag, i.deb); } }); venc += c.vencido; if (c.vencido > 0) deud++; });
+  return { n: al.length, cob: pct(cob, esp), venc, deud, asis: asisGrupo(g.id) };
+}
+
+/* ---------- conexión con Supabase ---------- */
+const CFG = window.VIBE_CONFIG || {};
+const configurado = () => CFG.SUPABASE_URL && !/TU-PROYECTO/.test(CFG.SUPABASE_URL) && CFG.SUPABASE_ANON_KEY && !/PEGAR/.test(CFG.SUPABASE_ANON_KEY);
+const HASH0 = new URLSearchParams(location.hash.slice(1));
+
+function errText(e) {
+  const m = String(e?.message || e || '');
+  if (/row-level security|permission denied|violates row-level/i.test(m)) return 'No tenés permiso para hacer esto.';
+  if (e?.code === '23505' || /duplicate key/i.test(m)) return /email/.test(m) ? 'Ya hay un alumno con ese correo.' : 'Ese dato ya existe.';
+  if (e?.code === '23503' || /foreign key/i.test(m)) return 'No se puede: hay datos que dependen de esto.';
+  if (/Failed to fetch|NetworkError|network/i.test(m)) return 'Sin conexión. Revisá internet y probá de nuevo.';
+  if (/Invalid login credentials/i.test(m)) return 'Correo o contraseña incorrectos.';
+  if (/Email not confirmed/i.test(m)) return 'Primero abrí el enlace que te llegó por correo.';
+  if (/Password should be at least/i.test(m)) return 'La contraseña tiene que tener al menos 6 caracteres.';
+  if (/rate limit|too many/i.test(m)) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
+  return m || 'Algo salió mal. Probá de nuevo.';
+}
+async function run(p, okMsg) {
+  try { const { data, error } = await p; if (error) { toast(errText(error), 'error'); return null; } if (okMsg) toast(okMsg); return data ?? true; }
+  catch (e) { toast(errText(e), 'error'); return null; }
+}
+async function fetchAll(table, cols, mod) {
+  let out = [], from = 0;
+  for (;;) {
+    let q = S.sb.from(table).select(cols); if (mod) q = mod(q); q = q.range(from, from + 999);
+    const { data, error } = await q; if (error) throw error;
+    out = out.concat(data || []); if (!data || data.length < 1000) break; from += 1000;
+  }
+  return out;
+}
+const LOADERS = {
+  grupos: async () => { S.grupos = idx((await fetchAll('grupos', '*', q => q.order('id'))).map(mapG)); },
+  alumnos: async () => { S.alumnos = idx((await fetchAll('alumnos', '*', q => q.order('id'))).map(mapA)); },
+  pagos: async () => { S.pagos = idx((await fetchAll('pagos', '*', q => q.order('nro'))).map(mapP)); rebuild('pagos'); },
+  asis: async () => {
+    const rows = await fetchAll('asistencia', 'grupo_id,fecha,alumno_id,marca,por', q => q.order('fecha').order('grupo_id').order('alumno_id'));
+    const m = {}; rows.forEach(r => { const k = r.grupo_id + '_' + r.fecha; const d = (m[k] ||= { id: k, grupoId: r.grupo_id, fecha: r.fecha, marcas: {}, por: r.por }); d.marcas[r.alumno_id] = r.marca; d.por = r.por || d.por; });
+    S.asis = m; rebuild('asis');
+  },
+  exams: async () => {
+    const ex = await fetchAll('examenes', '*', q => q.order('id')); const ns = await fetchAll('notas', '*', q => q.order('examen_id').order('alumno_id'));
+    const m = {}; ex.forEach(e => m[e.id] = { id: e.id, grupoId: e.grupo_id, nombre: e.nombre, materia: e.materia || '', fecha: e.fecha || '', max: num(e.maximo) || 100, notas: {} });
+    ns.forEach(n => { if (m[n.examen_id]) m[n.examen_id].notas[n.alumno_id] = num(n.nota); });
+    S.exams = m; rebuild('exams');
+  },
+  cfg: async () => { const { data } = await S.sb.from('config').select('valor').eq('clave', 'general').maybeSingle(); S.cfg = data?.valor || {}; },
+  perfiles: async () => { S.perfiles = idx(await fetchAll('perfiles', '*', q => q.order('id'))); },
+  pg: async () => { S.profeGrupos = await fetchAll('profe_grupos', '*', q => q.order('profe_id').order('grupo_id')); },
+  links: async () => { S.links = idx(await fetchAll('links_inscripcion', '*', q => q.order('creado'))); },
+  resultados: async () => { const { data } = await S.sb.rpc('mis_resultados'); S.resultados = Object.fromEntries((data || []).map(r => [r.examen_id, r])); }
+};
+const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'pg', 'links'], profe: ['cfg', 'pg', 'grupos', 'alumnos', 'asis', 'exams'], alumno: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'resultados'] };
+KEYS.oficina = KEYS.admin;
+async function load(keys) {
+  keys = keys || KEYS[rol()] || [];
+  try { await Promise.all(keys.map(async k => { await LOADERS[k](); S.loaded[k] = true; })); S.lastLoad = Date.now(); S.loadErr = null; }
+  catch (e) { S.loadErr = errText(e); }
+  syncDrafts(); render();
+}
+
+async function iniciar() {
+  if (!configurado()) { render(); return; }
+  if (!window.supabase) { S.fatal = 'No se pudo cargar la conexión. Revisá internet y recargá la página.'; render(); return; }
+  S.sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' } });
+  if (['invite', 'recovery'].includes(HASH0.get('type'))) S.needPassword = true;
+  if (CODIGO) { try { const { data } = await S.sb.rpc('info_link', { c: CODIGO }); S.linkInfo = (data && data[0]) || { invalido: true }; } catch (e) { S.linkInfo = { invalido: true }; } }
+  if (HASH0.get('error_description')) S.authMsg = /expired|invalid/i.test(HASH0.get('error_description')) ? 'El enlace ya venció o ya se usó. Pedí uno nuevo con "Olvidé mi contraseña" o avisá a la oficina.' : HASH0.get('error_description');
+  S.sb.auth.onAuthStateChange((ev, session) => {
+    if (ev === 'PASSWORD_RECOVERY') S.needPassword = true;
+    const antes = S.session?.user?.id; S.session = session;
+    if (ev === 'SIGNED_OUT') { limpiar(); render(); return; }
+    if (session && session.user.id !== antes) setTimeout(entrar, 0);
+  });
+  const { data } = await S.sb.auth.getSession();
+  S.session = data.session;
+  if (S.session) await entrar(); else render();
+}
+let entrando = false;
+async function entrar() {
+  if (entrando || !S.session || (S.perfil && S.perfil.id === S.session.user.id)) return; entrando = true;
+  try {
+    const { data, error } = await S.sb.from('perfiles').select('*').eq('id', S.session.user.id).maybeSingle();
+    if (error) { S.fatal = errText(error); render(); return; }
+    S.perfil = data;
+    if (CODIGO && data && data.rol === 'alumno') {
+      const { data: r } = await S.sb.rpc('usar_link', { c: CODIGO });
+      if (r === 'ok') toast('Listo, quedaste inscripto en ' + (S.linkInfo?.titulo || 'el curso'));
+      else if (r === 'link_invalido') toast('Ese link de inscripción ya no está activo. Pedile uno nuevo a la oficina.', 'error');
+    }
+    if (['invite', 'recovery', 'signup'].includes(HASH0.get('type')) || HASH0.get('access_token') || CODIGO) history.replaceState(null, '', location.pathname);
+    { const v = location.hash.slice(1); if (v && allowed(v)) S.view = v; else S.view = startView(); }
+    render();
+    if (S.perfil && S.perfil.activo) await load();
+  } finally { entrando = false; }
+}
+function limpiar() { Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null }); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !hasDraft()) load(); });
+
+/* ---------- UI base ---------- */
+function toast(msg, kind = 'ok') { const el = document.createElement('div'); el.className = 'toast ' + kind; el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), kind === 'error' ? 6000 : 2800); }
+function openModal(title, body, foot = '', cls = '') {
+  $('#modal-root').innerHTML = `<div class="ov" data-act="ovclose"><div class="dlg ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="dlg-h"><h2>${esc(title)}</h2><button class="x" data-act="close" aria-label="Cerrar">${ic('x')}</button></div>
+    <div class="dlg-b">${body}</div>${foot ? `<div class="dlg-f">${foot}</div>` : ''}</div></div>`;
+  const f = $('#modal-root .dlg input:not([type=hidden]):not([type=checkbox]):not([type=radio]), #modal-root .dlg select, #modal-root .dlg textarea');
+  if (f && window.innerWidth > 860) f.focus();
+}
+const closeModal = () => { $('#modal-root').innerHTML = ''; document.body.classList.remove('print-rcb'); };
+const modalOpen = () => !!$('#modal-root .ov');
+let CONFIRM = null;
+function confirmDlg(text, yesLbl, onYes, danger = true) {
+  openModal('Confirmar', `<p style="margin:0">${esc(text)}</p>`, `<button class="btn" data-act="close">Cancelar</button><button class="btn ${danger ? 'dark' : 'primary'}" data-act="confirm-yes">${esc(yesLbl)}</button>`, 'narrow');
+  CONFIRM = onYes;
+}
+const pill = (t, k = '') => `<span class="pill ${k}">${esc(t)}</span>`;
+const kpi = (l, v, s, k = '') => `<div class="kpi ${k}"><span class="l">${esc(l)}</span><span class="v">${v}</span>${s ? `<span class="s">${s}</span>` : ''}</div>`;
+const ph = (t, sub, acts = '') => `<div class="ph"><div><h1>${esc(t)}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${acts ? `<div class="actions">${acts}</div>` : ''}</div>`;
+const bar = p => p == null ? '<span class="muted">—</span>' : `<div style="display:flex;align-items:center;gap:8px"><div class="bar ${p < 60 ? 'low' : p < 85 ? 'mid' : ''}" style="flex:1"><i style="width:${Math.max(0, Math.min(100, p))}%"></i></div><span class="num" style="font-size:13px">${p}%</span></div>`;
+const optGrupos = (sel, todos) => (todos ? `<option value="">${esc(todos)}</option>` : '') + gruposOrden().map(g => `<option value="${esc(g.id)}" ${g.id === sel ? 'selected' : ''}>${esc(g.nombre)}${g.activo === false ? ' (archivado)' : ''}</option>`).join('');
+function pillCuenta(c) {
+  if (!c.items.length) return pill('Sin plan de pagos');
+  if (c.vencido > 0) return pill('Debe ' + money(c.vencido), 'bad');
+  if (c.pendiente > 0) return pill('Al día', 'ok');
+  return pill('Pagó todo', 'ok');
+}
+function pillEstado(a) {
+  if (a.estado === 'invitado') return pill('Invitado · sin ficha', 'pend');
+  if (a.estado === 'pendiente') return pill('Ficha lista · sin grupo', 'late');
+  if (a.estado === 'baja') return pill('De baja');
+  if (!a.grupoId) return pill('Sin grupo', 'late');
+  return '';
+}
+function estItem(i) {
+  if (i.est === 'pagado') return pill('Pagado', 'ok');
+  if (i.est === 'exento') return pill('Exento');
+  if (i.est === 'vencido') return pill(i.pag > 0 ? 'Vencido · parcial' : 'Vencido', 'bad');
+  return pill(i.pag > 0 ? 'Parcial' : 'Pendiente', 'pend');
+}
+const who = id => !id ? '—' : id === S.session?.user?.id ? 'vos' : (S.perfiles[id]?.nombre || S.perfiles[id]?.email || 'alguien del equipo');
+
+/* ---------- navegación ---------- */
+const NAV = [
+  { id: 'inicio', l: 'Inicio', i: 'home', r: ['admin', 'oficina', 'profe'] },
+  { id: 'inscripciones', l: 'Inscripciones', i: 'inbox', r: ['admin', 'oficina'] },
+  { id: 'grupos', l: 'Grupos', i: 'layers', r: ['admin', 'oficina'] },
+  { id: 'alumnos', l: 'Alumnos', i: 'users', r: ['admin', 'oficina', 'profe'] },
+  { id: 'asistencia', l: 'Asistencia', i: 'check', r: ['admin', 'oficina', 'profe'] },
+  { id: 'cobros', l: 'Cobros', i: 'wallet', r: ['admin', 'oficina'] },
+  { id: 'examenes', l: 'Exámenes', i: 'award', r: ['admin', 'oficina', 'profe'] },
+  { id: 'horario', l: 'Horario', i: 'clock', r: ['profe', 'admin', 'oficina'] },
+  { id: 'equipo', l: 'Equipo', i: 'team', r: ['admin'] },
+  { id: 'ajustes', l: 'Ajustes', i: 'gear', r: ['admin', 'oficina'] },
+  { id: 'mi-inicio', l: 'Inicio', i: 'home', r: ['alumno'] },
+  { id: 'mis-cuotas', l: 'Cuotas', i: 'wallet', r: ['alumno'] },
+  { id: 'mis-notas', l: 'Notas', i: 'award', r: ['alumno'] },
+  { id: 'mi-asistencia', l: 'Asistencia', i: 'check', r: ['alumno'] },
+  { id: 'mis-datos', l: 'Mis datos', i: 'user', r: ['alumno'] },
+  { id: 'cuenta', l: 'Mi cuenta', i: 'user', r: ['admin', 'oficina', 'profe', 'alumno'], hide: true }
+];
+const allowed = v => { const n = NAV.find(x => x.id === v); return !!n && n.r.includes(rol()); };
+const startView = () => isAlumno() ? 'mi-inicio' : 'inicio';
+const TABS = { admin: ['inicio', 'alumnos', 'asistencia', 'cobros'], oficina: ['inicio', 'alumnos', 'asistencia', 'cobros'], profe: ['inicio', 'asistencia', 'examenes', 'alumnos', 'horario'], alumno: ['mi-inicio', 'mis-cuotas', 'mis-notas', 'mi-asistencia', 'mis-datos'] };
+function hasDraft() { return (S.draftAsis && S.draftAsis.dirty) || (S.draftExam && S.draftExam.dirty); }
+function go(v, after) {
+  const doIt = () => { if (!allowed(v)) v = startView(); S.view = v; S.selAlumno = null; S.selGrupo = null; if (after) after(); if (location.hash.slice(1) !== v) location.hash = v; render(); window.scrollTo(0, 0); };
+  if (hasDraft() && v !== S.view) { confirmDlg('Tenés cambios sin guardar (lista o notas). Si salís se pierden.', 'Salir sin guardar', () => { S.draftAsis = null; S.draftExam = null; doIt(); }); return; }
+  doIt();
+}
+window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (S.perfil && v && v !== S.view && NAV.some(n => n.id === v)) go(v); });
+const badgeN = id => id === 'inscripciones' ? pendientes().length : 0;
+
+function renderShell() {
+  const app = $('#app'); const logged = S.perfil && S.perfil.activo && !S.needPassword && !(isAlumno() && yo() && !yo().fichaCompleta);
+  app.classList.toggle('solo', !logged); if (!logged) return;
+  const items = NAV.filter(n => n.r.includes(rol()) && !n.hide);
+  const nom = (isAlumno() && yo() ? nombreA(yo()) : S.perfil.nombre) || S.perfil.email;
+  $('#side').innerHTML = `<div class="brand">${LOGO()}</div>
+    <nav class="nav">${items.map(n => { const b = badgeN(n.id); return `<button data-act="nav" data-v="${n.id}" ${S.view === n.id ? 'aria-current="page"' : ''}>${ic(n.i)}${n.l}${b ? `<span class="badge">${b}</span>` : ''}</button>`; }).join('')}</nav>
+    <div class="side-foot"><span class="role">${ROLE_LBL[rol()]}</span><small style="overflow-wrap:anywhere">${esc(nom)}</small>
+    <div class="actions"><button class="btn sm" data-act="nav" data-v="cuenta">${ic('user')}Mi cuenta</button><button class="btn sm ghost" data-act="salir">${ic('logout')}Salir</button></div></div>`;
+  $('#topbar').innerHTML = `<div class="brand" style="width:150px">${LOGO()}</div><div class="tb-r"><span class="role">${ROLE_LBL[rol()]}</span><button class="icon-btn" data-act="nav" data-v="cuenta" aria-label="Mi cuenta">${ic('user')}</button></div>`;
+  const tabIds = TABS[rol()] || [];
+  const moreIds = isStaff() ? NAV.filter(n => n.r.includes(rol()) && !n.hide && !tabIds.includes(n.id)).map(n => n.id) : [];
+  const moreBadge = moreIds.reduce((s, id) => s + badgeN(id), 0);
+  $('#tabs').innerHTML = tabIds.map(id => { const n = NAV.find(x => x.id === id); return `<button data-act="nav" data-v="${id}" ${S.view === id ? 'aria-current="page"' : ''}>${ic(n.i)}${n.l === 'Mis datos' ? 'Datos' : n.l}</button>`; }).join('')
+    + (moreIds.length ? `<button data-act="more" ${moreIds.includes(S.view) ? 'aria-current="page"' : ''}>${ic('more')}Más${moreBadge ? `<span class="badge">${moreBadge}</span>` : ''}</button>` : '');
+}
+function render() {
+  renderShell();
+  const ae = document.activeElement; const main = $('#main');
+  const fid = ae && ae.id && main.contains(ae) ? ae.id : null; let ss = null, se = null;
+  if (fid) { try { ss = ae.selectionStart; se = ae.selectionEnd; } catch (e) { } }
+  let html = '';
+  try { html = pantalla(); } catch (e) { console.error(e); html = `<div class="banner bad">Algo falló al mostrar esta pantalla. Recargá la página.</div>`; }
+  main.innerHTML = html;
+  if (fid) { const n = document.getElementById(fid); if (n) { n.focus({ preventScroll: true }); try { if (ss != null) n.setSelectionRange(ss, se); } catch (e) { } } }
+}
+function pantalla() {
+  if (!configurado()) return authCard(`<div class="banner bad">Falta conectar la app con Supabase. Completá <b>config.js</b> con la URL y la anon key del proyecto.</div>`);
+  if (S.fatal) return authCard(`<div class="banner bad">${esc(S.fatal)}</div><button class="btn" data-act="recargar">Recargar</button>`);
+  if (!S.session) return vAuth();
+  if (S.needPassword) return vNuevaClave();
+  if (!S.perfil) return authCard(`<div class="loading">Cargando tu cuenta…</div>`);
+  if (!S.perfil.activo) return authCard(`<div class="banner bad">Tu acceso está desactivado. Hablá con la dirección de VIBE.</div><button class="btn" data-act="salir">Salir</button>`);
+  let pre = S.loadErr ? `<div class="banner bad">No se pudieron cargar los datos: ${esc(S.loadErr)} <button class="btn sm" data-act="recargar-datos">Reintentar</button></div>` : '';
+  if (isAlumno()) {
+    if (!S.loaded.alumnos) return `<div class="loading">Cargando…</div>`;
+    const a = yo();
+    if (!a) return authCard(`<div class="banner bad">Tu cuenta todavía no tiene una ficha asociada. Avisá a la oficina de VIBE.</div><button class="btn" data-act="salir">Salir</button>`);
+    if (!a.fichaCompleta) return vOnboarding(a);
+  }
+  const fn = VIEWS[S.view] || VIEWS[startView()];
+  return pre + fn();
+}
+let rq = false;
+function sched() { if (rq) return; rq = true; requestAnimationFrame(() => { rq = false; render(); }); }
+const ready = (...k) => k.every(x => S.loaded[x]);
+const loadingView = () => `<div class="loading">Cargando datos…</div>`;
+
+/* ---------- pantallas de acceso ---------- */
+const LOGO = () => `<img class="logo cla" src="img/logo-vibe.png" alt="Cursillo VIBE"><img class="logo osc" src="img/logo-vibe-oscuro.png" alt="Cursillo VIBE">`;
+const authCard = inner => `<div class="auth"><div class="auth-card"><div>${LOGO()}</div>${inner}</div></div>`;
+function vAuth() {
+  const msg = S.authMsg ? `<div class="banner ${S.authOk ? 'ok' : 'bad'}">${esc(S.authMsg)}</div>` : '';
+  const L = S.linkInfo;
+  if (CODIGO && S.authView === 'registro') {
+    if (!L) return authCard(`<div class="loading">Cargando…</div>`);
+    if (L.invalido || !L.activo) return authCard(`<div><h1>Link no disponible</h1></div><div class="banner bad">Este link de inscripción ya no está activo. Pedile uno nuevo a la oficina de VIBE.</div><button class="linkbtn" data-act="auth-view" data-v="login">Ya tengo cuenta: entrar</button>`);
+    if (S.registroEnviado) return authCard(`<div><h1>Revisá tu correo</h1><p class="muted" style="margin:6px 0 0">Te mandamos un correo a <b>${esc(S.registroEnviado)}</b>. Abrilo y tocá <b>Confirmar</b>; después completás tu ficha.</p></div><small>¿No llegó? Fijate en Spam o Promociones.</small>`);
+    return authCard(`<div><span class="pill acc">Inscripción</span><h1 style="margin-top:8px">${esc(L.titulo)}</h1><p class="muted" style="margin:6px 0 0">Creá tu cuenta con tu correo. Después completás tu ficha y la oficina te confirma tu grupo.</p></div>${msg}
+      <form data-form="registro"><div class="fld"><label for="r-email">Tu correo</label><input class="inp" id="r-email" type="email" autocomplete="email" required></div>
+      <div class="fld"><label for="r-pass">Elegí una contraseña</label><input class="inp" id="r-pass" type="password" autocomplete="new-password" minlength="6" required><span class="hint">Mínimo 6 caracteres. La vas a usar para entrar a la app.</span></div>
+      <div class="fld"><label for="r-pass2">Repetila</label><input class="inp" id="r-pass2" type="password" autocomplete="new-password" required></div>
+      <div class="err" id="r-err"></div><button class="btn primary block" type="submit">Crear mi cuenta</button></form>
+      <button class="linkbtn" data-act="auth-view" data-v="login">Ya tengo cuenta: entrar</button>`);
+  }
+  if (S.authView === 'olvide') return authCard(`<div><h1>Recuperar acceso</h1><p class="muted" style="margin:6px 0 0">Te mandamos un correo para elegir una contraseña nueva.</p></div>${msg}
+    <form data-form="olvide"><div class="fld"><label for="l-email">Correo</label><input class="inp" id="l-email" type="email" autocomplete="email" required></div>
+    <button class="btn primary block" type="submit">Enviar correo</button></form><button class="linkbtn" data-act="auth-view" data-v="login">Volver a entrar</button>`);
+  return authCard(`<div><h1>Entrá a la app</h1><p class="muted" style="margin:6px 0 0">${CODIGO && L && L.activo ? 'Entrá con tu cuenta y te inscribimos en <b>' + esc(L.titulo) + '</b>.' : 'Alumnos, profes y oficina de VIBE.'}</p></div>${msg}
+    <form data-form="login"><div class="fld"><label for="l-email">Correo</label><input class="inp" id="l-email" type="email" autocomplete="email" required></div>
+    <div class="fld"><label for="l-pass">Contraseña</label><input class="inp" id="l-pass" type="password" autocomplete="current-password" required></div>
+    <button class="btn primary block" type="submit">Entrar</button></form>
+    <button class="linkbtn" data-act="auth-view" data-v="olvide">Olvidé mi contraseña</button>
+    ${CODIGO && L && L.activo ? `<button class="linkbtn" data-act="auth-view" data-v="registro">No tengo cuenta: crear una</button>` : `<small>¿Todavía no tenés cuenta? Cuando pagás la matrícula la oficina te pasa el link de inscripción.</small>`}`);
+}
+function vNuevaClave() {
+  return authCard(`<div><h1>Creá tu contraseña</h1><p class="muted" style="margin:6px 0 0">${esc(S.session?.user?.email || '')}</p></div>
+    <form data-form="clave"><div class="fld"><label for="n-pass">Contraseña nueva</label><input class="inp" id="n-pass" type="password" autocomplete="new-password" minlength="6" required><span class="hint">Mínimo 6 caracteres.</span></div>
+    <div class="fld"><label for="n-pass2">Repetila</label><input class="inp" id="n-pass2" type="password" autocomplete="new-password" required></div>
+    <div class="err" id="n-err"></div><button class="btn primary block" type="submit">Guardar y entrar</button></form>`);
+}
+
+/* ---------- ficha (alumno) ---------- */
+function valorFicha(a, f) { return f.col ? (a[COL2CAMEL[f.k]] || '') : (a.ficha?.[f.k] ?? ''); }
+function fichaForm(a, pref = 'f', todos = false) {
+  const campos = FICHA.filter(f => f.sec || aplica(f, a, todos));
+  return `<div class="form">${campos.filter((f, i) => !f.sec || (campos[i + 1] && !campos[i + 1].sec)).map(f => {
+    if (f.sec) return `<div class="fsec">${esc(f.sec)}</div>`;
+    const id = `${pref}-${f.k}`; const v = valorFicha(a, f); const lbl = `<label for="${id}">${esc(f.l)}${f.req ? ' <span class="req">*</span>' : ''}</label>`;
+    let inp;
+    if (f.t === 'select') inp = `<select class="inp" id="${id}" data-k="${f.k}"><option value="">Elegí…</option>${f.ops.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}${v && !f.ops.includes(v) ? `<option selected>${esc(v)}</option>` : ''}</select>`;
+    else if (f.t === 'textarea') inp = `<textarea class="inp" id="${id}" data-k="${f.k}" placeholder="${esc(f.ph || '')}" style="min-height:70px">${esc(v)}</textarea>`;
+    else inp = `<input class="inp" id="${id}" data-k="${f.k}" type="${f.t || 'text'}" value="${esc(v)}" ${f.im ? `inputmode="${f.im}"` : ''} placeholder="${esc(f.ph || '')}">`;
+    return `<div class="fld ${f.full ? 'full' : ''}">${lbl}${inp}${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
+  }).join('')}</div>`;
+}
+function leerFicha(pref = 'f', validar = true) {
+  const datos = { ficha: {} }; let falta = null;
+  FICHA.filter(f => f.k).forEach(f => {
+    const el = $(`#${pref}-${f.k}`); if (!el) return; const v = el.value.trim(); el.classList.remove('inv');
+    const req = f.req || (f.reqSi && ($(`#${pref}-${f.reqSi[0]}`)?.value || '') === f.reqSi[1]);
+    if (validar && req && !v) { el.classList.add('inv'); falta = falta || el; }
+    if (f.col) datos[f.k] = v; else datos.ficha[f.k] = v;
+  });
+  return { datos, falta };
+}
+function vOnboarding(a) {
+  return `<div class="onb"><div class="brand">${LOGO()}</div>
+    ${ph('¡Bienvenido/a a VIBE!', 'Completá tu ficha de inscripción. Con esto la oficina te asigna a tu grupo y ya vas a poder ver tus cuotas, notas y asistencia.')}
+    <div class="card"><div class="card-b">${fichaForm(a)}<div class="err" id="f-err" style="margin-top:12px"></div></div>
+    <div class="savebar" style="position:static"><small>${esc(a.email)}</small><div class="actions"><button class="btn ghost" data-act="salir">Salir</button><button class="btn primary" data-act="ficha-guardar">Enviar mi ficha</button></div></div></div></div>`;
+}
+
+/* ---------- vistas del alumno ---------- */
+const VIEWS = {};
+VIEWS['mi-inicio'] = () => {
+  const a = yo(); const g = S.grupos[a.grupoId]; const c = cuenta(a); const as = asisAlumno(a);
+  const exs = Object.values(S.exams).filter(e => e.notas[a.id] !== undefined).sort((x, y) => (y.fecha || '').localeCompare(x.fecha || ''));
+  let h = ph(`Hola, ${a.nombre.split(' ')[0] || ''}`, fechaLarga(hoy()));
+  if (a.estado === 'pendiente' || !a.grupoId) h += `<div class="banner">Tu ficha está completa. La oficina te va a asignar a tu grupo; cuando lo haga vas a ver acá tus cuotas, notas y asistencia.</div>`;
+  if (a.estado === 'baja') h += `<div class="banner">Figurás de baja en el cursillo. Si es un error, hablá con la oficina.</div>`;
+  h += `<div class="kpis">${kpi('Mi grupo', esc(g ? g.nombre : '—'), g?.horario ? esc(g.horario) : '')}
+    ${c.vencido ? kpi('Cuotas vencidas', money(c.vencido), c.nVenc + ' cuota(s)', 'bad') : kpi('Próxima cuota', c.proximo ? money(c.proximo.saldo) : '—', c.proximo ? esc(c.proximo.concepto) + ' · vence ' + fmtF(c.proximo.venc) : 'nada pendiente')}
+    ${kpi('Asistencia', as.pct == null ? '—' : as.pct + '%', `${as.A} falta${as.A === 1 ? '' : 's'}`, as.pct != null && as.pct < 70 ? 'bad' : '')}
+    ${kpi('Último examen', exs[0] ? Math.round(exs[0].notas[a.id] / exs[0].max * 100) + '%' : '—', exs[0] ? esc(exs[0].nombre) : 'sin notas')}</div>`;
+  h += `<div class="grid2"><div class="card"><div class="card-h"><h2>Cuotas</h2><button class="btn sm ghost" data-act="nav" data-v="mis-cuotas">Ver todo</button></div><div class="rows">${c.items.filter(i => i.saldo > 0).slice(0, 4).map(i => `<div class="row"><div class="t">${esc(i.concepto)}<small>Vence ${fmtF(i.venc)}</small></div><div class="r"><span class="num ${i.est === 'vencido' ? 'bad-t' : ''}">${money(i.saldo)}</span>${estItem(i)}</div></div>`).join('') || '<div class="empty">No tenés cuotas pendientes.</div>'}</div></div>
+    <div class="card"><div class="card-h"><h2>Mis últimas notas</h2><button class="btn sm ghost" data-act="nav" data-v="mis-notas">Ver todo</button></div><div class="rows">${exs.slice(0, 4).map(e => { const p = Math.round(e.notas[a.id] / e.max * 100); return `<div class="row"><div class="t">${esc(e.nombre)}<small>${fmtF(e.fecha)}</small></div><div class="r">${pill(p + '%', p >= 60 ? 'ok' : 'bad')}</div></div>`; }).join('') || '<div class="empty">Todavía no hay notas.</div>'}</div></div></div>`;
+  return h;
+};
+VIEWS['mis-cuotas'] = () => {
+  const a = yo(); const c = cuenta(a); const pagos = S.idx.pagosByAlumno[a.id] || [];
+  let h = ph('Mis cuotas', esc(gName(a.grupoId)));
+  h += `<div class="kpis">${kpi('Vencido', money(c.vencido), c.nVenc ? c.nVenc + ' cuota(s)' : 'nada vencido', c.vencido ? 'bad' : '')}${kpi('Por vencer', money(c.pendiente), '')}${kpi('Pagado', money(c.pagado), pagos.length + ' pago(s)')}</div>`;
+  h += `<div class="card"><div class="card-h"><h2>Estado de cuenta</h2>${a.desc ? pill(num(a.desc) + '% de descuento', 'acc') : ''}</div>${c.items.length ? `<div class="tw"><table><thead><tr><th>Concepto</th><th>Vence</th><th class="n">Monto</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th></tr></thead><tbody>${c.items.map(i => `<tr><td>${esc(i.concepto)}</td><td>${fmtF(i.venc)}</td><td class="n">${money(i.deb)}</td><td class="n">${i.pag ? money(i.pag) : '—'}</td><td class="n num ${i.est === 'vencido' ? 'bad-t' : ''}">${i.saldo ? money(i.saldo) : '—'}</td><td>${estItem(i)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Todavía no tenés un plan de pagos asignado.</div>'}</div>`;
+  h += `<div class="card"><div class="card-h"><h2>Mis pagos y recibos</h2></div><div class="rows">${pagos.map(p => `<div class="row click" data-act="recibo" data-id="${esc(p.id)}"><div class="t">${esc(p.concepto)}<small>${fmtF(p.fecha)} · ${esc(p.metodo)} · Recibo N° ${String(p.nro).padStart(5, '0')}</small></div><div class="r"><span class="num">${money(p.monto)}</span>${ic('receipt')}</div></div>`).join('') || '<div class="empty">Todavía no hay pagos registrados.</div>'}</div></div>`;
+  if (S.cfg.transf) h += `<div class="card"><div class="card-h"><h2>Para pagar por transferencia</h2></div><div class="card-b" style="white-space:pre-line">${esc(S.cfg.transf)}</div></div>`;
+  return h;
+};
+VIEWS['mis-notas'] = () => {
+  const a = yo(); const exs = Object.values(S.exams).filter(e => e.notas[a.id] !== undefined).sort((x, y) => (y.fecha || '').localeCompare(x.fecha || ''));
+  const vals = exs.slice().reverse().map(e => Math.round(e.notas[a.id] / e.max * 100));
+  let h = ph('Mis notas', exs.length ? `Promedio general: <b>${Math.round(sum(vals) / vals.length)}%</b>` : '');
+  h += `<div class="card"><div class="card-h"><h2>Exámenes</h2>${sparkline(vals)}</div>${exs.length ? `<div class="tw"><table><thead><tr><th>Examen</th><th>Fecha</th><th class="n">Nota</th><th class="n">%</th><th class="n">Promedio del grupo</th><th class="n">Puesto</th></tr></thead><tbody>${exs.map(e => { const v = e.notas[a.id]; const p = Math.round(v / e.max * 100); const r = S.resultados[e.id];
+    return `<tr><td><b>${esc(e.nombre)}</b>${e.materia ? `<br><small>${esc(e.materia)}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n num">${fmtN(v)} / ${fmtN(e.max)}</td><td class="n ${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</td><td class="n">${r ? Math.round(num(r.promedio) / e.max * 100) + '%' : '—'}</td><td class="n">${r ? r.puesto + '° de ' + r.rindieron : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Todavía no hay notas cargadas.</div>'}</div>`;
+  return h;
+};
+VIEWS['mi-asistencia'] = () => {
+  const a = yo(); const as = asisAlumno(a);
+  let h = ph('Mi asistencia', as.pct == null ? '' : `Asistencia: <b>${as.pct}%</b>`);
+  h += `<div class="kpis">${kpi('Presente', as.P, '')}${kpi('Tarde', as.T, '')}${kpi('Ausente', as.A, '', as.A ? 'bad' : '')}${kpi('Justificada', as.J, '')}</div>`;
+  h += `<div class="card"><div class="card-h"><h2>Clase por clase</h2><div class="cnt"><span><i class="dot d-P"></i>Presente</span><span><i class="dot d-T"></i>Tarde</span><span><i class="dot d-A"></i>Ausente</span><span><i class="dot d-J"></i>Justificada</span></div></div><div class="card-b">${as.marcas.length ? `<div class="strip">${as.marcas.map(m => `<i class="d-${m.m}" title="${fmtF(m.f)}"></i>`).join('')}</div>${as.faltas.length ? `<p style="margin:14px 0 0"><b>Faltas:</b> ${as.faltas.slice().reverse().map(fmtF).join(', ')}</p>` : '<p class="muted" style="margin:14px 0 0">Sin faltas. ¡Bien!</p>'}` : '<span class="muted">Todavía no se tomó lista en tu grupo.</span>'}</div></div>`;
+  return h;
+};
+VIEWS['mis-datos'] = () => {
+  const a = yo();
+  return ph('Mis datos', esc(a.email)) + `<div class="card"><div class="card-b">${fichaForm(a, 'md')}<div class="err" id="md-err" style="margin-top:12px"></div></div><div class="savebar"><small>Si cambiás algo, la oficina lo ve al instante.</small><button class="btn primary" data-act="datos-guardar">Guardar cambios</button></div></div>`;
+};
+VIEWS.cuenta = () => {
+  const p = S.perfil;
+  return ph('Mi cuenta', esc(p.email)) + `<div class="grid2"><div class="card"><div class="card-h"><h2>Cambiar contraseña</h2></div><div class="card-b"><form data-form="clave2" style="display:flex;flex-direction:column;gap:12px">
+    <div class="fld"><label for="c2-pass">Contraseña nueva</label><input class="inp" id="c2-pass" type="password" autocomplete="new-password" minlength="6" required></div>
+    <div class="fld"><label for="c2-pass2">Repetila</label><input class="inp" id="c2-pass2" type="password" autocomplete="new-password" required></div>
+    <div class="err" id="c2-err"></div><div><button class="btn primary" type="submit">Guardar contraseña</button></div></form></div></div>
+    <div class="card"><div class="card-h"><h2>Sesión</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start"><dl class="dl"><dt>Nombre</dt><dd>${esc(p.nombre || '—')}</dd><dt>Rol</dt><dd>${ROLE_LBL[p.rol]}</dd></dl>
+    <button class="btn" data-act="salir">${ic('logout')}Cerrar sesión</button><small>Para instalar la app en el celular: abrí este link en el navegador y elegí “Agregar a pantalla de inicio”.</small></div></div></div>`;
+};
+
+/* ---------- vistas de oficina y profes ---------- */
+VIEWS.inicio = () => {
+  if (!ready('grupos', 'alumnos')) return loadingView();
+  const t = hoy(); const gs = gruposActivos(); const al = activos();
+  const nombre = (S.perfil.nombre || '').split(' ')[0];
+  let h = ph(`Hola${nombre ? ', ' + nombre : ''}`, fechaLarga(t), isStaff() && Object.keys(S.grupos).length ? `<button class="btn" data-act="invitar-alumno">${ic('mail')}Invitar alumno</button><button class="btn primary" data-act="pago-nuevo">${ic('plus')}Registrar pago</button>` : '');
+  if (!Object.keys(S.grupos).length) {
+    if (!isStaff()) return h + `<div class="card"><div class="empty"><b>Todavía no tenés grupos asignados</b>Cuando la dirección te asigne tus grupos, vas a poder tomar asistencia y cargar notas desde acá.</div></div>`;
+    return h + `<div class="steps">
+      <div class="step"><span class="k">PASO 1</span><h2>Creá tus grupos</h2><p class="muted" style="margin:0">Nombre, horario y el plan de pagos: matrícula y cuotas con sus vencimientos.</p><button class="btn primary" data-act="grupo-nuevo">${ic('plus')}Nuevo grupo</button></div>
+      <div class="step"><span class="k">PASO 2</span><h2>Cargá o invitá alumnos</h2><p class="muted" style="margin:0">Importá tu Excel o invitá a cada alumno por correo para que complete su ficha.</p><div class="actions"><button class="btn" data-act="importar">${ic('upload')}Importar Excel</button><button class="btn" data-act="invitar-alumno">${ic('mail')}Invitar</button></div></div>
+      <div class="step"><span class="k">PASO 3</span><h2>Sumá a tu equipo</h2><p class="muted" style="margin:0">Los profes toman lista y cargan notas desde el celular; la oficina cobra y asigna grupos.</p>${isAdmin() ? `<button class="btn" data-act="nav" data-v="equipo">Ir a Equipo</button>` : ''}</div></div>`;
+  }
+  if (isStaff()) {
+    const pend = pendientes();
+    if (pend.length) h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span><b>${pend.length} alumno${pend.length === 1 ? '' : 's'}</b> completaron su ficha y esperan que les asignes grupo.</span><span class="btn sm primary">Asignar grupo</span></div>`;
+    const mes = t.slice(0, 7); const pm = Object.values(S.pagos).filter(p => (p.fecha || '').startsWith(mes));
+    const deud = al.map(a => ({ a, c: cuenta(a) })).filter(x => x.c.vencido > 0).sort((x, y) => y.c.vencido - x.c.vencido);
+    const tv = sum(deud.map(x => x.c.vencido)); const a7 = asis7();
+    h += `<div class="kpis">
+      ${kpi('Alumnos activos', fmtN(al.length), `en ${gs.length} grupo${gs.length === 1 ? '' : 's'}`)}
+      ${kpi('Cobrado en ' + MESES[+mes.slice(5) - 1], money(sum(pm.map(p => p.monto))), `${pm.length} pago${pm.length === 1 ? '' : 's'}`)}
+      ${kpi('Vencido sin cobrar', money(tv), `${deud.length} alumno${deud.length === 1 ? '' : 's'} con deuda`, tv > 0 ? 'bad' : '')}
+      ${kpi('Asistencia 7 días', a7 == null ? '—' : a7 + '%', 'presentes y tardanzas')}
+    </div>`;
+    h += `<div class="grid2">${cardListasHoy()}
+      <div class="card"><div class="card-h"><h2>Cuotas vencidas</h2>${deud.length ? `<button class="btn sm ghost" data-act="nav" data-v="cobros">Ver todas</button>` : ''}</div>
+      <div class="rows">${deud.length ? deud.slice(0, 6).map(x => rowDeuda(x.a, x.c)).join('') : `<div class="empty"><b>Nadie con cuotas vencidas</b>Todo al día por ahora.</div>`}</div></div></div>`;
+  } else {
+    h += `<div class="grid2">${cardListasHoy()}${cardExamenesRecientes()}</div>`;
+  }
+  h += `<div class="card"><div class="card-h"><h2>${isStaff() ? 'Grupos activos' : 'Mis grupos'}</h2>${isStaff() ? `<button class="btn sm ghost" data-act="nav" data-v="grupos">Administrar</button>` : ''}</div><div class="tw"><table>
+    <thead><tr><th>Grupo</th><th class="n">Alumnos</th>${isStaff() ? '<th style="min-width:140px">Cobranza</th><th class="n">Vencido</th>' : ''}<th style="min-width:140px">Asistencia</th></tr></thead><tbody>
+    ${gs.map(g => { const s = statsGrupo(g); return `<tr class="${isStaff() ? 'click' : ''}" ${isStaff() ? `data-act="ver-grupo" data-id="${esc(g.id)}"` : ''}><td><b>${esc(g.nombre)}</b><br><small>${esc(g.horario || g.programa || '')}</small></td><td class="n num">${s.n}</td>${isStaff() ? `<td>${bar(s.cob)}</td><td class="n ${s.venc ? 'bad-t' : ''}">${s.venc ? money(s.venc) : '—'}</td>` : ''}<td>${bar(s.asis)}</td></tr>`; }).join('') || `<tr><td colspan="5" class="muted">No hay grupos activos.</td></tr>`}
+    </tbody></table></div></div>`;
+  return h;
+};
+function cardListasHoy() {
+  const t = hoy(); const gs = gruposActivos();
+  return `<div class="card"><div class="card-h"><h2>Listas de hoy</h2><small>${fmtF(t)}</small></div><div class="rows">${gs.map(g => {
+    const d = S.asis[g.id + '_' + t]; const n = alumnosDe(g.id).length;
+    if (d) { const v = Object.values(d.marcas || {}); const p = v.filter(m => m === 'P' || m === 'T').length;
+      return `<div class="row click" data-act="tomar" data-g="${esc(g.id)}"><div class="t">${esc(g.nombre)}<small>Tomada por ${esc(who(d.por))}</small></div><div class="r">${pill(p + '/' + n + ' presentes', 'ok')}</div></div>`; }
+    return `<div class="row"><div class="t">${esc(g.nombre)}<small>${n} alumno${n === 1 ? '' : 's'}${g.horario ? ' · ' + esc(g.horario) : ''}</small></div><div class="r"><button class="btn sm" data-act="tomar" data-g="${esc(g.id)}">${ic('check')}Tomar lista</button></div></div>`;
+  }).join('') || '<div class="empty">No hay grupos activos.</div>'}</div></div>`;
+}
+function cardExamenesRecientes() {
+  const ex = Object.values(S.exams).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')).slice(0, 6);
+  return `<div class="card"><div class="card-h"><h2>Exámenes recientes</h2><button class="btn sm ghost" data-act="nav" data-v="examenes">Ver todos</button></div><div class="rows">${ex.map(e => { const v = Object.values(e.notas || {}).map(num); const prom = v.length ? Math.round(sum(v) / v.length / num(e.max || 100) * 100) : null;
+    return `<div class="row click" data-act="ver-examen" data-id="${esc(e.id)}"><div class="t">${esc(e.nombre)}<small>${esc(gName(e.grupoId))} · ${fmtF(e.fecha)}</small></div><div class="r">${prom == null ? pill('Sin notas') : pill('Promedio ' + prom + '%', prom >= 60 ? 'ok' : 'bad')}</div></div>`; }).join('') || '<div class="empty">Todavía no hay exámenes.</div>'}</div></div>`;
+}
+function detalleDeuda(c) { const v = c.items.filter(i => i.est === 'vencido'); if (!v.length) return ''; return esc(v[0].concepto) + (v.length > 1 ? ` y ${v.length - 1} más` : '') + ` · venció ${fmtCorta(v[0].venc)}`; }
+function rowDeuda(a, c) {
+  return `<div class="row"><div class="t" data-act="ver-alumno" data-id="${esc(a.id)}" style="cursor:pointer">${esc(nombreA(a))}<small>${esc(gName(a.grupoId))} · ${detalleDeuda(c)}</small></div>
+    <div class="r"><span class="num bad-t">${money(c.vencido)}</span><button class="btn sm wa" data-act="wa" data-id="${esc(a.id)}" title="Recordatorio por WhatsApp">${ic('wa')}<span>Avisar</span></button><button class="btn sm" data-act="pago-nuevo" data-id="${esc(a.id)}">Cobrar</button></div></div>`;
+}
+
+/* --- inscripciones --- */
+VIEWS.inscripciones = () => {
+  if (!ready('grupos', 'alumnos')) return loadingView();
+  const pend = pendientes(); const inv = invitados(); const gs = gruposActivos();
+  let h = ph('Inscripciones', 'Links de inscripción, fichas nuevas y alumnos invitados', `<button class="btn" data-act="invitar-alumno">${ic('mail')}Invitar por correo</button><button class="btn primary" data-act="link-nuevo">${ic('plus')}Nuevo link</button>`);
+  const links = Object.values(S.links).sort((a, b) => (b.activo - a.activo) || (b.creado || '').localeCompare(a.creado || ''));
+  h += `<div class="card"><div class="card-h"><h2>Links de inscripción</h2><small>Pasale el link al alumno cuando paga la matrícula</small></div><div class="rows">${links.map(l => { const n = Object.values(S.alumnos).filter(a => a.linkId === l.id).length;
+    return `<div class="row"><div class="t">${esc(l.titulo)} ${l.activo ? pill('Activo', 'ok') : pill('Cerrado')}<small>${esc([l.programa, l.grupo_id ? gName(l.grupo_id) : 'grupo a asignar'].filter(Boolean).join(' · '))} · ${n} inscripto${n === 1 ? '' : 's'}</small><div class="linkbox" style="margin-top:6px">${esc(linkUrl(l))}</div></div>
+      <div class="r"><button class="btn sm" data-act="link-copiar" data-id="${esc(l.id)}">${ic('copy')}Copiar</button><a class="btn sm wa" href="https://wa.me/?text=${encodeURIComponent(`¡Hola! Para inscribirte en ${l.titulo} del ${S.cfg.nombre || 'Cursillo VIBE'}, entrá a este link, creá tu cuenta y completá tu ficha: ${linkUrl(l)}`)}" target="_blank" rel="noopener">${ic('wa')}Compartir</a><button class="btn sm" data-act="link-editar" data-id="${esc(l.id)}">${ic('edit')}</button></div></div>`; }).join('') || `<div class="empty"><b>Todavía no hay links</b>Creá uno por curso o por grupo y compartilo por WhatsApp.</div>`}</div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Fichas completas, sin grupo</h2><span class="pill ${pend.length ? 'late' : 'ok'}">${pend.length}</span></div><div class="rows">${pend.map(a => `<div class="row"><div class="t" data-act="ver-alumno" data-id="${esc(a.id)}" style="cursor:pointer">${esc(nombreA(a))}<small>${esc([progDe(a), a.ficha?.carrera, a.colegio, a.tel].filter(Boolean).join(' · '))} · ficha del ${fmtF(a.fichaFecha)}</small></div>
+    <div class="r"><select class="inp" style="width:auto;min-height:34px;padding:5px 10px" id="asg-${esc(a.id)}" aria-label="Grupo para ${esc(nombreA(a))}"><option value="">Elegí grupo…</option>${gs.map(g => `<option value="${esc(g.id)}" ${g.id === a.grupoId ? 'selected' : ''}>${esc(g.nombre)}</option>`).join('')}</select><button class="btn sm primary" data-act="asignar" data-id="${esc(a.id)}">Asignar</button></div></div>`).join('') || '<div class="empty"><b>Nada pendiente</b>Cuando un alumno complete su ficha te llega un correo y aparece acá.</div>'}</div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Invitados que todavía no completaron la ficha</h2><span class="pill pend">${inv.length}</span></div><div class="rows">${inv.map(a => `<div class="row"><div class="t" data-act="ver-alumno" data-id="${esc(a.id)}" style="cursor:pointer">${esc(nombreA(a))}<small>${esc([a.email, progDe(a)].filter(Boolean).join(' · '))} · invitado el ${fmtF(a.inscripcion)}${a.grupoId ? ' · ' + esc(gName(a.grupoId)) : ''}</small></div><div class="r"><button class="btn sm" data-act="reinvitar" data-id="${esc(a.id)}">${ic('mail')}Reenviar</button></div></div>`).join('') || '<div class="empty">No hay invitaciones pendientes.</div>'}</div></div>`;
+  return h;
+};
+
+/* --- grupos --- */
+VIEWS.grupos = () => {
+  if (S.selGrupo && S.grupos[S.selGrupo]) return vGrupo(S.grupos[S.selGrupo]);
+  if (!ready('grupos', 'alumnos')) return loadingView();
+  const gs = gruposOrden(); const na = gruposActivos().length;
+  let h = ph('Grupos', `${na} activo${na === 1 ? '' : 's'}${gs.length > na ? ' · ' + (gs.length - na) + ' archivado(s)' : ''}`, `<button class="btn" data-act="importar">${ic('upload')}Importar alumnos</button><button class="btn primary" data-act="grupo-nuevo">${ic('plus')}Nuevo grupo</button>`);
+  if (!gs.length) return h + `<div class="card"><div class="empty"><b>Todavía no hay grupos</b>Creá el primero con su plan de pagos.</div></div>`;
+  h += `<div class="gcards">${gs.map(g => { const s = statsGrupo(g); const c1 = (g.plan || []).find(i => i.id !== 'mat'); const profes = S.profeGrupos.filter(x => x.grupo_id === g.id).map(x => S.perfiles[x.profe_id]?.nombre || S.perfiles[x.profe_id]?.email).filter(Boolean);
+    return `<button class="gcard" data-act="ver-grupo" data-id="${esc(g.id)}" ${g.activo === false ? 'style="opacity:.6"' : ''}>
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><h2>${esc(g.nombre)}</h2><small>${esc([g.programa, g.horario].filter(Boolean).join(' · '))}</small></div>${g.activo === false ? pill('Archivado') : pill(s.n + ' alumnos', 'acc')}</div>
+      <div class="meta"><span class="muted">Cuota</span><span class="num">${c1 ? money(c1.monto) : '—'}</span><span></span>
+      <span class="muted">Cobranza</span><span>${bar(s.cob)}</span><span></span>
+      <span class="muted">Asistencia</span><span>${bar(s.asis)}</span><span></span></div>
+      ${profes.length ? `<small>Profes: ${esc(profes.join(', '))}</small>` : ''}
+      ${s.venc ? `<span class="pill bad">${s.deud} con deuda · ${money(s.venc)}</span>` : `<span class="pill ok">Sin deudas vencidas</span>`}
+    </button>`; }).join('')}</div>`;
+  return h;
+};
+function vGrupo(g) {
+  const al = alumnosDe(g.id); const bajas = alumnosDe(g.id, true).filter(a => a.estado === 'baja'); const s = statsGrupo(g);
+  let h = `<div><button class="back" data-act="back-grupos">${ic('back')}Grupos</button></div>`;
+  h += ph(g.nombre, esc([g.programa, g.horario, g.inicio ? 'desde ' + fmtF(g.inicio) : '', g.fin ? 'hasta ' + fmtF(g.fin) : ''].filter(Boolean).join(' · ')),
+    `<button class="btn" data-act="tomar" data-g="${esc(g.id)}">${ic('check')}Tomar lista</button><button class="btn" data-act="importar" data-g="${esc(g.id)}">${ic('upload')}Importar</button><button class="btn" data-act="grupo-editar" data-id="${esc(g.id)}">${ic('edit')}Editar</button><button class="btn primary" data-act="invitar-alumno" data-g="${esc(g.id)}">${ic('mail')}Invitar alumno</button>`);
+  h += `<div class="kpis">${kpi('Alumnos', s.n, bajas.length ? bajas.length + ' de baja' : 'activos')}${kpi('Cobranza a la fecha', s.cob == null ? '—' : s.cob + '%', 'de lo que ya venció')}${kpi('Vencido sin cobrar', money(s.venc), s.deud + ' alumno(s)', s.venc ? 'bad' : '')}${kpi('Asistencia', s.asis == null ? '—' : s.asis + '%', (S.idx.asisByGrupo[g.id] || []).length + ' clases registradas')}</div>`;
+  const plan = g.plan || [];
+  h += `<div class="card"><div class="card-h"><h2>Plan de pagos</h2><span class="num">${money(sum(plan.map(i => i.monto)))} total</span></div>${plan.length ? `<div class="tw"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th>Vence</th><th class="n">Cobrado</th></tr></thead><tbody>${plan.map(it => { let deb = 0, pag = 0; al.forEach(a => { const d = debido(a, it); deb += d; pag += Math.min(d, sum((S.idx.pagosByAlumno[a.id] || []).filter(p => p.grupoId === g.id && p.itemId === it.id).map(p => p.monto))); }); return `<tr><td>${esc(it.concepto)}</td><td class="n num">${money(it.monto)}</td><td>${fmtF(it.venc)}</td><td class="n">${deb ? pct(pag, deb) + '%' : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">Este grupo no tiene plan de pagos. <button class="btn sm" data-act="grupo-editar" data-id="${esc(g.id)}">Agregar</button></div>`}</div>`;
+  h += `<div class="card"><div class="card-h"><h2>Alumnos</h2><button class="btn sm" data-act="alumno-nuevo" data-g="${esc(g.id)}">${ic('plus')}Agregar sin invitar</button></div>${al.length ? `<div class="tw"><table><thead><tr><th>Alumno</th><th>Contacto</th><th>Cuenta</th><th class="n">Asist.</th><th></th></tr></thead><tbody>${al.map(a => { const c = cuenta(a); const as = asisAlumno(a);
+    return `<tr class="click" data-act="ver-alumno" data-id="${esc(a.id)}"><td><b>${esc(nombreA(a))}</b>${a.ci ? `<br><small>CI ${esc(a.ci)}</small>` : ''}</td><td><small>${esc(a.tel || '—')}${a.encargado ? '<br>' + esc(a.encargado) : ''}</small></td><td>${pillCuenta(c)}</td><td class="n">${as.pct == null ? '—' : as.pct + '%'}</td><td class="n" style="white-space:nowrap">${c.vencido ? `<button class="btn sm wa" data-act="wa" data-id="${esc(a.id)}" title="Recordatorio">${ic('wa')}</button>` : ''}<button class="btn sm" data-act="pago-nuevo" data-id="${esc(a.id)}">Cobrar</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty"><b>Sin alumnos todavía</b>Asigná fichas desde Inscripciones o importá tu Excel.</div>`}</div>`;
+  if (bajas.length) h += `<div class="card"><div class="card-h"><h2>De baja</h2></div><div class="rows">${bajas.map(a => `<div class="row click" data-act="ver-alumno" data-id="${esc(a.id)}"><div class="t">${esc(nombreA(a))}</div><div class="r">${pill('Baja')}</div></div>`).join('')}</div></div>`;
+  return h;
+}
+
+/* --- alumnos --- */
+VIEWS.alumnos = () => {
+  if (S.selAlumno && S.alumnos[S.selAlumno]) return vAlumno(S.alumnos[S.selAlumno]);
+  if (!ready('grupos', 'alumnos')) return loadingView();
+  const u = S.ui; const q = norm(u.q);
+  const list = Object.values(S.alumnos).filter(a => {
+    if (u.fEstado === 'activos' && a.estado !== 'activo') return false;
+    if (u.fEstado === 'bajas' && a.estado !== 'baja') return false;
+    if (u.fEstado === 'inscripcion' && !['invitado', 'pendiente'].includes(a.estado)) return false;
+    return (!u.fGrupo || a.grupoId === u.fGrupo) && (!q || norm([a.nombre, a.apellido, a.ci, a.tel, a.encargado, a.colegio, a.email].join(' ')).includes(q));
+  }).sort(cmpA);
+  const rows = list.map(a => ({ a, c: isStaff() ? cuenta(a) : null })).filter(x => !u.fDeuda || (x.c && x.c.vencido > 0));
+  const sinCuenta = isStaff() ? Object.values(S.alumnos).filter(a => a.email && !a.userId && a.estado !== 'baja') : [];
+  let h = ph(isProfe() ? 'Mis alumnos' : 'Alumnos', `${activos().length} activos`, isStaff() ? `${sinCuenta.length ? `<button class="btn" data-act="invitar-masivo">${ic('mail')}Enviar acceso a ${sinCuenta.length}</button>` : ''}<button class="btn" data-act="importar">${ic('upload')}Importar</button><button class="btn primary" data-act="invitar-alumno">${ic('mail')}Invitar alumno</button>` : '');
+  h += `<div class="filters"><div class="search">${ic('search')}<input class="inp" id="q" data-in="q" placeholder="Buscar por nombre, CI, teléfono, colegio…" value="${esc(u.q)}" autocomplete="off"></div>
+    <select class="inp" id="fGrupo" data-ch="fGrupo" aria-label="Grupo">${optGrupos(u.fGrupo, isProfe() ? 'Todos mis grupos' : 'Todos los grupos')}</select>
+    ${isStaff() ? `<select class="inp" id="fEstado" data-ch="fEstado" aria-label="Estado"><option value="activos" ${u.fEstado === 'activos' ? 'selected' : ''}>Activos</option><option value="inscripcion" ${u.fEstado === 'inscripcion' ? 'selected' : ''}>En inscripción</option><option value="bajas" ${u.fEstado === 'bajas' ? 'selected' : ''}>De baja</option><option value="todos" ${u.fEstado === 'todos' ? 'selected' : ''}>Todos</option></select>
+    <label class="chk"><input type="checkbox" id="fDeuda" data-ch="fDeuda" ${u.fDeuda ? 'checked' : ''}>Solo con deuda</label>` : ''}</div>`;
+  if (!Object.keys(S.alumnos).length) return h + `<div class="card"><div class="empty"><b>Todavía no hay alumnos</b>${isStaff() ? 'Invitalos por correo o importá tu Excel.' : 'Todavía no hay alumnos en tus grupos.'}</div></div>`;
+  h += `<div class="card"><div class="card-h"><small>${rows.length} resultado${rows.length === 1 ? '' : 's'}</small></div>${rows.length ? `<div class="tw"><table><thead><tr><th>Alumno</th><th>Grupo</th><th>Contacto</th>${isStaff() ? '<th>Cuenta</th>' : ''}<th class="n">Asist.</th></tr></thead><tbody>${rows.map(({ a, c }) => { const as = asisAlumno(a);
+    return `<tr class="click" data-act="ver-alumno" data-id="${esc(a.id)}"><td><b>${esc(nombreA(a))}</b>${a.ci ? `<br><small>CI ${esc(a.ci)}</small>` : ''}</td><td>${esc(gName(a.grupoId))} ${pillEstado(a)}</td><td><small>${esc(a.tel || '—')}${isProfe() && a.encargadoTel ? '<br>Enc.: ' + esc(a.encargadoTel) : ''}</small></td>${isStaff() ? `<td>${a.estado === 'activo' ? pillCuenta(c) : ''}</td>` : ''}<td class="n">${as.pct == null ? '—' : as.pct + '%'}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Ningún alumno coincide con los filtros.</div>'}</div>`;
+  return h;
+};
+function sparkline(vals) {
+  if (vals.length < 2) return '';
+  const W = 160, H = 40, p = 4; const x = i => p + i * (W - 2 * p) / (vals.length - 1); const y = v => H - p - (Math.min(100, v) / 100) * (H - 2 * p);
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><line x1="${p}" x2="${W - p}" y1="${y(60)}" y2="${y(60)}" stroke="var(--line)" stroke-dasharray="3 3"/><polygon points="${p},${H - p} ${pts} ${W - p},${H - p}" fill="var(--accent-soft)"/><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/><circle cx="${x(vals.length - 1)}" cy="${y(vals[vals.length - 1])}" r="3.5" fill="var(--accent)"/></svg>`;
+}
+function vAlumno(a) {
+  const c = cuenta(a); const as = asisAlumno(a); const pagos = S.idx.pagosByAlumno[a.id] || [];
+  const exs = Object.values(S.exams).filter(e => e.notas && e.notas[a.id] !== undefined).sort((x, y) => (x.fecha || '').localeCompare(y.fecha || ''));
+  const tabs = isStaff() ? [['cuenta', 'Cuenta'], ['asistencia', 'Asistencia'], ['examenes', 'Exámenes'], ['datos', 'Ficha']] : [['asistencia', 'Asistencia'], ['examenes', 'Exámenes'], ['datos', 'Contacto']];
+  const tab = tabs.some(t => t[0] === S.ui.alTab) ? S.ui.alTab : tabs[0][0];
+  let h = `<div><button class="back" data-act="back-alumnos">${ic('back')}Alumnos</button></div>`;
+  h += ph(nombreA(a), `${esc(gName(a.grupoId))} ${pillEstado(a)}${a.ci ? ' · CI ' + esc(a.ci) : ''}`,
+    isStaff() ? `${c.vencido || c.proximo ? `<button class="btn wa" data-act="wa" data-id="${esc(a.id)}">${ic('wa')}Recordatorio</button>` : ''}<button class="btn" data-act="alumno-editar" data-id="${esc(a.id)}">${ic('edit')}Editar</button>${a.estado === 'activo' ? `<button class="btn primary" data-act="pago-nuevo" data-id="${esc(a.id)}">${ic('plus')}Registrar pago</button>` : ''}` :
+    (a.tel ? `<a class="btn wa" href="https://wa.me/${waNum(a.tel)}" target="_blank" rel="noopener">${ic('wa')}Alumno</a>` : '') + (a.encargadoTel ? `<a class="btn wa" href="https://wa.me/${waNum(a.encargadoTel)}" target="_blank" rel="noopener">${ic('wa')}Encargado</a>` : ''));
+  if (isStaff() && a.estado === 'pendiente') h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span>Completó su ficha el ${fmtF(a.fichaFecha)}. Falta asignarle grupo.</span><span class="btn sm primary">Asignar</span></div>`;
+  h += `<div class="kpis">${isStaff() ? kpi('Vencido', money(c.vencido), c.nVenc ? c.nVenc + ' cuota(s)' : 'nada vencido', c.vencido ? 'bad' : '') + kpi('Total pagado', money(c.pagado), pagos.length + ' pago(s)') : ''}
+    ${kpi('Asistencia', as.pct == null ? '—' : as.pct + '%', `${as.A} falta${as.A === 1 ? '' : 's'} · ${as.T} tardanza${as.T === 1 ? '' : 's'}`, as.pct != null && as.pct < 70 ? 'bad' : '')}
+    ${kpi('Exámenes', exs.length ? Math.round(sum(exs.map(e => num(e.notas[a.id]) / num(e.max || 100) * 100)) / exs.length) + '%' : '—', exs.length ? 'promedio de ' + exs.length : 'sin notas')}</div>`;
+  h += `<div class="tabsbar" role="group" aria-label="Secciones">${tabs.map(([k, l]) => `<button data-act="altab" data-v="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>`;
+  if (tab === 'cuenta') {
+    h += `<div class="card"><div class="card-h"><h2>Estado de cuenta</h2><small>${esc(gName(a.grupoId))}${a.desc ? ' · ' + num(a.desc) + '% de descuento' : ''}${a.cuotaEsp ? ' · cuota especial ' + money(a.cuotaEsp) : ''}${a.matExon ? ' · matrícula exonerada' : ''}</small></div>
+      ${c.items.length ? `<div class="tw"><table><thead><tr><th>Concepto</th><th>Vence</th><th class="n">Monto</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th><th></th></tr></thead><tbody>${c.items.map(i => `<tr><td>${esc(i.concepto)}</td><td>${fmtF(i.venc)}</td><td class="n">${money(i.deb)}</td><td class="n">${i.pag ? money(i.pag) : '—'}</td><td class="n num ${i.est === 'vencido' ? 'bad-t' : ''}">${i.saldo ? money(i.saldo) : '—'}</td><td>${estItem(i)}</td><td class="n">${i.saldo && a.estado === 'activo' ? `<button class="btn sm" data-act="pago-nuevo" data-id="${esc(a.id)}" data-item="${esc(i.id)}">Cobrar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${a.grupoId ? 'El grupo no tiene plan de pagos cargado.' : 'Todavía no tiene grupo asignado.'}</div>`}</div>`;
+    h += `<div class="card"><div class="card-h"><h2>Pagos registrados</h2></div><div class="rows">${pagos.length ? pagos.map(p => `<div class="row click" data-act="recibo" data-id="${esc(p.id)}"><div class="t">${esc(p.concepto)}<small>${fmtF(p.fecha)} · ${esc(p.metodo || '')} · Recibo N° ${String(p.nro || '').padStart(5, '0')}${p.grupoId !== a.grupoId ? ' · ' + esc(gName(p.grupoId)) : ''}</small></div><div class="r"><span class="num">${money(p.monto)}</span>${ic('receipt')}</div></div>`).join('') : '<div class="empty">Sin pagos todavía.</div>'}</div></div>`;
+  } else if (tab === 'asistencia') {
+    h += `<div class="card"><div class="card-h"><h2>Asistencia</h2><div class="cnt"><span><i class="dot d-P"></i>${as.P} presente</span><span><i class="dot d-T"></i>${as.T} tarde</span><span><i class="dot d-A"></i>${as.A} ausente</span><span><i class="dot d-J"></i>${as.J} justificada</span></div></div>
+      <div class="card-b">${as.marcas.length ? `<div class="strip" aria-label="Últimas clases">${as.marcas.slice(-60).map(m => `<i class="d-${m.m}" title="${fmtF(m.f)}: ${{ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[m.m]}"></i>`).join('')}</div>
+      ${as.faltas.length ? `<p style="margin:14px 0 0"><b>Faltas:</b> ${as.faltas.slice().reverse().map(fmtF).join(', ')}</p>` : '<p class="muted" style="margin:14px 0 0">Sin faltas.</p>'}` : '<span class="muted">Todavía no hay listas tomadas para este alumno.</span>'}</div></div>`;
+  } else if (tab === 'examenes') {
+    const vals = exs.map(e => Math.round(num(e.notas[a.id]) / num(e.max || 100) * 100));
+    h += `<div class="card"><div class="card-h"><h2>Exámenes</h2>${sparkline(vals)}</div>${exs.length ? `<div class="tw"><table><thead><tr><th>Examen</th><th>Fecha</th><th class="n">Nota</th><th class="n">%</th><th class="n">Puesto</th></tr></thead><tbody>${exs.slice().reverse().map(e => { const v = num(e.notas[a.id]); const p = Math.round(v / num(e.max || 100) * 100); const ranking = Object.values(e.notas).map(num).sort((x, y) => y - x); return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td>${esc(e.nombre)}${e.materia ? `<br><small>${esc(e.materia)}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n num">${fmtN(v)} / ${fmtN(e.max || 100)}</td><td class="n ${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</td><td class="n">${ranking.indexOf(v) + 1}° de ${ranking.length}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Sin notas cargadas.</div>'}</div>`;
+  } else {
+    const filas = [['Curso', progDe(a)], ...FICHA.filter(f => f.k && (aplica(f, a) || valorFicha(a, f))).map(f => [f.l, f.t === 'date' ? fmtF(valorFicha(a, f)) : valorFicha(a, f)])];
+    const acceso = !a.email ? 'Sin correo cargado' : a.userId ? (a.fichaCompleta ? 'Tiene cuenta y completó su ficha' : 'Invitado; todavía no completó la ficha') : 'Sin cuenta todavía';
+    h += `<div class="card"><div class="card-h"><h2>${isStaff() ? 'Ficha de inscripción' : 'Contacto'}</h2>${isStaff() ? `<div class="actions">${a.email ? `<button class="btn sm" data-act="reinvitar" data-id="${esc(a.id)}">${ic('mail')}${a.userId ? 'Reenviar acceso' : 'Enviar invitación'}</button>` : ''}<button class="btn sm" data-act="alumno-editar" data-id="${esc(a.id)}">${ic('edit')}Editar</button></div>` : ''}</div><div class="card-b"><dl class="dl">
+      ${isStaff() ? `<dt>Correo</dt><dd>${esc(a.email || '—')}</dd><dt>Acceso a la app</dt><dd>${esc(acceso)}</dd>` : ''}
+      ${(isStaff() ? filas : filas.filter(([l]) => /tel[eé]fono|celular|encargado|madre|padre|colegio del/i.test(l))).map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v || '—')}</dd>`).join('')}
+      ${isStaff() ? `<dt>Observaciones</dt><dd>${esc(a.obs || '—')}</dd>` : ''}</dl></div></div>`;
+  }
+  return h;
+}
+
+/* --- asistencia --- */
+function syncDrafts() {
+  const d = S.draftAsis; if (d && !d.dirty) { const saved = S.asis[d.key]; d.marcas = { ...(saved?.marcas || {}) }; }
+  const e = S.draftExam; if (e && !e.dirty) { const saved = S.exams[e.eid]; e.notas = { ...(saved?.notas || {}) }; }
+}
+VIEWS.asistencia = () => {
+  if (!ready('grupos', 'alumnos', 'asis')) return loadingView();
+  const u = S.ui; const gs = gruposActivos();
+  if (!u.asisGrupo || !S.grupos[u.asisGrupo]) u.asisGrupo = gs[0]?.id || '';
+  if (!u.histGrupo || !S.grupos[u.histGrupo]) u.histGrupo = u.asisGrupo;
+  let h = ph('Asistencia', 'Presente, Ausente, Tarde o Justificada');
+  h += `<div class="tabsbar"><button data-act="asistab" data-v="tomar" aria-pressed="${u.asisTab === 'tomar'}">Tomar lista</button><button data-act="asistab" data-v="hist" aria-pressed="${u.asisTab === 'hist'}">Historial</button></div>`;
+  if (!gs.length) return h + `<div class="card"><div class="empty">${isProfe() ? 'Todavía no tenés grupos asignados.' : 'No hay grupos activos.'}</div></div>`;
+  if (u.asisTab === 'hist') return h + vHistorial();
+  const g = S.grupos[u.asisGrupo]; const key = g.id + '_' + u.asisFecha; const saved = S.asis[key];
+  if (!S.draftAsis || S.draftAsis.key !== key) S.draftAsis = { key, marcas: { ...(saved?.marcas || {}) }, orig: { ...(saved?.marcas || {}) }, dirty: false };
+  const D = S.draftAsis; const al = alumnosDe(g.id);
+  const cnt = { P: 0, A: 0, T: 0, J: 0, '': 0 }; al.forEach(a => cnt[D.marcas[a.id] || '']++);
+  h += `<div class="filters"><div class="chips">${gs.map(x => `<button class="chip" data-act="asis-grupo" data-v="${esc(x.id)}" aria-pressed="${x.id === g.id}">${esc(x.nombre)}</button>`).join('')}</div>
+    <input type="date" class="inp" id="asisFecha" data-ch="asisFecha" value="${esc(u.asisFecha)}" style="width:auto" aria-label="Fecha"></div>`;
+  h += `<div class="card"><div class="card-h"><div><h2>${esc(g.nombre)}</h2><small>${fechaLarga(u.asisFecha)}${saved ? ' · guardada por ' + esc(who(saved.por)) : ' · sin guardar'}</small></div><button class="btn sm" data-act="asis-todos">Marcar todos presentes</button></div>
+    ${al.length ? `<div class="rows">${al.map(a => { const m = D.marcas[a.id] || ''; return `<div class="row"><div class="t">${esc(nombreA(a))}</div><div class="att" role="group" aria-label="Asistencia de ${esc(nombreA(a))}">${['P', 'A', 'T', 'J'].map(v => `<button data-act="marca" data-id="${esc(a.id)}" data-v="${v}" aria-pressed="${m === v}" title="${{ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[v]}">${v}</button>`).join('')}</div></div>`; }).join('')}</div>` : '<div class="empty">Este grupo no tiene alumnos activos.</div>'}
+    <div class="savebar"><div class="cnt"><span><i class="dot d-P"></i>${cnt.P}</span><span><i class="dot d-A"></i>${cnt.A}</span><span><i class="dot d-T"></i>${cnt.T}</span><span><i class="dot d-J"></i>${cnt.J}</span>${cnt[''] ? `<span class="muted"><i class="dot d-0"></i>${cnt['']} sin marcar</span>` : ''}</div>
+    <div class="actions">${saved ? `<button class="btn sm ghost danger" data-act="asis-borrar">Borrar lista</button>` : ''}<button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="asis-guardar">${D.dirty ? 'Guardar lista' : saved ? 'Guardada' : 'Guardar lista'}</button></div></div></div>`;
+  return h;
+};
+function vHistorial() {
+  const u = S.ui; const g = S.grupos[u.histGrupo]; if (!g) return '';
+  const docs = (S.idx.asisByGrupo[g.id] || []).slice().reverse(); const al = alumnosDe(g.id);
+  let h = `<div class="filters"><select class="inp" id="histGrupo" data-ch="histGrupo" aria-label="Grupo">${optGrupos(g.id)}</select><small>${docs.length} clase${docs.length === 1 ? '' : 's'} registrada${docs.length === 1 ? '' : 's'} · tocá una fecha para editarla</small></div>`;
+  if (!docs.length) return h + `<div class="card"><div class="empty">Todavía no se tomó lista en este grupo.</div></div>`;
+  h += `<div class="card"><div class="tw"><table class="mx"><thead><tr><th>Alumno</th><th>%</th>${docs.map(d => `<th><button data-act="asis-abrir" data-g="${esc(g.id)}" data-f="${esc(d.fecha)}">${fmtCorta(d.fecha)}</button></th>`).join('')}</tr></thead><tbody>
+    ${al.map(a => { const as = asisAlumno(a); return `<tr><td><b>${esc(nombreA(a))}</b></td><td class="${as.pct != null && as.pct < 70 ? 'bad-t' : ''}"><b>${as.pct == null ? '—' : as.pct + '%'}</b></td>${docs.map(d => { const m = d.marcas?.[a.id]; return `<td>${m ? `<span class="c d-${m}">${m}</span>` : '<span class="c e">·</span>'}</td>`; }).join('')}</tr>`; }).join('')}
+    </tbody></table></div></div>`;
+  return h;
+}
+
+/* --- cobros --- */
+VIEWS.cobros = () => {
+  if (!ready('grupos', 'alumnos', 'pagos')) return loadingView();
+  const u = S.ui;
+  let h = ph('Cobros', 'Cuotas, pagos y recibos', `<button class="btn primary" data-act="pago-nuevo">${ic('plus')}Registrar pago</button>`);
+  h += `<div class="tabsbar">${[['porcobrar', 'Por cobrar'], ['pagos', 'Pagos registrados'], ['resumen', 'Resumen por grupo']].map(([k, l]) => `<button data-act="cobtab" data-v="${k}" aria-pressed="${u.cobTab === k}">${l}</button>`).join('')}</div>`;
+  if (u.cobTab === 'pagos') return h + vPagos();
+  if (u.cobTab === 'resumen') return h + vResumen();
+  const lim = addDays(hoy(), 7);
+  const list = activos().filter(a => !u.cobGrupo || a.grupoId === u.cobGrupo).map(a => {
+    const c = cuenta(a); const prox = c.items.filter(i => i.est === 'pendiente' && i.venc && i.venc <= lim);
+    return { a, c, monto: c.vencido + (u.cobSoloVenc ? 0 : sum(prox.map(i => i.saldo))), prox };
+  }).filter(x => x.monto > 0).sort((x, y) => y.monto - x.monto);
+  h += `<div class="filters"><select class="inp" id="cobGrupo" data-ch="cobGrupo" aria-label="Grupo">${optGrupos(u.cobGrupo, 'Todos los grupos')}</select>
+    <div class="tabsbar"><button data-act="cobvenc" data-v="1" aria-pressed="${u.cobSoloVenc}">Vencidas</button><button data-act="cobvenc" data-v="0" aria-pressed="${!u.cobSoloVenc}">Vencidas + próximos 7 días</button></div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>${list.length} alumno${list.length === 1 ? '' : 's'} por cobrar</h2><span class="num bad-t">${money(sum(list.map(x => x.monto)))}</span></div><div class="rows">${list.length ? list.map(({ a, c, monto, prox }) => {
+    const det = [...c.items.filter(i => i.est === 'vencido').map(i => `${esc(i.concepto)} (venció ${fmtCorta(i.venc)})`), ...(u.cobSoloVenc ? [] : prox.map(i => `${esc(i.concepto)} (vence ${fmtCorta(i.venc)})`))].join(' · ');
+    return `<div class="row"><div class="t" data-act="ver-alumno" data-id="${esc(a.id)}" style="cursor:pointer">${esc(nombreA(a))}<small>${esc(gName(a.grupoId))} · ${det}</small></div><div class="r"><span class="num ${c.vencido ? 'bad-t' : ''}">${money(monto)}</span><button class="btn sm wa" data-act="wa" data-id="${esc(a.id)}">${ic('wa')}<span>Avisar</span></button><button class="btn sm" data-act="pago-nuevo" data-id="${esc(a.id)}">Cobrar</button></div></div>`;
+  }).join('') : `<div class="empty"><b>Nada por cobrar</b>${u.cobSoloVenc ? 'No hay cuotas vencidas.' : 'No hay cuotas vencidas ni por vencer esta semana.'}</div>`}</div></div>`;
+  return h;
+};
+function vPagos() {
+  const u = S.ui; const [y, m] = u.cobMes.split('-').map(Number);
+  const ps = Object.values(S.pagos).filter(p => (p.fecha || '').startsWith(u.cobMes) && (!u.cobGrupo || p.grupoId === u.cobGrupo)).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || num(b.nro) - num(a.nro));
+  const porMet = {}; ps.forEach(p => porMet[p.metodo || 'Otro'] = (porMet[p.metodo || 'Otro'] || 0) + num(p.monto));
+  let h = `<div class="filters"><div class="actions" style="align-items:center"><button class="btn sm" data-act="mes" data-v="-1" aria-label="Mes anterior">${ic('chevL')}</button><b style="min-width:150px;text-align:center" class="num">${cap(MESES[m - 1])} ${y}</b><button class="btn sm" data-act="mes" data-v="1" aria-label="Mes siguiente">${ic('chevR')}</button></div>
+    <select class="inp" id="cobGrupo2" data-ch="cobGrupo" aria-label="Grupo">${optGrupos(u.cobGrupo, 'Todos los grupos')}</select><button class="btn" data-act="exp-pagos">${ic('download')}Exportar pagos</button></div>`;
+  h += `<div class="kpis">${kpi('Total del mes', money(sum(ps.map(p => p.monto))), ps.length + ' pago(s)')}${Object.entries(porMet).slice(0, 3).map(([k, v]) => kpi(k, money(v), '')).join('')}</div>`;
+  h += `<div class="card">${ps.length ? `<div class="tw"><table><thead><tr><th>Fecha</th><th>N°</th><th>Alumno</th><th>Concepto</th><th>Forma</th><th class="n">Monto</th><th>Registró</th></tr></thead><tbody>${ps.map(p => { const a = S.alumnos[p.alumnoId]; return `<tr class="click" data-act="recibo" data-id="${esc(p.id)}"><td>${fmtF(p.fecha)}</td><td>${String(p.nro || '').padStart(5, '0')}</td><td><b>${esc(a ? nombreA(a) : 'Alumno borrado')}</b><br><small>${esc(gName(p.grupoId))}</small></td><td>${esc(p.concepto)}</td><td>${esc(p.metodo || '')}</td><td class="n num">${money(p.monto)}</td><td><small>${esc(who(p.por))}</small></td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">No hay pagos en este mes.</div>'}</div>`;
+  return h;
+}
+function vResumen() {
+  const gs = gruposActivos(); const t = hoy();
+  const rows = gs.map(g => { const al = alumnosDe(g.id); let esp = 0, cob = 0, venc = 0, total = 0, pagado = 0; al.forEach(a => { const c = cuenta(a); c.items.forEach(i => { total += i.deb; pagado += Math.min(i.pag, i.deb); if (i.venc && i.venc <= t) { esp += i.deb; cob += Math.min(i.pag, i.deb); } }); venc += c.vencido; }); return { g, n: al.length, esp, cob, venc, total, pagado }; });
+  const T = k => sum(rows.map(r => r[k]));
+  return `<div class="card"><div class="tw"><table><thead><tr><th>Grupo</th><th class="n">Alumnos</th><th class="n">Venció a la fecha</th><th class="n">Cobrado</th><th style="min-width:150px">Cobranza</th><th class="n">Vencido</th><th class="n">Total del curso</th><th class="n">Falta cobrar</th></tr></thead><tbody>
+    ${rows.map(r => `<tr class="click" data-act="ver-grupo" data-id="${esc(r.g.id)}"><td><b>${esc(r.g.nombre)}</b></td><td class="n">${r.n}</td><td class="n">${money(r.esp)}</td><td class="n">${money(r.cob)}</td><td>${bar(pct(r.cob, r.esp))}</td><td class="n ${r.venc ? 'bad-t' : ''}">${money(r.venc)}</td><td class="n">${money(r.total)}</td><td class="n">${money(r.total - r.pagado)}</td></tr>`).join('')}
+    <tr><td><b>Total</b></td><td class="n"><b>${T('n')}</b></td><td class="n num">${money(T('esp'))}</td><td class="n num">${money(T('cob'))}</td><td>${bar(pct(T('cob'), T('esp')))}</td><td class="n num bad-t">${money(T('venc'))}</td><td class="n num">${money(T('total'))}</td><td class="n num">${money(T('total') - T('pagado'))}</td></tr>
+    </tbody></table></div></div>`;
+}
+
+/* --- exámenes --- */
+VIEWS.examenes = () => {
+  if (!ready('grupos', 'alumnos', 'exams')) return loadingView();
+  const u = S.ui; const gs = gruposActivos();
+  if (u.exSel && S.exams[u.exSel]) return vExamen(S.exams[u.exSel]);
+  if (!u.exGrupo || !S.grupos[u.exGrupo]) u.exGrupo = gs[0]?.id || '';
+  let h = ph('Exámenes', 'Notas por grupo y evolución de cada alumno', u.exGrupo ? `<button class="btn primary" data-act="examen-nuevo">${ic('plus')}Nuevo examen</button>` : '');
+  if (!gs.length) return h + `<div class="card"><div class="empty">${isProfe() ? 'Todavía no tenés grupos asignados.' : 'No hay grupos activos.'}</div></div>`;
+  h += `<div class="chips">${gs.map(x => `<button class="chip" data-act="ex-grupo" data-v="${esc(x.id)}" aria-pressed="${x.id === u.exGrupo}">${esc(x.nombre)}</button>`).join('')}</div>`;
+  const ex = S.idx.examsByGrupo[u.exGrupo] || []; const n = alumnosDe(u.exGrupo).length;
+  h += `<div class="card">${ex.length ? `<div class="tw"><table><thead><tr><th>Examen</th><th>Fecha</th><th class="n">Cargadas</th><th class="n">Promedio</th><th class="n">Aprobados (≥60%)</th></tr></thead><tbody>${ex.map(e => { const v = Object.values(e.notas || {}).map(x => num(x) / num(e.max || 100) * 100); const prom = v.length ? Math.round(sum(v) / v.length) : null;
+    return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td><b>${esc(e.nombre)}</b>${e.materia ? `<br><small>${esc(e.materia)}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n">${v.length}/${n}</td><td class="n">${prom == null ? '—' : `<span class="${prom < 60 ? 'bad-t' : 'ok-t'} num">${prom}%</span>`}</td><td class="n">${v.length ? v.filter(x => x >= 60).length + ' de ' + v.length : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty"><b>Sin exámenes en este grupo</b>Creá uno y cargá las notas.</div>'}</div>`;
+  return h;
+};
+function vExamen(e) {
+  const al = alumnosDe(e.grupoId); const max = num(e.max || 100);
+  if (!S.draftExam || S.draftExam.eid !== e.id) S.draftExam = { eid: e.id, notas: { ...(e.notas || {}) }, dirty: false };
+  const D = S.draftExam;
+  const rank = Object.entries(e.notas || {}).filter(([id]) => S.alumnos[id]).sort((a, b) => num(b[1]) - num(a[1]));
+  let h = `<div><button class="back" data-act="back-examenes">${ic('back')}Exámenes</button></div>`;
+  h += ph(e.nombre, `${esc(gName(e.grupoId))} · ${fmtF(e.fecha)}${e.materia ? ' · ' + esc(e.materia) : ''} · puntaje máximo ${fmtN(max)}`, `<button class="btn" data-act="examen-editar" data-id="${esc(e.id)}">${ic('edit')}Editar</button>`);
+  h += `<div class="grid2"><div class="card"><div class="card-h"><h2>Cargar notas</h2><small>Dejá vacío si no rindió</small></div><div class="rows">${al.map(a => { const v = D.notas[a.id]; const p = v === '' || v == null ? null : Math.round(num(v) / max * 100); return `<div class="row"><div class="t">${esc(nombreA(a))}</div><div class="r">${p == null ? '' : `<small class="${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</small>`}<input class="inp nota" id="nota-${esc(a.id)}" data-in="nota" data-id="${esc(a.id)}" inputmode="decimal" value="${v == null ? '' : esc(v)}" aria-label="Nota de ${esc(nombreA(a))}"><small>/ ${fmtN(max)}</small></div></div>`; }).join('') || '<div class="empty">El grupo no tiene alumnos.</div>'}</div>
+    <div class="savebar"><small>${D.dirty ? 'Hay cambios sin guardar' : 'Todo guardado'}</small><button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="notas-guardar">Guardar notas</button></div></div>
+    <div class="card"><div class="card-h"><h2>Ranking</h2><small>${rank.length} rindieron</small></div><div class="rows">${rank.map(([id, v], i) => { const p = Math.round(num(v) / max * 100); return `<div class="row click" data-act="ver-alumno" data-id="${esc(id)}"><div class="t"><span class="num" style="color:var(--muted);margin-right:8px">${i + 1}°</span>${esc(nombreA(S.alumnos[id]))}</div><div class="r"><span class="num">${fmtN(num(v))}</span>${pill(p + '%', p >= 60 ? 'ok' : 'bad')}</div></div>`; }).join('') || '<div class="empty">Todavía no hay notas guardadas.</div>'}</div></div></div>`;
+  return h;
+}
+
+/* --- horario --- */
+VIEWS.horario = () => {
+  const url = S.cfg.horarioUrl;
+  let h = ph('Horario', isProfe() ? 'Tus clases de la semana' : 'Horario semanal de profes');
+  h += `<div class="card"><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">${url ? `<p style="margin:0">El horario de la semana está en la app de horarios de VIBE.</p><a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${ic('ext')}Abrir horario</a>` : `<p style="margin:0" class="muted">${isStaff() ? 'Cargá el link de la app de horarios en Ajustes y les aparece a los profes acá.' : 'La dirección todavía no cargó el horario.'}</p>${isStaff() ? `<button class="btn" data-act="nav" data-v="ajustes">Ir a Ajustes</button>` : ''}`}</div></div>`;
+  return h;
+};
+
+/* --- equipo (dirección) --- */
+VIEWS.equipo = () => {
+  if (!ready('perfiles', 'grupos', 'pg')) return loadingView();
+  const staff = Object.values(S.perfiles).filter(p => p.rol !== 'alumno').sort((a, b) => ['admin', 'oficina', 'profe'].indexOf(a.rol) - ['admin', 'oficina', 'profe'].indexOf(b.rol) || (a.nombre || a.email).localeCompare(b.nombre || b.email, 'es'));
+  let h = ph('Equipo', 'Dirección, oficina y profes con acceso a la app', `<button class="btn primary" data-act="invitar-equipo">${ic('mail')}Sumar profe u oficina</button>`);
+  h += `<div class="card"><div class="tw"><table><thead><tr><th>Persona</th><th>Rol</th><th>Grupos</th><th>Estado</th><th></th></tr></thead><tbody>${staff.map(p => { const gs = S.profeGrupos.filter(x => x.profe_id === p.id).map(x => gName(x.grupo_id));
+    return `<tr><td><b>${esc(p.nombre || '—')}</b><br><small>${esc(p.email)}</small></td><td>${pill(ROLE_LBL[p.rol], p.rol === 'admin' ? 'acc' : '')}</td><td><small>${p.rol === 'profe' ? esc(gs.join(', ') || 'Sin grupos') : '—'}</small></td><td>${p.activo ? pill('Activo', 'ok') : pill('Desactivado')}</td><td class="n" style="white-space:nowrap"><button class="btn sm" data-act="equipo-editar" data-id="${esc(p.id)}">${ic('edit')}Editar</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">Todavía no sumaste a nadie.</td></tr>'}</tbody></table></div></div>`;
+  h += `<div class="banner">Cada persona recibe un correo para crear su contraseña. Los profes solo ven los grupos que les asignes: toman lista, cargan notas y ven contactos. La oficina ve todo y cobra, pero no puede borrar pagos ni cambiar roles.</div>`;
+  return h;
+};
+
+/* --- ajustes --- */
+VIEWS.ajustes = () => {
+  const c = S.cfg;
+  let h = ph('Ajustes', 'Datos del cursillo, recibos, mensajes y horario');
+  h += `<div class="grid2"><div class="card"><div class="card-h"><h2>Datos del cursillo</h2></div><div class="card-b"><div class="form">
+    <div class="fld full"><label for="c-nombre">Nombre (sale en recibos y mensajes)</label><input class="inp" id="c-nombre" value="${esc(c.nombre || 'Cursillo VIBE')}"></div>
+    <div class="fld"><label for="c-tel">Teléfono</label><input class="inp" id="c-tel" value="${esc(c.tel || '')}"></div>
+    <div class="fld"><label for="c-dir">Dirección</label><input class="inp" id="c-dir" value="${esc(c.dir || '')}" placeholder="Coronel Oviedo"></div>
+    <div class="fld full"><label for="c-transf">Datos para transferencia</label><textarea class="inp" id="c-transf" placeholder="Banco, titular, CI, número de cuenta o alias">${esc(c.transf || '')}</textarea><span class="hint">Los alumnos lo ven en sus cuotas y se agrega a los recordatorios.</span></div>
+    <div class="fld full"><label for="c-hor">Link del horario de profes</label><input class="inp" id="c-hor" value="${esc(c.horarioUrl || '')}" placeholder="https://…"></div>
+    <div class="full"><button class="btn primary" data-act="cfg-guardar">Guardar datos</button></div></div></div></div>
+    <div class="card"><div class="card-h"><h2>Logo de los recibos</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+    <img src="${esc(c.logo || 'img/logo-vibe.png')}" alt="Logo actual" style="max-height:70px;max-width:240px;background:#fff;padding:8px;border-radius:8px;border:1px solid var(--line)"><small class="muted">${c.logo ? 'Logo propio cargado.' : 'Se usa el logo oficial de VIBE. Podés subir otro si querés.'}</small>
+    <label class="btn" for="c-logo">${ic('upload')}${c.logo ? 'Cambiar logo' : 'Subir logo'}</label><input type="file" id="c-logo" data-ch="logo" accept="image/*" hidden>
+    ${c.logo ? '<button class="btn sm ghost danger" data-act="logo-quitar">Quitar logo</button>' : ''}</div></div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Mensaje de recordatorio de cuota</h2><button class="btn sm ghost" data-act="msg-reset">Restaurar el original</button></div><div class="card-b" style="display:flex;flex-direction:column;gap:10px">
+    <textarea class="inp" id="c-msg" style="min-height:150px">${esc(c.msg || DEFAULT_MSG)}</textarea>
+    <span class="hint muted" style="font-size:13px">Se reemplaza automáticamente: {encargado} {alumno} {nombre} {grupo} {detalle} {total} {transferencia} {cursillo}</span>
+    <div><button class="btn primary" data-act="msg-guardar">Guardar mensaje</button></div></div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Exportar</h2><small>Copia de seguridad en CSV (se abre en Excel)</small></div><div class="card-b actions"><button class="btn" data-act="exp-alumnos">${ic('download')}Alumnos con estado de cuenta</button><button class="btn" data-act="exp-pagos-todos">${ic('download')}Todos los pagos</button><button class="btn" data-act="exp-asis">${ic('download')}Asistencia</button></div></div>`;
+  return h;
+};
+async function guardarCfg(cambios, msg) { const valor = { ...S.cfg, ...cambios }; const ok = await run(S.sb.from('config').upsert({ clave: 'general', valor }), msg); if (ok) { S.cfg = valor; render(); } return ok; }
+
+/* ---------- formularios: grupo ---------- */
+let PF = null;
+function openGrupoForm(gid) {
+  const g = gid ? S.grupos[gid] : { nombre: '', programa: 'Ingeniería', horario: '', inicio: hoy(), fin: '', activo: true, plan: [] };
+  PF = { gid, items: (g.plan || []).map(x => ({ ...x })) };
+  const mat = PF.items.find(i => i.id === 'mat'); const cs = PF.items.filter(i => /^c\d+$/.test(i.id));
+  const progs = PROGRAMAS;
+  openModal(gid ? 'Editar grupo' : 'Nuevo grupo', `<div class="form">
+    <div class="fld full"><label for="g-nombre">Nombre del grupo *</label><input class="inp" id="g-nombre" value="${esc(g.nombre)}" placeholder="CPI Sábados 2027"></div>
+    <div class="fld"><label for="g-prog">Programa</label><select class="inp" id="g-prog">${progs.map(p => `<option ${p === g.programa ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+    <div class="fld"><label for="g-hor">Horario</label><input class="inp" id="g-hor" value="${esc(g.horario || '')}" placeholder="Lun a vie 8:00–12:00"></div>
+    <div class="fld"><label for="g-ini">Inicio</label><input type="date" class="inp" id="g-ini" value="${esc(g.inicio || '')}"></div>
+    <div class="fld"><label for="g-fin">Fin</label><input type="date" class="inp" id="g-fin" value="${esc(g.fin || '')}"></div>
+    <label class="chk full"><input type="checkbox" id="g-act" ${g.activo !== false ? 'checked' : ''}>Grupo activo (desmarcá para archivarlo)</label>
+    <div class="fsec">Plan de pagos</div>
+    <div class="full gen">
+      <div class="fld"><label for="g-mat">Matrícula (Gs.)</label><input class="inp money" id="g-mat" inputmode="numeric" value="${mat ? fmtN(mat.monto) : ''}"></div>
+      <div class="fld"><label for="g-cuota">Cuota (Gs.)</label><input class="inp money" id="g-cuota" inputmode="numeric" value="${cs[0] ? fmtN(cs[0].monto) : ''}"></div>
+      <div class="fld"><label for="g-n">Cant. cuotas</label><input class="inp" id="g-n" type="number" min="0" max="24" value="${cs.length || ''}"></div>
+      <div class="fld"><label for="g-v1">1er vencimiento</label><input type="date" class="inp" id="g-v1" value="${esc(cs[0]?.venc || '')}"></div>
+      <button class="btn dark" data-act="pf-gen">Generar cuotas</button>
+    </div>
+    <span class="full hint muted" style="font-size:13px">Generar crea la matrícula y una cuota por mes desde el primer vencimiento. Después podés ajustar cada línea.</span>
+    <div class="full" id="plan-tbl">${planTbl()}</div></div>`,
+    `${gid && isAdmin() ? `<button class="btn ghost danger" data-act="grupo-borrar" data-id="${esc(gid)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="grupo-guardar">Guardar grupo</button>`, 'wide');
+}
+function planTbl() {
+  return `<div class="pl">${PF.items.length ? `<div class="pl-r muted" style="font-size:12px;font-weight:700"><span>Concepto</span><span>Monto (Gs.)</span><span>Vence</span><span></span></div>` : '<p class="muted" style="margin:0">Sin ítems. Usá “Generar cuotas” o agregá una línea.</p>'}
+    ${PF.items.map((it, i) => `<div class="pl-r"><input class="inp" id="pf-c-${i}" data-in="pf" data-i="${i}" data-k="concepto" value="${esc(it.concepto)}" aria-label="Concepto"><input class="inp money" id="pf-m-${i}" data-in="pf" data-i="${i}" data-k="monto" inputmode="numeric" value="${fmtN(it.monto)}" aria-label="Monto"><input type="date" class="inp" id="pf-v-${i}" data-in="pf" data-i="${i}" data-k="venc" value="${esc(it.venc || '')}" aria-label="Vencimiento"><button class="x" data-act="pf-del" data-i="${i}" aria-label="Quitar línea">${ic('trash')}</button></div>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:4px"><button class="btn sm" data-act="pf-add">${ic('plus')}Agregar línea</button><span class="num" id="pf-total">Total ${money(sum(PF.items.map(i => i.monto)))}</span></div></div>`;
+}
+
+/* ---------- formularios: alumno (oficina) ---------- */
+function openAlumnoForm(aid, gPreset) {
+  const a = aid ? S.alumnos[aid] : { nombre: '', apellido: '', email: '', grupoId: gPreset || S.selGrupo || gruposActivos()[0]?.id || '', estado: 'activo', ficha: {} };
+  openModal(aid ? 'Editar alumno' : 'Agregar alumno', `<div class="form">
+    <div class="fld full"><label for="a-email">Correo</label><input class="inp" id="a-email" type="email" value="${esc(a.email)}" ${a.userId ? 'disabled' : ''}><span class="hint">${a.userId ? 'Ya tiene cuenta con este correo.' : 'Con el correo después le podés mandar el acceso a la app.'}</span></div>
+    <div class="fld full"><label for="a-prog">Curso</label><select class="inp" id="a-prog"><option value="">—</option>${PROGRAMAS.map(p => `<option ${p === progDe(a) ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+    </div>${fichaForm(a, 'ae', true)}<div class="form" style="margin-top:12px">
+    <div class="fsec">Grupo y pagos</div>
+    <div class="fld"><label for="a-gru">Grupo</label><select class="inp" id="a-gru"><option value="">Sin grupo</option>${optGrupos(a.grupoId)}</select></div>
+    <div class="fld"><label for="a-est">Estado</label><select class="inp" id="a-est">${[['activo', 'Activo'], ['pendiente', 'Ficha lista, sin grupo'], ['invitado', 'Invitado, sin ficha'], ['baja', 'De baja']].map(([v, l]) => `<option value="${v}" ${a.estado === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="fld"><label for="a-desc">Descuento en cuotas (%)</label><input class="inp" id="a-desc" type="number" min="0" max="100" value="${a.desc ? esc(a.desc) : ''}" placeholder="0"><span class="hint">Becas, hermanos, pago contado. 100 = beca completa.</span></div>
+    <div class="fld"><label for="a-esp">Cuota especial (Gs.)</label><input class="inp money" id="a-esp" inputmode="numeric" value="${a.cuotaEsp ? fmtN(a.cuotaEsp) : ''}" placeholder="Vacío = la del grupo"><span class="hint">Si se carga, reemplaza el monto de cada cuota.</span></div>
+    <label class="chk full"><input type="checkbox" id="a-mexo" ${a.matExon ? 'checked' : ''}>Matrícula exonerada</label>
+    <div class="fld full"><label for="a-obs">Observaciones (solo las ve la oficina)</label><textarea class="inp" id="a-obs" style="min-height:70px">${esc(a.obs || '')}</textarea></div>
+    <div class="full err" id="a-err"></div></div>`,
+    `${aid && isAdmin() ? `<button class="btn ghost danger" data-act="alumno-borrar" data-id="${esc(aid)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="alumno-guardar" data-id="${esc(aid || '')}">Guardar alumno</button>`, 'wide');
+}
+function openInvitarAlumno(gid) {
+  openModal('Invitar alumno', `<p style="margin:0">Le llega un correo para crear su contraseña y completar su ficha. Cuando la complete te avisamos por correo.</p><div class="form">
+    <div class="fld full"><label for="i-email">Correo del alumno *</label><input class="inp" id="i-email" type="email" autocomplete="off"></div>
+    <div class="fld"><label for="i-nom">Nombre</label><input class="inp" id="i-nom"></div><div class="fld"><label for="i-ape">Apellido</label><input class="inp" id="i-ape"></div>
+    <div class="fld"><label for="i-prog">Curso *</label><select class="inp" id="i-prog"><option value="">Elegí…</option>${PROGRAMAS.map(p => `<option ${gid && S.grupos[gid]?.programa === p ? 'selected' : ''}>${p}</option>`).join('')}</select><span class="hint">Define qué preguntas le aparecen en la ficha.</span></div>
+    <div class="fld"><label for="i-gru">Grupo (opcional)</label><select class="inp" id="i-gru" data-ch="i-gru"><option value="">Lo asigno después</option>${gruposActivos().map(g => `<option value="${esc(g.id)}" ${g.id === gid ? 'selected' : ''}>${esc(g.nombre)}</option>`).join('')}</select><span class="hint">Mañana, tarde o virtual se define con el grupo.</span></div>
+    <div class="full err" id="i-err"></div></div>`, `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="invitar-enviar">${ic('mail')}Enviar invitación</button>`);
+}
+async function invocar(fn, body) {
+  try {
+    const { data, error } = await S.sb.functions.invoke(fn, { body });
+    if (error) { let m = error.message; try { const j = await error.context.json(); m = j.error || m; } catch (e) { } return { error: m }; }
+    if (data && data.error) return { error: data.error };
+    return data || { ok: true };
+  } catch (e) { return { error: errText(e) }; }
+}
+
+/* ---------- formularios: link de inscripción ---------- */
+function openLinkForm(id) {
+  const l = id ? S.links[id] : { titulo: '', programa: '', grupo_id: '', activo: true };
+  openModal(id ? 'Editar link' : 'Nuevo link de inscripción', `<div class="form">
+    <div class="fld full"><label for="k-tit">Nombre del curso (lo ve el alumno) *</label><input class="inp" id="k-tit" value="${esc(l.titulo)}" placeholder="CPI Sábados 2027"></div>
+    <div class="fld"><label for="k-prog">Curso *</label><select class="inp" id="k-prog"><option value="">Elegí…</option>${PROGRAMAS.map(p => `<option ${p === l.programa ? 'selected' : ''}>${p}</option>`).join('')}</select><span class="hint">Define las preguntas de la ficha.</span></div>
+    <div class="fld"><label for="k-gru">Grupo (opcional)</label><select class="inp" id="k-gru" data-ch="k-gru"><option value="">Lo asigno después</option>${gruposActivos().map(g => `<option value="${esc(g.id)}" ${g.id === l.grupo_id ? 'selected' : ''}>${esc(g.nombre)}</option>`).join('')}</select><span class="hint">Si lo elegís, la ficha llega con el grupo ya puesto.</span></div>
+    <label class="chk full"><input type="checkbox" id="k-act" ${l.activo ? 'checked' : ''}>Link activo (desmarcá para cerrar la inscripción)</label>
+    <div class="full err" id="k-err"></div></div>`,
+    `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="link-guardar" data-id="${esc(id || '')}">Guardar</button>`);
+}
+const slug = t => norm(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'curso';
+
+/* ---------- formularios: equipo ---------- */
+function openInvitarEquipo() {
+  openModal('Sumar profe u oficina', `<div class="form">
+    <div class="fld full"><label for="e-email">Correo *</label><input class="inp" id="e-email" type="email" autocomplete="off"></div>
+    <div class="fld"><label for="e-nom">Nombre</label><input class="inp" id="e-nom"></div>
+    <div class="fld"><label for="e-tipo">Rol</label><select class="inp" id="e-tipo" data-ch="e-tipo"><option value="profe">Profe</option><option value="oficina">Oficina</option></select></div>
+    <div class="fld full" id="e-grupos-w"><label>Grupos que da</label><div class="checks">${gruposActivos().map(g => `<label class="chk"><input type="checkbox" name="e-g" value="${esc(g.id)}">${esc(g.nombre)}</label>`).join('') || '<small class="muted">Todavía no hay grupos.</small>'}</div></div>
+    <div class="full err" id="e-err"></div></div>`, `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="equipo-invitar">${ic('mail')}Enviar invitación</button>`);
+}
+function openEquipoEditar(pid) {
+  const p = S.perfiles[pid]; const mios = new Set(S.profeGrupos.filter(x => x.profe_id === pid).map(x => x.grupo_id)); const soyYo = pid === S.session.user.id;
+  openModal('Editar ' + (p.nombre || p.email), `<div class="form">
+    <div class="fld full"><label for="q-nom">Nombre</label><input class="inp" id="q-nom" value="${esc(p.nombre)}"></div>
+    <div class="fld"><label for="q-rol">Rol</label><select class="inp" id="q-rol" ${soyYo ? 'disabled' : ''}>${['profe', 'oficina', 'admin'].map(r => `<option value="${r}" ${p.rol === r ? 'selected' : ''}>${ROLE_LBL[r]}</option>`).join('')}</select>${soyYo ? '<span class="hint">No podés cambiar tu propio rol.</span>' : ''}</div>
+    <label class="chk" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="q-act" ${p.activo ? 'checked' : ''} ${soyYo ? 'disabled' : ''}>Acceso activo</label>
+    <div class="fld full"><label>Grupos que da (si es profe)</label><div class="checks">${gruposOrden().map(g => `<label class="chk"><input type="checkbox" name="q-g" value="${esc(g.id)}" ${mios.has(g.id) ? 'checked' : ''}>${esc(g.nombre)}</label>`).join('')}</div></div></div>`,
+    `<button class="btn" data-act="equipo-reenviar" data-id="${esc(pid)}" style="margin-right:auto">${ic('mail')}Reenviar acceso</button><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="equipo-guardar" data-id="${esc(pid)}">Guardar</button>`);
+}
+
+/* ---------- formularios: pago ---------- */
+let PG = null;
+function openPagoForm(aid, itemId) {
+  PG = { aid: aid || '', itemId: itemId || '' };
+  openModal('Registrar pago', `<div id="pg-body">${pagoBody()}</div>`, `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="pago-guardar">Guardar y ver recibo</button>`);
+}
+function pagoBody() {
+  const a = S.alumnos[PG.aid]; const t = hoy();
+  if (!a) {
+    const opts = activos().sort(cmpA);
+    return `<div class="fld"><label for="pg-al">Alumno</label><select class="inp" id="pg-al" data-ch="pg-al"><option value="">Elegí un alumno…</option>${gruposActivos().map(g => { const l = opts.filter(x => x.grupoId === g.id); return l.length ? `<optgroup label="${esc(g.nombre)}">${l.map(x => `<option value="${esc(x.id)}">${esc(nombreA(x))}</option>`).join('')}</optgroup>` : ''; }).join('')}</select></div>`;
+  }
+  const c = cuenta(a); const pend = c.items.filter(i => i.saldo > 0);
+  if (!PG.itemId || (PG.itemId !== 'otro' && !pend.find(i => i.id === PG.itemId))) PG.itemId = pend[0]?.id || 'otro';
+  const it = pend.find(i => i.id === PG.itemId);
+  return `<div class="banner"><b>${esc(nombreA(a))}</b> · ${esc(gName(a.grupoId))}${c.vencido ? ` · <span class="bad-t">debe ${money(c.vencido)} vencido</span>` : ''}</div>
+    <div class="form">
+    <div class="fld full"><label for="pg-item">Concepto</label><select class="inp" id="pg-item" data-ch="pg-item">${pend.map(i => `<option value="${esc(i.id)}" ${i.id === PG.itemId ? 'selected' : ''}>${esc(i.concepto)} · saldo ${money(i.saldo)}${i.venc ? ' · vence ' + fmtF(i.venc) : ''}</option>`).join('')}<option value="otro" ${PG.itemId === 'otro' ? 'selected' : ''}>Otro concepto (material, simulacro…)</option></select></div>
+    ${PG.itemId === 'otro' ? `<div class="fld full"><label for="pg-conc">Descripción</label><input class="inp" id="pg-conc" placeholder="Material de estudio"></div>` : ''}
+    <div class="fld"><label for="pg-monto">Monto (Gs.)</label><input class="inp money" id="pg-monto" inputmode="numeric" value="${it ? fmtN(it.saldo) : ''}"></div>
+    <div class="fld"><label for="pg-fecha">Fecha</label><input type="date" class="inp" id="pg-fecha" value="${t}"></div>
+    <div class="fld"><label for="pg-met">Forma de pago</label><select class="inp" id="pg-met"><option>Efectivo</option><option>Transferencia</option><option>Giro</option><option>Otro</option></select></div>
+    <div class="fld"><label for="pg-obs">Observación</label><input class="inp" id="pg-obs" placeholder="Opcional"></div>
+    <div class="full err" id="pg-err"></div></div>`;
+}
+
+/* ---------- recibo ---------- */
+function reciboData(p) {
+  const a = S.alumnos[p.alumnoId] || {}; const c = a.id ? cuenta(a) : null; const cfg = S.cfg;
+  return { p, a, nombre: a.id ? nombreA(a) : 'Alumno', grupo: gName(p.grupoId), cfg, nro: String(p.nro || '').padStart(5, '0'), saldo: c ? c.vencido + c.pendiente : 0, cursillo: cfg.nombre || 'Cursillo VIBE' };
+}
+function reciboTexto(p) {
+  const r = reciboData(p);
+  return `*${r.cursillo}* — Recibo N° ${r.nro}\nFecha: ${fmtF(p.fecha)}\nAlumno: ${r.nombre}${r.a.ci ? ' (CI ' + r.a.ci + ')' : ''}\nConcepto: ${p.concepto} — ${r.grupo}\nMonto: ${money(p.monto)} (${letras(p.monto)} guaraníes)\nForma de pago: ${p.metodo || '—'}\nSaldo pendiente del curso: ${money(r.saldo)}\n¡Gracias!`;
+}
+let RC = null;
+function openRecibo(pid) {
+  const p = S.pagos[pid]; if (!p) return;
+  const r = reciboData(p); const tel = isStaff() ? waNum(r.a.encargadoTel || r.a.tel) : '';
+  const body = `<div class="rcb" id="rcb">
+    <div class="rcb-top"><img src="${esc(r.cfg.logo || 'img/logo-vibe.png')}" alt="Cursillo VIBE" style="max-width:220px"><div class="rcb-no">RECIBO<b>N° ${r.nro}</b></div></div>
+    <div class="rcb-amt">${money(p.monto)}</div><div class="rcb-words">${esc(cap(letras(p.monto)))} guaraníes</div>
+    <dl class="dl"><dt>Fecha</dt><dd>${fmtF(p.fecha)}</dd><dt>Recibí de</dt><dd>${esc(r.nombre)}${r.a.ci ? ' · CI ' + esc(r.a.ci) : ''}</dd><dt>Concepto</dt><dd>${esc(p.concepto)}</dd><dt>Grupo</dt><dd>${esc(r.grupo)}</dd><dt>Forma de pago</dt><dd>${esc(p.metodo || '—')}</dd>${p.obs ? `<dt>Obs.</dt><dd>${esc(p.obs)}</dd>` : ''}<dt>Saldo del curso</dt><dd>${money(r.saldo)}</dd></dl>
+    <div class="rcb-sign"><span>${esc(r.cursillo)}${r.cfg.dir ? '<br>' + esc(r.cfg.dir) : ''}${r.cfg.tel ? '<br>' + esc(r.cfg.tel) : ''}</span><span class="ln">Firma y aclaración</span></div></div>
+    ${isStaff() ? (tel ? `<small class="muted rcb-extra">WhatsApp: +${esc(tel)} (${r.a.encargadoTel ? 'encargado' : 'alumno'})</small>` : '<small class="muted rcb-extra">El alumno no tiene teléfono cargado.</small>') : ''}`;
+  const foot = `${isAdmin() ? `<button class="btn ghost danger" data-act="pago-anular" data-id="${esc(p.id)}" style="margin-right:auto">${ic('trash')}Anular</button>` : ''}
+    <button class="btn" data-act="imprimir">${ic('print')}Imprimir</button><button class="btn" data-act="png-recibo">${ic('download')}Descargar imagen</button>
+    ${isStaff() ? `<button class="btn" data-act="copiar-recibo">${ic('copy')}Copiar texto</button>` : ''}
+    ${tel ? `<a class="btn primary" href="https://wa.me/${tel}?text=${encodeURIComponent(reciboTexto(p))}" target="_blank" rel="noopener">${ic('wa')}Enviar por WhatsApp</a>` : ''}`;
+  RC = p; openModal('Recibo N° ' + r.nro, body, foot);
+}
+async function reciboPNG(p) {
+  const r = reciboData(p); const W = 1000, P = 64;
+  const cv = document.createElement('canvas'); const ctx = cv.getContext('2d');
+  try { await Promise.all([document.fonts.load('800 40px Montserrat'), document.fonts.load('400 26px Figtree'), document.fonts.load('600 26px Figtree')]); } catch (e) { }
+  const rows = [['Fecha', fmtF(p.fecha)], ['Recibí de', r.nombre + (r.a.ci ? ' · CI ' + r.a.ci : '')], ['Concepto', p.concepto], ['Grupo', r.grupo], ['Forma de pago', p.metodo || '—'], ...(p.obs ? [['Obs.', p.obs]] : []), ['Saldo del curso', money(r.saldo)]];
+  const H = 330 + rows.length * 62 + 190; cv.width = W; cv.height = H;
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  let logoOk = false;
+  try { const im = new Image(); im.src = r.cfg.logo || 'img/logo-vibe.png'; await im.decode(); const w = Math.min(380, im.width * 80 / im.height); ctx.drawImage(im, P, 50, w, w * im.height / im.width); logoOk = true; } catch (e) { }
+  if (!logoOk) { ctx.fillStyle = '#17140F'; ctx.font = '800 64px Montserrat, sans-serif'; ctx.fillText('VIB', P, 116); const w = ctx.measureText('VIB').width; ctx.fillStyle = '#FB8500'; ctx.fillText('E', P + w, 116); }
+  ctx.textAlign = 'right'; ctx.fillStyle = '#68625A'; ctx.font = '700 22px Montserrat, sans-serif'; ctx.fillText('RECIBO', W - P, 74);
+  ctx.fillStyle = '#17140F'; ctx.font = '800 40px Montserrat, sans-serif'; ctx.fillText('N° ' + r.nro, W - P, 120); ctx.textAlign = 'left';
+  ctx.fillStyle = '#FB8500'; ctx.fillRect(P, 158, W - 2 * P, 6);
+  ctx.fillStyle = '#17140F'; ctx.font = '800 60px Montserrat, sans-serif'; ctx.fillText(money(p.monto), P, 245);
+  ctx.fillStyle = '#68625A'; ctx.font = '400 26px Figtree, sans-serif'; ctx.fillText(cap(letras(p.monto)) + ' guaraníes', P, 285);
+  let y = 350;
+  rows.forEach(([k, v]) => { ctx.fillStyle = '#68625A'; ctx.font = '600 24px Figtree, sans-serif'; ctx.fillText(k, P, y); ctx.fillStyle = '#17140F'; ctx.font = '600 28px Figtree, sans-serif'; let t = String(v); while (ctx.measureText(t).width > W - P - 330 && t.length > 4) t = t.slice(0, -2); if (t !== String(v)) t = t.slice(0, -1) + '…'; ctx.fillText(t, 330, y); ctx.fillStyle = '#E4E0D9'; ctx.fillRect(P, y + 22, W - 2 * P, 1); y += 62; });
+  y += 90; ctx.fillStyle = '#17140F'; ctx.fillRect(W - P - 320, y, 320, 2); ctx.fillStyle = '#68625A'; ctx.font = '400 22px Figtree, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Firma y aclaración', W - P - 160, y + 32); ctx.textAlign = 'left';
+  ctx.fillStyle = '#17140F'; ctx.font = '700 24px Figtree, sans-serif'; ctx.fillText(r.cursillo, P, y - 10); ctx.fillStyle = '#68625A'; ctx.font = '400 22px Figtree, sans-serif'; ctx.fillText([r.cfg.dir, r.cfg.tel].filter(Boolean).join(' · '), P, y + 22);
+  return new Promise(res => cv.toBlob(res, 'image/png'));
+}
+
+/* ---------- WhatsApp recordatorio ---------- */
+let WA = null;
+function waMensaje(a, dest) {
+  const c = cuenta(a); const cfg = S.cfg; let its = c.items.filter(i => i.est === 'vencido');
+  if (!its.length && c.proximo) its = [c.proximo];
+  const det = its.map(i => `• ${i.concepto}: ${money(i.saldo)} (${i.est === 'vencido' ? 'venció' : 'vence'} el ${fmtF(i.venc)})`).join('\n');
+  const tpl = cfg.msg || DEFAULT_MSG;
+  const rep = { encargado: dest === 'enc' && a.encargado ? a.encargado.split(' ')[0] : (a.nombre || '').split(' ')[0], alumno: nombreA(a), nombre: (a.nombre || '').split(' ')[0], grupo: gName(a.grupoId), detalle: det, total: money(sum(its.map(i => i.saldo))), transferencia: cfg.transf ? 'Podés transferir a:\n' + cfg.transf : '', cursillo: cfg.nombre || 'Cursillo VIBE' };
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => k in rep ? rep[k] : m).replace(/\n{3,}/g, '\n\n').trim();
+}
+function openWA(aid) {
+  const a = S.alumnos[aid]; if (!a) return;
+  WA = { aid, dest: a.encargadoTel ? 'enc' : 'al' };
+  openModal('Recordatorio por WhatsApp', `<div id="wa-body">${waBody()}</div>`, `<button class="btn" data-act="wa-copiar">${ic('copy')}Copiar mensaje</button><span id="wa-btn">${waBtn()}</span>`);
+}
+function waBody() {
+  const a = S.alumnos[WA.aid];
+  return `<div class="chips"><button class="chip" data-act="wa-dest" data-v="enc" aria-pressed="${WA.dest === 'enc'}" ${a.encargadoTel ? '' : 'disabled'}>Encargado${a.encargadoTel ? ' · ' + esc(a.encargadoTel) : ' (sin teléfono)'}</button><button class="chip" data-act="wa-dest" data-v="al" aria-pressed="${WA.dest === 'al'}" ${a.tel ? '' : 'disabled'}>Alumno${a.tel ? ' · ' + esc(a.tel) : ' (sin teléfono)'}</button></div>
+    <div class="fld"><label for="wa-msg">Mensaje (podés editarlo antes de enviar)</label><textarea class="inp" id="wa-msg" data-in="wa-msg" style="min-height:220px">${esc(waMensaje(a, WA.dest))}</textarea></div>`;
+}
+function waBtn() {
+  const a = S.alumnos[WA.aid]; const tel = waNum(WA.dest === 'enc' ? a.encargadoTel : a.tel); const msg = $('#wa-msg') ? $('#wa-msg').value : waMensaje(a, WA.dest);
+  return tel ? `<a class="btn primary" href="https://wa.me/${tel}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${ic('wa')}Abrir WhatsApp</a>` : `<span class="err">No hay teléfono cargado. Copiá el mensaje.</span>`;
+}
+
+/* ---------- formularios: examen ---------- */
+function openExamForm(eid) {
+  const e = eid ? S.exams[eid] : { nombre: '', materia: '', fecha: hoy(), max: 100, grupoId: S.ui.exGrupo };
+  openModal(eid ? 'Editar examen' : 'Nuevo examen', `<div class="form">
+    <div class="fld full"><label for="x-nom">Nombre *</label><input class="inp" id="x-nom" value="${esc(e.nombre)}" placeholder="Examen 3 · Álgebra"></div>
+    <div class="fld"><label for="x-gru">Grupo</label><select class="inp" id="x-gru">${optGrupos(e.grupoId)}</select></div>
+    <div class="fld"><label for="x-mat">Materia</label><input class="inp" id="x-mat" value="${esc(e.materia || '')}" placeholder="Matemática"></div>
+    <div class="fld"><label for="x-fec">Fecha</label><input type="date" class="inp" id="x-fec" value="${esc(e.fecha || '')}"></div>
+    <div class="fld"><label for="x-max">Puntaje máximo</label><input class="inp" id="x-max" type="number" min="1" value="${esc(e.max || 100)}"></div>
+    <div class="full err" id="x-err"></div></div>`,
+    `${eid ? `<button class="btn ghost danger" data-act="examen-borrar" data-id="${esc(eid)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="examen-guardar" data-id="${esc(eid || '')}">Guardar</button>`);
+}
+
+/* ---------- importar desde Excel ---------- */
+let IMP = null;
+const EXTRAS = FICHA.filter(f => f.k && !f.col).map(f => f.k);
+const FIELDS = [['', '— No importar —'], ['nombreCompleto', 'Nombre y apellido'], ['nombre', 'Nombres'], ['apellido', 'Apellidos'], ['email', 'Correo'], ['ci', 'Cédula'], ['tel', 'Teléfono del alumno'], ['fecha_nac', 'Fecha de nacimiento'], ['colegio', 'Colegio'], ['ciudad', 'Ciudad'], ['encargado', 'Encargado / tutor'], ['encargado_tel', 'Teléfono del encargado'],
+  ...FICHA.filter(f => f.k && !f.col).map(f => [f.k, f.l]), ['obs', 'Observaciones'], ['grupoNombre', 'Grupo']];
+function autoMap(hd) {
+  const h = norm(hd); const tel = /tel|cel|numero|whats/.test(h);
+  if (/marca temporal|edad|turno|modalidad|moalidad|puntuacion/.test(h)) return '';
+  if (/nacim/.test(h)) return 'fecha_nac';
+  if (/correo|e-?mail/.test(h)) return 'email';
+  if (/factura|ruc|razon social/.test(h)) return 'factura';
+  if (/recomend/.test(h) && /nombre|quien|persona/.test(h)) return 'recomendado_por';
+  if (/como se entero|como te enteraste|como conocio/.test(h)) return 'como_conocio';
+  if (/madre/.test(h)) return tel ? 'madre_tel' : 'madre_nombre';
+  if (/padre/.test(h)) return tel ? 'padre_tel' : 'padre_nombre';
+  if (/tutor|encargad|responsable/.test(h)) return tel ? 'encargado_tel' : 'encargado';
+  if (/cedula|documento|^c\.?i\.?$|\bci\b/.test(h)) return 'ci';
+  if (/vive con/.test(h)) return 'vive_con';
+  if (/trabaja/.test(h)) return 'trabaja';
+  if (/carrera/.test(h)) return 'carrera';
+  if (/bachiller/.test(h)) return 'bachiller';
+  if (/colegio/.test(h) && /ingresar/.test(h)) return 'colegio_destino';
+  if (/colegio|institucion|escuela/.test(h)) return 'colegio';
+  if (/nacionalidad/.test(h)) return 'nacionalidad';
+  if (/direccion|domicilio/.test(h)) return 'direccion';
+  if (/nombre.*apellido|apellido.*nombre|nombre completo|alumno|estudiante/.test(h)) return 'nombreCompleto';
+  if (tel || /contacto/.test(h)) return 'tel';
+  if (/apellido/.test(h)) return 'apellido';
+  if (/nombre/.test(h)) return 'nombre';
+  if (/ciudad|localidad|distrito/.test(h)) return 'ciudad';
+  if (/grupo|curso/.test(h)) return 'grupoNombre';
+  if (/obs|comentario/.test(h)) return 'obs';
+  return '';
+}
+function toYmd(v) {
+  if (!v) return ''; if (v instanceof Date && !isNaN(v)) return ymd(v); const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/); if (m) { let y = +m[3]; if (y < 100) y += 2000; return `${y}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`; }
+  return '';
+}
+function openImport(gid) {
+  if (!Object.keys(S.grupos).length) { toast('Primero creá un grupo para importar los alumnos.', 'error'); openGrupoForm(); return; }
+  IMP = { step: 1, gid: gid || S.selGrupo || gruposActivos()[0]?.id || '', sheets: null, sheet: '', rows: [], map: [] };
+  renderImport();
+}
+function renderImport() {
+  let body = '', foot = '';
+  if (IMP.step === 1) {
+    body = `<p style="margin:0">Subí tu Excel (o CSV), o copiá las filas desde Excel y pegalas abajo. La primera fila tiene que tener los títulos de las columnas.</p>
+      <label class="btn" for="imp-file" style="align-self:flex-start">${ic('upload')}Elegir archivo Excel o CSV</label><input type="file" id="imp-file" data-ch="imp-file" accept=".xlsx,.xls,.csv,.ods" hidden>
+      <div class="fld"><label for="imp-paste">O pegá acá</label><textarea class="inp" id="imp-paste" placeholder="Nombre	Apellido	CI	Teléfono	Encargado…" style="min-height:150px;font-family:ui-monospace,monospace;font-size:13px"></textarea></div><div class="err" id="imp-err"></div>`;
+    foot = `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="imp-pegado">Continuar</button>`;
+  } else if (IMP.step === 2) {
+    const hd = IMP.rows[0] || []; const data = IMP.rows.slice(1).filter(r => r.some(c => String(c).trim()));
+    const prev = buildImport();
+    body = `${IMP.sheets && IMP.sheets.length > 1 ? `<div class="fld"><label for="imp-sheet">Hoja del Excel</label><select class="inp" id="imp-sheet" data-ch="imp-sheet">${IMP.sheets.map(s => `<option ${s === IMP.sheet ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>` : ''}
+      <div class="fld"><label for="imp-grupo">Importar al grupo</label><select class="inp" id="imp-grupo" data-ch="imp-grupo">${optGrupos(IMP.gid)}</select>${IMP.map.includes('grupoNombre') ? '<span class="hint">Si la columna Grupo coincide con el nombre de un grupo, se usa ese; si no, va a este.</span>' : ''}</div>
+      <p style="margin:0"><b>${data.length}</b> filas. Revisá qué es cada columna:</p>
+      <div class="tw card"><table class="mapt"><thead><tr><th>Columna</th><th>Ejemplo</th><th>Es…</th></tr></thead><tbody>${hd.map((c, i) => `<tr><td><b>${esc(c || 'Columna ' + (i + 1))}</b></td><td><small>${esc(data.slice(0, 2).map(r => r[i]).filter(Boolean).join(' · ').slice(0, 60))}</small></td><td><select class="inp" id="imp-m-${i}" data-ch="imp-map" data-i="${i}">${FIELDS.map(([k, l]) => `<option value="${k}" ${IMP.map[i] === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>
+      <div class="banner">${prev.nuevos.length} alumno(s) nuevos${prev.dup ? ` · ${prev.dup} ya existen (se saltan)` : ''}${prev.sinNombre ? ` · ${prev.sinNombre} fila(s) sin nombre (se saltan)` : ''}${prev.nuevos.length ? '<br><small class="muted">Ej.: ' + prev.nuevos.slice(0, 3).map(x => esc(nombreA(x))).join(', ') + '</small>' : ''}</div>
+      <small class="muted">Quedan cargados como activos en su grupo. Los que tengan correo después pueden recibir el acceso a la app con “Enviar acceso”.</small><div class="err" id="imp-err"></div>`;
+    foot = `<button class="btn" data-act="imp-volver">Volver</button><button class="btn primary ${prev.nuevos.length ? '' : 'disabled'}" data-act="imp-go">Importar ${prev.nuevos.length} alumno(s)</button>`;
+  } else if (IMP.step === 3) {
+    body = `<p style="margin:0" id="imp-st">Guardando alumnos…</p><div class="prog"><i id="imp-bar"></i></div>`;
+  } else {
+    body = `<div class="banner ${IMP.fail ? 'bad' : 'ok'}"><b>Listo.</b> Se importaron ${IMP.ok} alumno(s)${IMP.fail ? ` · ${IMP.fail} no se pudieron guardar` : ''}.</div>`;
+    foot = `<button class="btn primary" data-act="close">Cerrar</button>`;
+  }
+  openModal('Importar alumnos', body, foot, 'wide');
+}
+function buildImport() {
+  const data = IMP.rows.slice(1).filter(r => r.some(c => String(c).trim()));
+  const byName = {}; gruposOrden().forEach(g => byName[norm(g.nombre)] = g.id);
+  const ciKey = v => String(v || '').replace(/\D/g, '');
+  const seenCI = new Set(Object.values(S.alumnos).map(a => ciKey(a.ci)).filter(Boolean));
+  const seenMail = new Set(Object.values(S.alumnos).map(a => norm(a.email)).filter(Boolean));
+  const seen = new Set(Object.values(S.alumnos).map(a => a.grupoId + '|' + norm(nombreA(a))));
+  const nuevos = []; let dup = 0, sinNombre = 0;
+  data.forEach(r => {
+    const o = {}; IMP.map.forEach((k, i) => { if (!k) return; const v = r[i]; if (v === '' || v == null) return; o[k] = k === 'fecha_nac' ? toYmd(v) : String(v instanceof Date ? ymd(v) : v).trim(); });
+    if (o.nombreCompleto && !o.nombre) o.nombre = o.nombreCompleto; delete o.nombreCompleto;
+    if (!o.encargado && (o.madre_nombre || o.padre_nombre)) { o.encargado = o.madre_nombre || o.padre_nombre; o.encargado_tel = o.encargado_tel || (o.madre_nombre ? o.madre_tel : o.padre_tel); }
+    o.ficha = {}; EXTRAS.forEach(k => { if (o[k]) o.ficha[k] = o[k]; delete o[k]; });
+    if (!o.nombre && !o.apellido) { sinNombre++; return; }
+    o.grupoId = (o.grupoNombre && byName[norm(o.grupoNombre)]) || IMP.gid; delete o.grupoNombre;
+    if (o.email) o.email = o.email.toLowerCase();
+    const key = o.grupoId + '|' + norm(nombreA(o)); const ck = ciKey(o.ci); const mk = norm(o.email);
+    if (seen.has(key) || (ck && seenCI.has(ck)) || (mk && seenMail.has(mk))) { dup++; return; }
+    seen.add(key); if (ck) seenCI.add(ck); if (mk) seenMail.add(mk);
+    nuevos.push(o);
+  });
+  return { nuevos, dup, sinNombre };
+}
+function setSheet(name) {
+  IMP.sheet = name; const ws = IMP.wb.Sheets[name];
+  let rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }).map(r => r.map(c => c instanceof Date ? ymd(c) : c === null ? '' : c));
+  const hi = rows.findIndex(r => r.filter(c => String(c).trim()).length >= 2); rows = hi >= 0 ? rows.slice(hi) : rows;
+  IMP.rows = rows; IMP.map = (rows[0] || []).map(autoMap); IMP.step = 2;
+}
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+}
+function parseTexto(txt) {
+  const lines = txt.replace(/\r/g, '').split('\n').filter(l => l.trim());
+  if (!lines.length) return [];
+  const sep = lines[0].includes('\t') ? '\t' : (lines[0].split(';').length > lines[0].split(',').length ? ';' : ',');
+  return lines.map(l => sep === '\t' ? l.split('\t') : splitCSV(l, sep));
+}
+function splitCSV(l, sep) { const out = []; let cur = '', q = false; for (let i = 0; i < l.length; i++) { const ch = l[i]; if (q) { if (ch === '"' && l[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; } else if (ch === '"') q = true; else if (ch === sep) { out.push(cur); cur = ''; } else cur += ch; } out.push(cur); return out.map(s => s.trim()); }
+const aSnake = o => { const r = {}; ['nombre', 'apellido', 'email', 'ci', 'tel', 'fecha_nac', 'colegio', 'ciudad', 'encargado', 'encargado_tel', 'obs'].forEach(k => { if (o[k] !== undefined) r[k] = o[k] || null; }); if (r.nombre === null) r.nombre = ''; if (r.apellido === null) r.apellido = ''; return r; };
+
+/* ---------- exportar ---------- */
+const csv = rows => '\uFEFF' + rows.map(r => r.map(v => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(';')).join('\r\n');
+function guardarArchivo(nombre, data, tipo = 'text/csv;charset=utf-8') {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: tipo });
+  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+function expPagos(list, nombre) {
+  const rows = [['N°', 'Fecha', 'Alumno', 'CI', 'Grupo', 'Concepto', 'Monto', 'Forma de pago', 'Observación', 'Registró']];
+  list.sort((a, b) => num(a.nro) - num(b.nro)).forEach(p => { const a = S.alumnos[p.alumnoId] || {}; rows.push([p.nro, fmtF(p.fecha), a.id ? nombreA(a) : '', a.ci || '', gName(p.grupoId), p.concepto, p.monto, p.metodo, p.obs, who(p.por)]); });
+  guardarArchivo(nombre + '.csv', csv(rows));
+}
+
+/* ---------- acciones ---------- */
+const A = {
+  nav: el => go(el.dataset.v),
+  more: () => { const ids = NAV.filter(n => n.r.includes(rol()) && !n.hide && !(TABS[rol()] || []).includes(n.id)); openModal('Más', `<div class="sheet-list">${ids.map(n => { const b = badgeN(n.id); return `<button data-act="more-go" data-v="${n.id}">${ic(n.i)}${n.l}${b ? `<span class="badge">${b}</span>` : ''}</button>`; }).join('')}<button data-act="more-go" data-v="cuenta">${ic('user')}Mi cuenta</button></div>`, '', 'narrow'); },
+  'more-go': el => { closeModal(); go(el.dataset.v); },
+  close: () => closeModal(),
+  ovclose: (el, e) => { if (e.target === el) closeModal(); },
+  'confirm-yes': () => { const f = CONFIRM; CONFIRM = null; closeModal(); if (f) f(); },
+  recargar: () => location.reload(),
+  'recargar-datos': () => load(),
+  'auth-view': el => { S.authView = el.dataset.v; S.authMsg = ''; render(); },
+  salir: async () => { const f = async () => { await S.sb.auth.signOut(); limpiar(); S.authMsg = ''; history.replaceState(null, '', location.pathname); render(); }; if (hasDraft()) confirmDlg('Tenés cambios sin guardar. ¿Salir igual?', 'Salir', f); else f(); },
+  'ver-grupo': el => go('grupos', () => { S.selGrupo = el.dataset.id; }),
+  'back-grupos': () => { S.selGrupo = null; render(); },
+  'ver-alumno': el => { closeModal(); go('alumnos', () => { S.selAlumno = el.dataset.id; S.ui.alTab = isStaff() ? 'cuenta' : 'asistencia'; }); },
+  'back-alumnos': () => { S.selAlumno = null; render(); },
+  altab: el => { S.ui.alTab = el.dataset.v; render(); },
+  'grupo-nuevo': () => openGrupoForm(),
+  'grupo-editar': el => openGrupoForm(el.dataset.id),
+  'pf-gen': () => {
+    const mat = parseMoney($('#g-mat').value), cm = parseMoney($('#g-cuota').value), n = Math.min(24, parseInt($('#g-n').value) || 0), v1 = $('#g-v1').value, ini = $('#g-ini').value;
+    const items = []; if (mat > 0) items.push({ id: 'mat', concepto: 'Matrícula', monto: mat, venc: ini || v1 || '' });
+    for (let i = 1; i <= n; i++) { const v = v1 ? addMonths(v1, i - 1) : ''; items.push({ id: 'c' + i, concepto: `Cuota ${i}${v ? ' · ' + cap(MESES[+v.slice(5, 7) - 1]) : ''}`, monto: cm, venc: v }); }
+    PF.items = items.concat(PF.items.filter(x => x.id.startsWith('x'))); $('#plan-tbl').innerHTML = planTbl();
+  },
+  'pf-add': () => { PF.items.push({ id: 'x' + newKey(), concepto: '', monto: 0, venc: '' }); $('#plan-tbl').innerHTML = planTbl(); $('#pf-c-' + (PF.items.length - 1))?.focus(); },
+  'pf-del': el => { PF.items.splice(+el.dataset.i, 1); $('#plan-tbl').innerHTML = planTbl(); },
+  'grupo-guardar': async el => {
+    const nombre = $('#g-nombre').value.trim(); if (!nombre) { $('#g-nombre').focus(); toast('Poné un nombre al grupo.', 'error'); return; }
+    const row = { nombre, programa: $('#g-prog').value, horario: $('#g-hor').value.trim(), inicio: $('#g-ini').value || null, fin: $('#g-fin').value || null, activo: $('#g-act').checked,
+      plan: PF.items.filter(i => i.concepto || i.monto).map(i => ({ id: i.id, concepto: (i.concepto || '').trim() || 'Pago', monto: num(i.monto), venc: i.venc || '' })) };
+    el.classList.add('disabled');
+    const q = PF.gid ? S.sb.from('grupos').update(row).eq('id', PF.gid).select().single() : S.sb.from('grupos').insert(row).select().single();
+    const g = await run(q, PF.gid ? 'Grupo actualizado' : 'Grupo creado');
+    if (!g) { el.classList.remove('disabled'); return; }
+    S.grupos[g.id] = mapG(g); closeModal(); if (!PF.gid) go('grupos', () => { S.selGrupo = g.id; }); else render();
+  },
+  'grupo-borrar': el => { const id = el.dataset.id; const n = Object.values(S.alumnos).filter(a => a.grupoId === id).length; if (n) { toast(`El grupo tiene ${n} alumno(s). Pasalos a otro grupo o archivá el grupo (desmarcá "activo").`, 'error'); return; } confirmDlg('¿Borrar este grupo? No se puede deshacer.', 'Borrar grupo', async () => { if (await run(S.sb.from('grupos').delete().eq('id', id), 'Grupo borrado')) { delete S.grupos[id]; S.selGrupo = null; render(); } }); },
+  'invitar-alumno': el => openInvitarAlumno(el.dataset.g),
+  'link-nuevo': () => openLinkForm(),
+  'link-editar': el => openLinkForm(el.dataset.id),
+  'link-copiar': async el => { try { await navigator.clipboard.writeText(linkUrl(S.links[el.dataset.id])); toast('Link copiado'); } catch (e) { toast('No se pudo copiar. Mantené apretado el link para copiarlo.', 'error'); } },
+  'link-guardar': async el => {
+    const id = el.dataset.id; const titulo = $('#k-tit').value.trim(); const programa = $('#k-prog').value;
+    if (!titulo) { $('#k-err').textContent = 'Poné el nombre del curso.'; $('#k-tit').focus(); return; }
+    if (!programa) { $('#k-err').textContent = 'Elegí el curso.'; return; }
+    const row = { titulo, programa, grupo_id: $('#k-gru').value || null, activo: $('#k-act').checked };
+    if (!id) row.codigo = slug(titulo) + '-' + Math.random().toString(36).slice(2, 6);
+    el.classList.add('disabled');
+    const r = await run(id ? S.sb.from('links_inscripcion').update(row).eq('id', id).select().single() : S.sb.from('links_inscripcion').insert(row).select().single(), id ? 'Link actualizado' : 'Link creado');
+    if (!r) { el.classList.remove('disabled'); return; }
+    S.links[r.id] = r; closeModal(); render();
+  },
+  'invitar-enviar': async el => {
+    const email = $('#i-email').value.trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('#i-err').textContent = 'Revisá el correo.'; $('#i-email').focus(); return; }
+    const programa = $('#i-prog').value; if (!programa) { $('#i-err').textContent = 'Elegí el curso.'; $('#i-prog').focus(); return; }
+    el.classList.add('disabled'); $('#i-err').textContent = '';
+    const r = await invocar('invitar', { tipo: 'alumno', email, nombre: $('#i-nom').value.trim(), apellido: $('#i-ape').value.trim(), grupo_id: $('#i-gru').value || null, programa });
+    if (r.error) { $('#i-err').textContent = r.error; el.classList.remove('disabled'); return; }
+    closeModal(); toast(r.ya_tenia_cuenta ? 'Ya tenía cuenta: le mandamos un correo para entrar.' : 'Invitación enviada a ' + email); load(['alumnos']);
+  },
+  reinvitar: async el => {
+    const a = S.alumnos[el.dataset.id]; if (!a?.email) { toast('Cargale un correo primero.', 'error'); return; }
+    el.classList.add('disabled');
+    const r = await invocar('invitar', { tipo: 'alumno', email: a.email, nombre: a.nombre, apellido: a.apellido, reenviar: true });
+    el.classList.remove('disabled');
+    if (r.error) toast(r.error, 'error'); else { toast('Correo enviado a ' + a.email); load(['alumnos']); }
+  },
+  'invitar-masivo': () => {
+    const lista = Object.values(S.alumnos).filter(a => a.email && !a.userId && a.estado !== 'baja');
+    confirmDlg(`Se le va a mandar el acceso a la app a ${lista.length} alumno(s) que tienen correo y todavía no tienen cuenta.`, 'Enviar', async () => {
+      openModal('Enviando accesos', `<p style="margin:0" id="im-st">Enviando…</p><div class="prog"><i id="im-bar"></i></div>`);
+      let ok = 0, mal = [];
+      for (let i = 0; i < lista.length; i++) {
+        const a = lista[i]; const r = await invocar('invitar', { tipo: 'alumno', email: a.email, nombre: a.nombre, apellido: a.apellido });
+        if (r.error) mal.push(nombreA(a) + ': ' + r.error); else ok++;
+        const b = $('#im-bar'); if (b) b.style.width = Math.round((i + 1) / lista.length * 100) + '%'; const st = $('#im-st'); if (st) st.textContent = `Enviando ${i + 1} de ${lista.length}…`;
+        await new Promise(r => setTimeout(r, 400));
+      }
+      openModal('Accesos enviados', `<div class="banner ${mal.length ? 'bad' : 'ok'}">Se enviaron ${ok} correo(s).${mal.length ? ' No se pudo con ' + mal.length + ':' : ''}</div>${mal.length ? `<small>${mal.map(esc).join('<br>')}</small>` : ''}`, `<button class="btn primary" data-act="close">Cerrar</button>`);
+      load(['alumnos']);
+    }, false);
+  },
+  asignar: async el => {
+    const id = el.dataset.id; const g = $('#asg-' + CSS.escape(id))?.value; if (!g) { toast('Elegí el grupo.', 'error'); return; }
+    el.classList.add('disabled');
+    const r = await run(S.sb.from('alumnos').update({ grupo_id: g, estado: 'activo' }).eq('id', id).select().single(), 'Asignado a ' + gName(g));
+    if (r) { S.alumnos[id] = mapA(r); render(); } else el.classList.remove('disabled');
+  },
+  'alumno-nuevo': el => openAlumnoForm(null, el.dataset.g),
+  'alumno-editar': el => openAlumnoForm(el.dataset.id),
+  'alumno-guardar': async el => {
+    const aid = el.dataset.id; const { datos, falta } = leerFicha('ae', false);
+    if (!datos.nombre) { $('#a-err').textContent = 'El nombre es obligatorio.'; $('#ae-nombre').focus(); return; }
+    const prev = aid ? S.alumnos[aid] : null; const email = $('#a-email').value.trim().toLowerCase();
+    const esp = $('#a-esp').value.trim(); const gid = $('#a-gru').value || null; let estado = $('#a-est').value;
+    if (estado === 'activo' && !gid) estado = prev?.fichaCompleta ? 'pendiente' : estado;
+    const row = { ...aSnake(datos), programa: $('#a-prog').value || (gid ? S.grupos[gid]?.programa : null) || null, ficha: { ...(prev?.ficha || {}), ...datos.ficha }, grupo_id: gid, estado,
+      descuento: Math.min(100, Math.max(0, num($('#a-desc').value))), cuota_especial: esp ? parseMoney(esp) : null, mat_exonerada: $('#a-mexo').checked, obs: $('#a-obs').value.trim() || null };
+    if (!prev?.userId) row.email = email || null;
+    if (!prev && estado === 'activo') { row.ficha_completa = true; row.ficha_fecha = new Date().toISOString(); }
+    el.classList.add('disabled');
+    const q = aid ? S.sb.from('alumnos').update(row).eq('id', aid).select().single() : S.sb.from('alumnos').insert(row).select().single();
+    const r = await run(q, aid ? 'Alumno actualizado' : 'Alumno agregado');
+    if (!r) { el.classList.remove('disabled'); return; }
+    S.alumnos[r.id] = mapA(r); closeModal(); render();
+  },
+  'alumno-borrar': el => { const id = el.dataset.id; confirmDlg('¿Borrar este alumno? Solo se puede si no tiene pagos. Si dejó el curso, mejor marcalo "De baja".', 'Borrar alumno', async () => { if (await run(S.sb.from('alumnos').delete().eq('id', id), 'Alumno borrado')) { delete S.alumnos[id]; S.selAlumno = null; render(); } }); },
+  'pago-nuevo': el => { if (!activos().length) { toast('Todavía no hay alumnos activos.', 'error'); return; } openPagoForm(el.dataset.id, el.dataset.item); },
+  'pago-guardar': async el => {
+    const a = S.alumnos[PG.aid]; if (!a) { toast('Elegí un alumno.', 'error'); return; }
+    const monto = parseMoney($('#pg-monto').value); if (!monto) { $('#pg-err').textContent = 'Poné el monto.'; $('#pg-monto').focus(); return; }
+    const c = cuenta(a); const it = c.items.find(i => i.id === PG.itemId);
+    const concepto = PG.itemId === 'otro' ? ($('#pg-conc').value.trim() || 'Otro concepto') : (it ? it.concepto : 'Pago');
+    if (it && monto > it.saldo) { $('#pg-err').textContent = `El monto supera el saldo de ${it.concepto} (${money(it.saldo)}). Registrá el resto en otra cuota.`; return; }
+    el.classList.add('disabled');
+    const r = await run(S.sb.from('pagos').insert({ alumno_id: a.id, grupo_id: a.grupoId || null, item: PG.itemId, concepto, monto, fecha: $('#pg-fecha').value || hoy(), metodo: $('#pg-met').value, obs: $('#pg-obs').value.trim() || null }).select().single(), 'Pago registrado');
+    if (!r) { el.classList.remove('disabled'); return; }
+    S.pagos[r.id] = mapP(r); rebuild('pagos'); render(); openRecibo(r.id);
+  },
+  recibo: el => openRecibo(el.dataset.id),
+  'pago-anular': el => { const id = el.dataset.id; confirmDlg('¿Anular este pago? Se borra del historial y la cuota vuelve a quedar pendiente.', 'Anular pago', async () => { if (await run(S.sb.from('pagos').delete().eq('id', id), 'Pago anulado')) { delete S.pagos[id]; rebuild('pagos'); render(); } }); },
+  'copiar-recibo': async () => { try { await navigator.clipboard.writeText(reciboTexto(RC)); toast('Recibo copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
+  'png-recibo': async () => { toast('Generando imagen…'); const b = await reciboPNG(RC); if (b) guardarArchivo(`Recibo ${String(RC.nro).padStart(5, '0')} - ${nombreA(S.alumnos[RC.alumnoId] || {})}.png`, b); },
+  imprimir: () => { document.body.classList.add('print-rcb'); window.print(); setTimeout(() => document.body.classList.remove('print-rcb'), 500); },
+  wa: el => openWA(el.dataset.id),
+  'wa-dest': el => { WA.dest = el.dataset.v; $('#wa-body').innerHTML = waBody(); $('#wa-btn').innerHTML = waBtn(); },
+  'wa-copiar': async () => { try { await navigator.clipboard.writeText($('#wa-msg').value); toast('Mensaje copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
+  tomar: el => go('asistencia', () => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = el.dataset.g; S.ui.asisFecha = hoy(); }),
+  asistab: el => { S.ui.asisTab = el.dataset.v; if (el.dataset.v === 'hist') S.ui.histGrupo = S.ui.asisGrupo; render(); },
+  'asis-grupo': el => { const v = el.dataset.v; if (S.draftAsis?.dirty) { confirmDlg('La lista tiene cambios sin guardar. ¿Descartarlos?', 'Descartar', () => { S.draftAsis = null; S.ui.asisGrupo = v; render(); }); return; } S.ui.asisGrupo = v; render(); },
+  'asis-abrir': el => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = el.dataset.g; S.ui.asisFecha = el.dataset.f; S.draftAsis = null; render(); },
+  marca: el => { const D = S.draftAsis; if (!D) return; const id = el.dataset.id, v = el.dataset.v; if (D.marcas[id] === v) delete D.marcas[id]; else D.marcas[id] = v; D.dirty = true; render(); },
+  'asis-todos': () => { const D = S.draftAsis; if (!D) return; alumnosDe(S.ui.asisGrupo).forEach(a => { if (!D.marcas[a.id]) D.marcas[a.id] = 'P'; }); D.dirty = true; render(); },
+  'asis-guardar': async el => {
+    const D = S.draftAsis; if (!D || !D.dirty) return; const g = S.ui.asisGrupo, f = S.ui.asisFecha;
+    const saved = S.asis[D.key]?.marcas || {};
+    const filas = Object.entries(D.marcas).filter(([k, v]) => v && S.alumnos[k]).map(([k, v]) => ({ grupo_id: g, fecha: f, alumno_id: k, marca: v, act: new Date().toISOString() }));
+    const quitar = Object.keys(saved).filter(k => !D.marcas[k]);
+    el.classList.add('disabled');
+    let ok = true;
+    if (filas.length) ok = !!(await run(S.sb.from('asistencia').upsert(filas, { onConflict: 'grupo_id,fecha,alumno_id' })));
+    if (ok && quitar.length) ok = !!(await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f).in('alumno_id', quitar)));
+    if (!ok) { el.classList.remove('disabled'); return; }
+    D.dirty = false; toast('Lista guardada'); await load(['asis']);
+  },
+  'asis-borrar': () => { const g = S.ui.asisGrupo, f = S.ui.asisFecha; confirmDlg('¿Borrar la lista de esta fecha?', 'Borrar lista', async () => { if (await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f), 'Lista borrada')) { S.draftAsis = null; await load(['asis']); } }); },
+  cobtab: el => { S.ui.cobTab = el.dataset.v; render(); },
+  cobvenc: el => { S.ui.cobSoloVenc = el.dataset.v === '1'; render(); },
+  mes: el => { const [y, m] = S.ui.cobMes.split('-').map(Number); const d = new Date(y, m - 1 + (+el.dataset.v), 1); S.ui.cobMes = ymd(d).slice(0, 7); render(); },
+  'ex-grupo': el => { S.ui.exGrupo = el.dataset.v; render(); },
+  'examen-nuevo': () => openExamForm(),
+  'examen-editar': el => openExamForm(el.dataset.id),
+  'ver-examen': el => go('examenes', () => { S.ui.exSel = el.dataset.id; S.draftExam = null; }),
+  'back-examenes': () => { const f = () => { S.ui.exSel = null; S.draftExam = null; render(); }; if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Salir igual?', 'Salir sin guardar', f); else f(); },
+  'examen-guardar': async el => {
+    const nombre = $('#x-nom').value.trim(); if (!nombre) { $('#x-err').textContent = 'Poné un nombre.'; return; }
+    const eid = el.dataset.id; const row = { nombre, grupo_id: $('#x-gru').value, materia: $('#x-mat').value.trim() || null, fecha: $('#x-fec').value || null, maximo: Math.max(1, num($('#x-max').value) || 100) };
+    if (!row.grupo_id) { $('#x-err').textContent = 'Elegí el grupo.'; return; }
+    el.classList.add('disabled');
+    const q = eid ? S.sb.from('examenes').update(row).eq('id', eid).select().single() : S.sb.from('examenes').insert(row).select().single();
+    const r = await run(q, 'Examen guardado'); if (!r) { el.classList.remove('disabled'); return; }
+    closeModal(); S.ui.exGrupo = r.grupo_id; S.ui.exSel = r.id; S.draftExam = null; await load(['exams']);
+  },
+  'examen-borrar': el => { const id = el.dataset.id; confirmDlg('¿Borrar este examen y todas sus notas?', 'Borrar examen', async () => { if (await run(S.sb.from('examenes').delete().eq('id', id), 'Examen borrado')) { S.ui.exSel = null; S.draftExam = null; await load(['exams']); } }); },
+  'notas-guardar': async el => {
+    const D = S.draftExam; const e = S.exams[D.eid]; if (!e) return;
+    const filas = [], quitar = [];
+    Object.entries(D.notas).forEach(([k, v]) => { const s = String(v ?? '').replace(',', '.').trim(); if (s !== '' && isFinite(+s) && +s >= 0) filas.push({ examen_id: e.id, alumno_id: k, nota: +s }); else if (e.notas[k] !== undefined) quitar.push(k); });
+    const malas = Object.entries(D.notas).filter(([, v]) => { const s = String(v ?? '').replace(',', '.').trim(); return s !== '' && (!isFinite(+s) || +s < 0 || +s > e.max); });
+    if (malas.length) { toast(`Hay ${malas.length} nota(s) fuera de rango (0 a ${e.max}).`, 'error'); return; }
+    el.classList.add('disabled');
+    let ok = true;
+    if (filas.length) ok = !!(await run(S.sb.from('notas').upsert(filas, { onConflict: 'examen_id,alumno_id' })));
+    if (ok && quitar.length) ok = !!(await run(S.sb.from('notas').delete().eq('examen_id', e.id).in('alumno_id', quitar)));
+    if (!ok) { el.classList.remove('disabled'); return; }
+    D.dirty = false; toast('Notas guardadas'); await load(['exams']);
+  },
+  'invitar-equipo': () => openInvitarEquipo(),
+  'equipo-invitar': async el => {
+    const email = $('#e-email').value.trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('#e-err').textContent = 'Revisá el correo.'; return; }
+    const tipo = $('#e-tipo').value; const grupos = $$('input[name="e-g"]:checked').map(x => x.value);
+    el.classList.add('disabled'); $('#e-err').textContent = '';
+    const r = await invocar('invitar', { tipo, email, nombre: $('#e-nom').value.trim(), grupos: tipo === 'profe' ? grupos : [] });
+    if (r.error) { $('#e-err').textContent = r.error; el.classList.remove('disabled'); return; }
+    closeModal(); toast('Invitación enviada a ' + email); load(['perfiles', 'pg']);
+  },
+  'equipo-editar': el => openEquipoEditar(el.dataset.id),
+  'equipo-guardar': async el => {
+    const pid = el.dataset.id; const p = S.perfiles[pid]; const soyYo = pid === S.session.user.id;
+    const cambios = { nombre: $('#q-nom').value.trim() }; if (!soyYo) { cambios.rol = $('#q-rol').value; cambios.activo = $('#q-act').checked; }
+    const nuevos = new Set($$('input[name="q-g"]:checked').map(x => x.value)); const antes = new Set(S.profeGrupos.filter(x => x.profe_id === pid).map(x => x.grupo_id));
+    el.classList.add('disabled');
+    let ok = !!(await run(S.sb.from('perfiles').update(cambios).eq('id', pid)));
+    const add = [...nuevos].filter(g => !antes.has(g)).map(g => ({ profe_id: pid, grupo_id: g })); const del = [...antes].filter(g => !nuevos.has(g));
+    if (ok && add.length) ok = !!(await run(S.sb.from('profe_grupos').insert(add)));
+    if (ok && del.length) ok = !!(await run(S.sb.from('profe_grupos').delete().eq('profe_id', pid).in('grupo_id', del)));
+    if (!ok) { el.classList.remove('disabled'); return; }
+    closeModal(); toast('Cambios guardados'); load(['perfiles', 'pg']);
+  },
+  'equipo-reenviar': async el => {
+    const p = S.perfiles[el.dataset.id]; el.classList.add('disabled');
+    const r = await invocar('invitar', { tipo: p.rol === 'profe' ? 'profe' : 'oficina', email: p.email, reenviar: true });
+    el.classList.remove('disabled'); if (r.error) toast(r.error, 'error'); else toast('Correo enviado a ' + p.email);
+  },
+  'cfg-guardar': () => guardarCfg({ nombre: $('#c-nombre').value.trim(), tel: $('#c-tel').value.trim(), dir: $('#c-dir').value.trim(), transf: $('#c-transf').value.trim(), horarioUrl: $('#c-hor').value.trim() }, 'Datos guardados'),
+  'msg-guardar': () => guardarCfg({ msg: $('#c-msg').value }, 'Mensaje guardado'),
+  'msg-reset': () => { $('#c-msg').value = DEFAULT_MSG; },
+  'logo-quitar': () => guardarCfg({ logo: null }, 'Logo quitado'),
+  importar: el => openImport(el.dataset.g),
+  'imp-pegado': () => { const rows = parseTexto($('#imp-paste').value); if (rows.length < 2) { $('#imp-err').textContent = 'Pegá al menos la fila de títulos y una fila de datos, o elegí un archivo.'; return; } IMP.rows = rows; IMP.map = rows[0].map(autoMap); IMP.sheets = null; IMP.step = 2; renderImport(); },
+  'imp-volver': () => { IMP.step = 1; renderImport(); },
+  'imp-go': async () => {
+    const { nuevos } = buildImport(); IMP.step = 3; renderImport(); IMP.ok = 0; IMP.fail = 0;
+    const filas = nuevos.map(o => ({ ...aSnake(o), ficha: o.ficha || {}, grupo_id: o.grupoId, programa: S.grupos[o.grupoId]?.programa || null, estado: 'activo', ficha_completa: true, ficha_fecha: new Date().toISOString() }));
+    for (let i = 0; i < filas.length; i += 50) {
+      const lote = filas.slice(i, i + 50);
+      const { error } = await S.sb.from('alumnos').insert(lote);
+      if (error) { IMP.fail += lote.length; IMP.errMsg = errText(error); } else IMP.ok += lote.length;
+      const b = $('#imp-bar'); if (b) b.style.width = Math.round(Math.min(filas.length, i + 50) / filas.length * 100) + '%';
+    }
+    IMP.step = 4; renderImport(); if (IMP.errMsg) toast(IMP.errMsg, 'error'); load(['alumnos']);
+  },
+  'exp-pagos': () => expPagos(Object.values(S.pagos).filter(p => (p.fecha || '').startsWith(S.ui.cobMes) && (!S.ui.cobGrupo || p.grupoId === S.ui.cobGrupo)), 'Pagos ' + S.ui.cobMes),
+  'exp-pagos-todos': () => expPagos(Object.values(S.pagos), 'Pagos VIBE ' + hoy()),
+  'exp-alumnos': () => {
+    const extras = FICHA.filter(f => f.k && !f.col);
+    const rows = [['Curso', 'Nombre', 'Apellido', 'Correo', 'CI', 'Nacimiento', 'Teléfono', 'Colegio', 'Ciudad', 'Encargado', 'Tel. encargado', ...extras.map(f => f.l), 'Grupo', 'Estado', 'Descuento %', 'Cuota especial', 'Vencido', 'Por vencer', 'Pagado', 'Asistencia %', 'Alta', 'Observaciones']];
+    Object.values(S.alumnos).sort((a, b) => gName(a.grupoId).localeCompare(gName(b.grupoId)) || cmpA(a, b)).forEach(a => { const c = cuenta(a); const as = asisAlumno(a); rows.push([progDe(a), a.nombre, a.apellido, a.email, a.ci, fmtF(a.fechaNac), a.tel, a.colegio, a.ciudad, a.encargado, a.encargadoTel, ...extras.map(f => a.ficha?.[f.k] || ''), gName(a.grupoId), a.estado, a.desc || '', a.cuotaEsp || '', c.vencido, c.pendiente, c.pagado, as.pct ?? '', fmtF(a.inscripcion), a.obs]); });
+    guardarArchivo('Alumnos VIBE ' + hoy() + '.csv', csv(rows));
+  },
+  'exp-asis': () => {
+    const rows = [['Fecha', 'Grupo', 'Alumno', 'Marca']]; const L = { P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' };
+    Object.values(S.asis).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).forEach(d => Object.entries(d.marcas || {}).forEach(([aid, m]) => { const a = S.alumnos[aid]; if (a) rows.push([fmtF(d.fecha), gName(d.grupoId), nombreA(a), L[m] || m]); }));
+    guardarArchivo('Asistencia VIBE ' + hoy() + '.csv', csv(rows));
+  },
+  'ficha-guardar': async el => {
+    const { datos, falta } = leerFicha('f'); if (falta) { $('#f-err').textContent = 'Completá los campos marcados con *.'; falta.focus(); return; }
+    el.classList.add('disabled'); $('#f-err').textContent = '';
+    const r = await run(S.sb.rpc('guardar_mi_ficha', { datos }));
+    if (!r) { el.classList.remove('disabled'); return; }
+    const primera = Array.isArray(r) ? r[0]?.primera_vez : r?.primera_vez;
+    if (primera) invocar('notificar', {}).then(x => { if (x.error) console.warn('Aviso por correo:', x.error); });
+    toast('¡Listo! Tu ficha quedó guardada.'); await load(['alumnos']); go('mi-inicio');
+  },
+  'datos-guardar': async el => {
+    const { datos, falta } = leerFicha('md'); if (falta) { $('#md-err').textContent = 'Completá los campos marcados con *.'; falta.focus(); return; }
+    el.classList.add('disabled'); $('#md-err').textContent = '';
+    const r = await run(S.sb.rpc('guardar_mi_ficha', { datos }), 'Datos guardados'); el.classList.remove('disabled');
+    if (r) await load(['alumnos']);
+  }
+};
+const IN = {
+  q: el => { S.ui.q = el.value; sched(); },
+  pf: el => { const it = PF.items[+el.dataset.i]; if (!it) return; const k = el.dataset.k; it[k] = k === 'monto' ? parseMoney(el.value) : el.value; const t = $('#pf-total'); if (t) t.textContent = 'Total ' + money(sum(PF.items.map(i => i.monto))); },
+  nota: el => { const D = S.draftExam; if (!D) return; D.notas[el.dataset.id] = el.value; D.dirty = true; const sb = el.closest('.card').querySelector('.savebar'); if (sb) { sb.querySelector('small').textContent = 'Hay cambios sin guardar'; sb.querySelector('.btn').classList.remove('disabled'); } },
+  'wa-msg': () => { $('#wa-btn').innerHTML = waBtn(); }
+};
+const CH = {
+  fGrupo: el => { S.ui.fGrupo = el.value; render(); },
+  fEstado: el => { S.ui.fEstado = el.value; render(); },
+  fDeuda: el => { S.ui.fDeuda = el.checked; render(); },
+  asisFecha: el => { const v = el.value || hoy(); if (S.draftAsis?.dirty) { el.value = S.ui.asisFecha; confirmDlg('La lista tiene cambios sin guardar. ¿Descartarlos?', 'Descartar', () => { S.draftAsis = null; S.ui.asisFecha = v; render(); }); return; } S.ui.asisFecha = v; render(); },
+  histGrupo: el => { S.ui.histGrupo = el.value; render(); },
+  cobGrupo: el => { S.ui.cobGrupo = el.value; render(); },
+  'pg-al': el => { PG.aid = el.value; PG.itemId = ''; $('#pg-body').innerHTML = pagoBody(); },
+  'pg-item': el => { PG.itemId = el.value; $('#pg-body').innerHTML = pagoBody(); },
+  'k-gru': el => { const p = S.grupos[el.value]?.programa; if (p && PROGRAMAS.includes(p)) $('#k-prog').value = p; if (!$('#k-tit').value && el.value) $('#k-tit').value = gName(el.value); },
+  'i-gru': el => { const p = S.grupos[el.value]?.programa; if (p && PROGRAMAS.includes(p)) $('#i-prog').value = p; },
+  'e-tipo': el => { $('#e-grupos-w').style.display = el.value === 'profe' ? '' : 'none'; },
+  logo: async el => {
+    const f = el.files && el.files[0]; if (!f) return;
+    try { const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(f); });
+      const im = new Image(); im.src = url; await im.decode(); const sc = Math.min(1, 400 / im.width, 160 / im.height);
+      const cv = document.createElement('canvas'); cv.width = Math.round(im.width * sc); cv.height = Math.round(im.height * sc); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+      let out = cv.toDataURL('image/png'); if (out.length > 180000) out = cv.toDataURL('image/jpeg', .85);
+      guardarCfg({ logo: out }, 'Logo guardado');
+    } catch (e) { toast('No se pudo leer esa imagen.', 'error'); }
+  },
+  'imp-file': async el => {
+    const f = el.files && el.files[0]; if (!f) return; const err = $('#imp-err');
+    try {
+      if (/\.csv$/i.test(f.name)) { const rows = parseTexto(await f.text()); IMP.rows = rows; IMP.map = (rows[0] || []).map(autoMap); IMP.sheets = null; IMP.step = 2; renderImport(); return; }
+      if (err) err.textContent = 'Leyendo el archivo…';
+      await loadXLSX(); const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true }); IMP.wb = wb; IMP.sheets = wb.SheetNames;
+      const first = wb.SheetNames.find(n => (XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1 }) || []).length > 1) || wb.SheetNames[0];
+      setSheet(first); renderImport();
+    } catch (e) { if (err) err.textContent = 'No pude leer ese archivo. Probá guardarlo como .xlsx o copiar y pegar las filas.'; }
+  },
+  'imp-sheet': el => { setSheet(el.value); renderImport(); },
+  'imp-grupo': el => { IMP.gid = el.value; renderImport(); },
+  'imp-map': el => { IMP.map[+el.dataset.i] = el.value; renderImport(); }
+};
+const FORMS = {
+  registro: async f => {
+    const email = $('#r-email').value.trim().toLowerCase(), p1 = $('#r-pass').value, p2 = $('#r-pass2').value;
+    if (p1.length < 6) { $('#r-err').textContent = 'La contraseña tiene que tener al menos 6 caracteres.'; return; }
+    if (p1 !== p2) { $('#r-err').textContent = 'Las contraseñas no coinciden.'; return; }
+    const b = f.querySelector('button'); b.classList.add('disabled'); $('#r-err').textContent = '';
+    const { data, error } = await S.sb.auth.signUp({ email, password: p1, options: { data: { codigo: CODIGO }, emailRedirectTo: APP_URL } });
+    b.classList.remove('disabled');
+    if (error) { $('#r-err').textContent = errText(error); return; }
+    if (data?.user && Array.isArray(data.user.identities) && !data.user.identities.length) { S.authView = 'login'; S.authOk = false; S.authMsg = 'Ese correo ya tiene cuenta. Entrá con tu contraseña y te inscribimos.'; render(); return; }
+    if (!data?.session) { S.registroEnviado = email; render(); }
+  },
+  login: async f => {
+    const email = $('#l-email').value.trim(), password = $('#l-pass').value; const b = f.querySelector('button'); b.classList.add('disabled');
+    const { error } = await S.sb.auth.signInWithPassword({ email, password });
+    b.classList.remove('disabled'); if (error) { S.authMsg = errText(error); S.authOk = false; render(); }
+  },
+  olvide: async f => {
+    const email = $('#l-email').value.trim(); const b = f.querySelector('button'); b.classList.add('disabled');
+    const { error } = await S.sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    S.authOk = !error; S.authMsg = error ? errText(error) : 'Listo. Si el correo está registrado, te llega un enlace en unos minutos (revisá también Spam).'; render();
+  },
+  clave: async () => {
+    const p1 = $('#n-pass').value, p2 = $('#n-pass2').value; if (p1.length < 6) { $('#n-err').textContent = 'Mínimo 6 caracteres.'; return; } if (p1 !== p2) { $('#n-err').textContent = 'Las contraseñas no coinciden.'; return; }
+    const { error } = await S.sb.auth.updateUser({ password: p1 }); if (error) { $('#n-err').textContent = errText(error); return; }
+    S.needPassword = false; toast('Contraseña guardada'); history.replaceState(null, '', location.pathname); render();
+  },
+  clave2: async f => {
+    const p1 = $('#c2-pass').value, p2 = $('#c2-pass2').value; if (p1.length < 6) { $('#c2-err').textContent = 'Mínimo 6 caracteres.'; return; } if (p1 !== p2) { $('#c2-err').textContent = 'Las contraseñas no coinciden.'; return; }
+    const { error } = await S.sb.auth.updateUser({ password: p1 }); if (error) { $('#c2-err').textContent = errText(error); return; }
+    f.reset(); $('#c2-err').textContent = ''; toast('Contraseña cambiada');
+  }
+};
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return; const fn = A[el.dataset.act]; if (!fn) return;
+  if (el.tagName === 'BUTTON' || el.tagName === 'A') e.preventDefault();
+  fn(el, e);
+});
+document.addEventListener('submit', e => { const f = e.target; const k = f.dataset.form; if (k && FORMS[k]) { e.preventDefault(); FORMS[k](f); } });
+document.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.in; if (k && IN[k]) IN[k](e.target, e); });
+document.addEventListener('change', e => {
+  const t = e.target; if (t.classList && t.classList.contains('money')) { const v = parseMoney(t.value); t.value = v ? fmtN(v) : ''; }
+  const k = t.dataset && t.dataset.ch; if (k && CH[k]) CH[k](t, e);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && modalOpen()) closeModal(); });
+window.addEventListener('beforeunload', e => { if (hasDraft()) { e.preventDefault(); e.returnValue = ''; } });
+
+render();
+iniciar();
+</script>
+</body>
+</html>
