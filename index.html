@@ -336,6 +336,17 @@ button.mchip{border:0;cursor:pointer;font-family:inherit}
 .wc .ok{font-size:11px;font-weight:700;color:var(--ok)}
 .wc .no{font-size:11px;font-weight:700;color:var(--bad)}
 .wc .nt{font-size:11px;font-weight:700;color:var(--accent-ink)}
+/* turnos de oficina */
+.ot-dia{border-top:1px solid var(--line);padding:12px 16px;display:grid;gap:8px}
+.ot-dia:first-child{border-top:0}
+.ot-dia h3{margin:0;font-size:15px}
+.ot-fila{display:grid;grid-template-columns:78px 1fr;gap:10px;align-items:start}
+.ot-fila .tl{font-weight:700;font-size:13px;padding-top:7px}
+.chip.libre{border-color:var(--ok);color:var(--ok)}
+.chip.nolibre{color:var(--muted);border-style:dashed}
+.chip.pend{border-color:var(--late);background:var(--late-soft);color:var(--late)}
+.chip small{font-weight:600;opacity:.85}
+.ot-vacio{font-size:13px;color:var(--bad);font-weight:700;padding-top:7px}
 .lnk{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 .gbloque{display:flex;flex-direction:column;gap:8px}
 .gbloque h3{margin:0;font-family:var(--font-display);font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -503,7 +514,7 @@ const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n
 /* ---------- estado ---------- */
 const S = {
   sb: null, session: null, perfil: null, authView: CODIGO ? 'registro' : 'login', authMsg: '', needPassword: false, linkInfo: null, links: {},
-  grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {},
+  grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {}, cambios: {},
   loaded: {}, lastLoad: 0, idx: { pagosByAlumno: {}, asisByGrupo: {}, examsByGrupo: {} },
   view: 'inicio', selAlumno: null, selGrupo: null,
   ui: { q: '', fGrupo: '', fEstado: 'activos', fDeuda: false, asisTab: 'tomar', asisGrupo: '', asisFecha: hoy(), asisTurno: '', histGrupo: '',
@@ -518,6 +529,7 @@ const isAdmin = () => rol() === 'admin';
 const isStaff = () => rol() === 'admin' || rol() === 'oficina';
 const isProfe = () => rol() === 'profe';
 const isAlumno = () => rol() === 'alumno';
+const isOficina = () => rol() === 'oficina';
 const ROLE_LBL = { admin: 'Dirección', oficina: 'Oficina', profe: 'Profe', alumno: 'Alumno' };
 const DEFAULT_MSG = 'Hola {encargado}, ¿cómo estás? Te escribimos del {cursillo}. Te recordamos que {alumno} tiene pendiente:\n{detalle}\nTotal: {total}\n\n{transferencia}\nCualquier consulta estamos a disposición. ¡Gracias!';
 const yo = () => isAlumno() ? Object.values(S.alumnos).find(a => a.userId === S.session?.user?.id) : null;
@@ -612,6 +624,30 @@ const primerN = id => (S.prof[id]?.nombre || '—').split(' ')[0];
 const horaDe = ts => ts ? new Date(ts).toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Asuncion' }) : '';
 const clasesSem = l => { const f = addDays(l, 6); return Object.values(S.clases).filter(c => c.fecha >= l && c.fecha <= f); };
 const claseDe = (g, f, t) => Object.values(S.clases).find(c => c.grupo_id === g && c.fecha === f && c.turno === t);
+// pedidos de cambio: el profe da una clase que no está a su nombre; cuenta para el pago cuando la dirección aprueba
+const miCambio = (g, f, t) => S.miProf ? Object.values(S.cambios || {}).find(x => x.profesor_id === S.miProf.id && x.grupo_id === g && x.fecha === f && x.turno === t) : null;
+const cambioDe = c => Object.values(S.cambios || {}).filter(x => x.grupo_id === c.grupo_id && x.fecha === c.fecha && x.turno === c.turno).sort((a, b) => (b.creado || '').localeCompare(a.creado || ''))[0] || null;
+const cambiosPend = () => Object.values(S.cambios || {}).filter(x => x.estado === 'pendiente');
+function puedeLlamar(g, f, t) {
+  if (isStaff()) return true;
+  if (!isProfe() || !S.miProf || f !== hoy()) return false;
+  if (claseDe(g, f, t)?.profesor_id === S.miProf.id) return true;
+  const x = miCambio(g, f, t); return !!x && x.estado !== 'rechazado';
+}
+// la clase cuenta para el pago si la dio el profe que la tiene en el horario (o con el cambio aprobado)
+const cuentaPago = c => !!c.dictada_por && c.dictada_por === c.profesor_id && c.materia !== 'examen';
+const ESTADO_CAMBIO = { pendiente: ['Falta aprobar', 'pend'], aprobado: ['Aprobado', 'ok'], rechazado: ['Rechazado', 'bad'] };
+// turnos de la oficina
+const OTURNOS = ['Mañana', 'Tarde', 'Noche'];
+const OFI_DEF = { Lun: ['Mañana', 'Tarde'], Mar: ['Mañana', 'Tarde'], Mié: ['Mañana', 'Tarde'], Jue: ['Mañana', 'Tarde'], Vie: ['Mañana', 'Tarde'], Sáb: ['Mañana'], Dom: [] };
+const ofiAbre = k => (S.cfg.ofiTurnos || OFI_DEF)[k] || [];
+const ofiPersonas = () => Object.values(S.perfiles || {}).filter(p => p.rol === 'oficina' && p.activo).sort((a, b) => (a.nombre || a.email).localeCompare(b.nombre || b.email, 'es'));
+const nomP = id => S.perfiles?.[id]?.nombre || S.perfiles?.[id]?.email || 'Alguien';
+const primerP = id => nomP(id).split(' ')[0];
+const oTurnosDe = (f, t) => Object.values(S.oTurnos || {}).filter(x => x.fecha === f && (!t || x.turno === t));
+const oCuenta = x => x.estado === 'asignado' && !!x.marcado_en;
+const oPend = () => Object.values(S.oTurnos || {}).filter(x => x.estado === 'pendiente').sort((a, b) => a.fecha.localeCompare(b.fecha));
+const oLibre = (uid, k, t) => !!(S.oDisp || []).find(r => r.user_id === uid)?.dias?.[k]?.[t];
 // notas del profe al llamar lista: de la clase (texto libre) y por alumno {alumno_id: texto}
 const NOTA_CLASE = ['Participó de otro grupo: ', 'No se terminó el tema'];
 const NOTA_AL = ['Se retiró temprano', 'Se sintió mal', 'No trajo material'];
@@ -797,6 +833,23 @@ const LOADERS = {
   cfg: async () => { const { data } = await S.sb.from('config').select('valor').eq('clave', 'general').maybeSingle(); S.cfg = data?.valor || {}; },
   perfiles: async () => { S.perfiles = idx(await fetchAll('perfiles', '*', q => q.order('id'))); },
   pg: async () => { S.profeGrupos = await fetchAll('profe_grupos', '*', q => q.order('profe_id').order('grupo_id')); },
+  // pedidos de cambio de profes (la dirección y la oficina ven todos; cada profe los suyos)
+  // turnos de la oficina: los turnos (todos los ve la oficina), la semana que se arma y la disponibilidad
+  ofi: async () => {
+    if (!S.oRango) S.oRango = [addMonths(hoy().slice(0, 7) + '-01', -1), addDays(hoy(), 42)];
+    S.oTurnos = idx(await fetchAll('oficina_turnos', '*', q => q.gte('fecha', S.oRango[0]).lte('fecha', S.oRango[1]).order('fecha')));
+    const l = isAdmin() ? (S.ui.ofiLunes ||= lunesSig()) : lunesSig();
+    const { data: w, error } = await S.sb.rpc('abrir_semana', { l }); if (error) throw error; S.oSem = w;
+    if (isAdmin()) {
+      const [d, m] = await Promise.all([S.sb.from('oficina_disp').select('*').eq('semana_id', w.id), S.sb.from('oficina_montos').select('*')]);
+      for (const r of [d, m]) if (r.error) throw r.error;
+      S.oDisp = d.data || []; S.oMontos = Object.fromEntries((m.data || []).map(r => [r.user_id, r.monto_turno]));
+    } else {
+      const { data, error: e2 } = await S.sb.from('oficina_disp').select('*').eq('semana_id', w.id).eq('user_id', S.session.user.id).maybeSingle(); if (e2) throw e2;
+      S.oMiDisp = data || null;
+    }
+  },
+  cambios: async () => { S.cambios = idx(await fetchAll('cambios', '*', q => q.gte('fecha', addMonths(hoy().slice(0, 7) + '-01', -1)).order('fecha'))); },
   links: async () => { S.links = idx(await fetchAll('links_inscripcion', '*', q => q.order('creado'))); },
   resultados: async () => { const { data } = await S.sb.rpc('mis_resultados'); S.resultados = Object.fromEntries((data || []).map(r => [r.examen_id, r])); },
   // --- horario
@@ -827,9 +880,9 @@ const LOADERS = {
   },
   miHor: async () => { const l = lunesDe(hoy()); const { data, error } = await S.sb.rpc('mi_horario', { desde: l, hasta: addDays(l, 13) }); if (error) throw error; S.miHor = data || []; }
 };
-const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'pg', 'links', 'prof', 'punt', 'clases', 'semana'],
-  oficina: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'pg', 'links', 'prof', 'clases'],
-  profe: ['cfg', 'pg', 'grupos', 'alumnos', 'asis', 'exams', 'prof', 'clases', 'semana'], alumno: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'resultados', 'miHor'] };
+const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'punt', 'clases', 'semana', 'cambios', 'ofi'],
+  oficina: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'clases', 'cambios', 'ofi'],
+  profe: ['cfg', 'grupos', 'alumnos', 'asis', 'exams', 'prof', 'clases', 'semana', 'cambios'], alumno: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'resultados', 'miHor'] };
 async function load(keys) {
   keys = keys || KEYS[rol()] || [];
   try {
@@ -876,7 +929,7 @@ async function entrar() {
     if (S.perfil && S.perfil.activo) await load();
   } finally { entrando = false; }
 }
-function limpiar() { Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
+function limpiar() { Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
   prof: {}, punt: {}, clases: {}, clRango: null, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !hasDraft()) load(); });
 
@@ -932,6 +985,8 @@ const NAV = [
   { id: 'cobros', l: 'Cobros', i: 'wallet', r: ['admin', 'oficina'] },
   { id: 'examenes', l: 'Exámenes', i: 'award', r: ['admin', 'oficina', 'profe'] },
   { id: 'horario', l: 'Horario', i: 'clock', r: ['profe', 'admin', 'oficina'] },
+  { id: 'oficina', l: 'Turnos oficina', i: 'team', r: ['admin'] },
+  { id: 'mis-turnos', l: 'Mis turnos', i: 'check', r: ['oficina'] },
   { id: 'equipo', l: 'Equipo', i: 'team', r: ['admin'] },
   { id: 'ajustes', l: 'Ajustes', i: 'gear', r: ['admin', 'oficina'] },
   { id: 'mi-inicio', l: 'Inicio', i: 'home', r: ['alumno'] },
@@ -1130,7 +1185,7 @@ VIEWS.inicio = () => {
   const nombre = (S.perfil.nombre || '').split(' ')[0];
   let h = ph(`Hola${nombre ? ', ' + nombre : ''}`, fechaLarga(t), isStaff() && Object.keys(S.grupos).length ? `<button class="btn" data-act="invitar-alumno">${ic('mail')}Invitar alumno</button><button class="btn primary" data-act="pago-nuevo">${ic('plus')}Registrar pago</button>` : '');
   if (!Object.keys(S.grupos).length) {
-    if (!isStaff()) return h + `<div class="card"><div class="empty"><b>Todavía no tenés grupos asignados</b>Cuando la dirección te asigne tus grupos, vas a poder tomar asistencia y cargar notas desde acá.</div></div>`;
+    if (!isStaff()) return h + `<div class="card"><div class="empty"><b>Todavía no tenés clases en el horario</b>Cuando la dirección publique el horario, vas a ver tus grupos acá. Si vas a dar una clase que no está a tu nombre, pedí el cambio.<br><br><button class="btn primary" data-act="cambio-nuevo">${ic('plus')}Pedir cambio</button></div></div>`;
     return h + `<div class="steps">
       <div class="step"><span class="k">PASO 1</span><h2>Creá tus grupos</h2><p class="muted" style="margin:0">Nombre, horario y el plan de pagos: matrícula y cuotas con sus vencimientos.</p><button class="btn primary" data-act="grupo-nuevo">${ic('plus')}Nuevo grupo</button></div>
       <div class="step"><span class="k">PASO 2</span><h2>Cargá o invitá alumnos</h2><p class="muted" style="margin:0">Importá tu Excel o invitá a cada alumno por correo para que complete su ficha.</p><div class="actions"><button class="btn" data-act="importar">${ic('upload')}Importar Excel</button><button class="btn" data-act="invitar-alumno">${ic('mail')}Invitar</button></div></div>
@@ -1138,6 +1193,11 @@ VIEWS.inicio = () => {
   }
   if (isStaff()) {
     const pend = pendientes();
+    if (isOficina()) h += cardTurnoHoy();
+    const op = oPend().length;
+    if (isAdmin() && op) h += `<div class="banner click" data-act="nav" data-v="oficina"><span><b>${op} turno${op === 1 ? '' : 's'} de oficina</b> pedido${op === 1 ? '' : 's'} esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
+    const cp = cambiosPend().length;
+    if (isAdmin() && cp) h += `<div class="banner click" data-act="hortab" data-v="cambios"><span><b>${cp} pedido${cp === 1 ? '' : 's'} de cambio</b> de profes esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
     if (pend.length) h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span><b>${pend.length} alumno${pend.length === 1 ? '' : 's'}</b> completaron su ficha y esperan que les asignes grupo.</span><span class="btn sm primary">Asignar grupo</span></div>`;
     const mes = t.slice(0, 7); const pm = Object.values(S.pagos).filter(p => (p.fecha || '').startsWith(mes));
     const deud = al.map(a => ({ a, c: cuenta(a) })).filter(x => x.c.vencido > 0).sort((x, y) => y.c.vencido - x.c.vencido);
@@ -1163,8 +1223,11 @@ VIEWS.inicio = () => {
 // listas que tocan hoy: por grupo y turno (el profe ve las suyas)
 function listasHoy() {
   const t = hoy(), out = [], ya = (g, tt) => out.some(x => x.g.id === g && x.t === tt);
-  if (isProfe() && S.miProf) Object.values(S.clases).filter(c => c.fecha === t && (c.profesor_id === S.miProf.id || c.dictada_por === S.miProf.id) && S.grupos[c.grupo_id]).forEach(c => { if (!ya(c.grupo_id, c.turno)) out.push({ g: S.grupos[c.grupo_id], t: c.turno }); });
-  const base = isProfe() ? gruposActivos().filter(g => S.profeGrupos.some(x => x.grupo_id === g.id && x.profe_id === S.session?.user?.id)) : gruposActivos();
+  if (isProfe() && S.miProf) {
+    Object.values(S.clases).filter(c => c.fecha === t && (c.profesor_id === S.miProf.id || c.dictada_por === S.miProf.id) && S.grupos[c.grupo_id]).forEach(c => { if (!ya(c.grupo_id, c.turno)) out.push({ g: S.grupos[c.grupo_id], t: c.turno }); });
+    Object.values(S.cambios || {}).filter(x => x.fecha === t && x.profesor_id === S.miProf.id && x.estado !== 'rechazado' && S.grupos[x.grupo_id]).forEach(x => { if (!ya(x.grupo_id, x.turno)) out.push({ g: S.grupos[x.grupo_id], t: x.turno }); });
+  }
+  const base = isProfe() ? [] : gruposActivos();
   base.forEach(g => { const tp = turnosProg(g, t); const lista = tp.length ? tp : (Object.values(g.dias || {}).some(c => c && c !== '-') ? [] : ['Mañana']); lista.forEach(tt => { if (!ya(g.id, tt)) out.push({ g, t: tt }); }); });
   return out.sort((a, b) => a.t.localeCompare(b.t) || num(a.g.orden) - num(b.g.orden) || a.g.nombre.localeCompare(b.g.nombre, 'es'));
 }
@@ -1177,7 +1240,7 @@ function cardListasHoy() {
     if (d) { const v = Object.values(d.marcas || {}); const p = v.filter(m => m === 'P' || m === 'T').length;
       return `<div class="row click" data-act="tomar" data-g="${esc(g.id)}" data-t="${tt}"><div class="t">${nom}<small>Tomada por ${esc(who(d.por))}${sub}</small></div><div class="r">${pill(p + '/' + n + ' presentes', 'ok')}</div></div>`; }
     return `<div class="row"><div class="t">${nom}<small>${n} alumno${n === 1 ? '' : 's'}${sub}</small></div><div class="r"><button class="btn sm" data-act="tomar" data-g="${esc(g.id)}" data-t="${tt}">${ic('check')}${isProfe() ? 'Llamar lista' : 'Tomar lista'}</button></div></div>`;
-  }).join('') || `<div class="empty">${isProfe() ? 'Hoy no tenés clases.' : 'Hoy no hay clases.'}</div>`}</div></div>`;
+  }).join('') || `<div class="empty">${isProfe() ? 'Hoy no tenés clases en el horario.' : 'Hoy no hay clases.'}</div>`}</div>${isProfe() ? `<div class="card-b" style="padding-top:0"><button class="btn sm ghost" data-act="cambio-nuevo">${ic('plus')}Voy a dar otra clase (pedir cambio)</button></div>` : ''}</div>`;
 }
 function cardExamenesRecientes() {
   const ex = Object.values(S.exams).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')).slice(0, 6);
@@ -1212,7 +1275,7 @@ VIEWS.grupos = () => {
   const gs = gruposOrden(); const na = gruposActivos().length;
   let h = ph('Grupos', `${na} activo${na === 1 ? '' : 's'}${gs.length > na ? ' · ' + (gs.length - na) + ' archivado(s)' : ''}`, `<button class="btn" data-act="importar">${ic('upload')}Importar alumnos</button><button class="btn primary" data-act="grupo-nuevo">${ic('plus')}Nuevo grupo</button>`);
   if (!gs.length) return h + `<div class="card"><div class="empty"><b>Todavía no hay grupos</b>Creá el primero con su plan de pagos.</div></div>`;
-  h += `<div class="gcards">${gs.map(g => { const s = statsGrupo(g); const c1 = (g.plan || []).find(i => i.id !== 'mat'); const profes = S.profeGrupos.filter(x => x.grupo_id === g.id).map(x => S.perfiles[x.profe_id]?.nombre || S.perfiles[x.profe_id]?.email).filter(Boolean);
+  h += `<div class="gcards">${gs.map(g => { const s = statsGrupo(g); const c1 = (g.plan || []).find(i => i.id !== 'mat'); const profes = [...new Set(Object.values(S.clases || {}).filter(c => c.grupo_id === g.id && c.profesor_id && c.fecha >= addDays(hoy(), -14) && c.fecha <= addDays(hoy(), 14)).map(c => primerN(c.profesor_id)))];
     return `<button class="gcard" data-act="ver-grupo" data-id="${esc(g.id)}" ${g.activo === false ? 'style="opacity:.6"' : ''}>
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><h2>${esc(g.nombre)}</h2><small>${esc([g.programa, g.horario].filter(Boolean).join(' · '))}</small></div>${g.activo === false ? pill('Archivado') : pill(s.n + ' alumnos', 'acc')}</div>
       <div class="meta"><span class="muted">Cuota</span><span class="num">${c1 ? money(c1.monto) : '—'}</span><span></span>
@@ -1324,12 +1387,15 @@ VIEWS.asistencia = () => {
   const cl = claseDe(g.id, u.asisFecha, u.asisTurno);
   if (!S.draftAsis || S.draftAsis.key !== key) S.draftAsis = { key, g: g.id, f: u.asisFecha, t: u.asisTurno, marcas: { ...(saved?.marcas || {}) }, ...notasDe(cl), dirty: false };
   const D = S.draftAsis; const al = alumnosDe(g.id);
-  const soloVer = isProfe() && u.asisFecha !== hoy(); const dis = soloVer ? 'disabled' : '';
+  const soloVer = !puedeLlamar(g.id, u.asisFecha, u.asisTurno); const dis = soloVer ? 'disabled' : ''; const mc = isProfe() ? miCambio(g.id, u.asisFecha, u.asisTurno) : null;
   const cnt = { P: 0, A: 0, T: 0, J: 0, '': 0 }; al.forEach(a => cnt[D.marcas[a.id] || '']++);
   h += `<div class="filters"><div class="chips">${gs.map(x => `<button class="chip" data-act="asis-grupo" data-v="${esc(x.id)}" aria-pressed="${x.id === g.id}">${esc(x.nombre)}</button>`).join('')}</div>
     <input type="date" class="inp" id="asisFecha" data-ch="asisFecha" value="${esc(u.asisFecha)}" style="width:auto" aria-label="Fecha">
     ${tl.length > 1 ? `<div class="chips">${tl.map(t => `<button class="chip" data-act="asis-turno" data-v="${t}" aria-pressed="${t === u.asisTurno}">${t}</button>`).join('')}</div>` : ''}</div>`;
-  if (soloVer) h += `<div class="banner">Solo podés llamar lista el día de la clase: así queda registrada como tu firma. Si hay que corregir una lista vieja, avisá a la oficina.</div>`;
+  if (soloVer && u.asisFecha !== hoy()) h += `<div class="banner">Solo podés llamar lista el día de la clase: así queda registrada como tu firma. Si hay que corregir una lista vieja, avisá a la oficina.</div>`;
+  else if (soloVer && mc?.estado === 'rechazado') h += `<div class="banner bad">La dirección rechazó tu pedido para dar esta clase. Si hay un error, hablá con la dirección.</div>`;
+  else if (soloVer) h += `<div class="banner click" data-act="cambio-nuevo" data-g="${esc(g.id)}" data-f="${esc(u.asisFecha)}" data-t="${esc(u.asisTurno)}"><span>Esta clase no está a tu nombre en el horario. Si la vas a dar vos, pedí el cambio: con el pedido ya podés llamar lista, y te cuenta para el pago cuando la dirección lo apruebe.</span><span class="btn sm primary">Pedir cambio</span></div>`;
+  else if (mc?.estado === 'pendiente') h += `<div class="banner">Diste esta clase con un pedido de cambio: podés llamar lista, y te cuenta para el pago cuando la dirección lo apruebe.</div>`;
   let info = '';
   if (cl) { const dic = cl.dictada_por; info = `<div class="card-b" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:0">${mchip(cl.materia)}${cl.tema ? `<span>${esc(cl.tema)}</span>` : ''}${!isProfe() && cl.profesor_id ? `<small class="muted">· le toca a ${esc(profN(cl.profesor_id))}</small>` : ''}${dic ? pill(`Clase registrada${S.miProf && dic === S.miProf.id ? '' : ' a ' + primerN(dic)} · ${horaDe(cl.dictada_en)}`, 'ok') : ''}</div>`; }
   h += `<div class="card"><div class="card-h"><div><h2>${esc(g.nombre)}${tl.length > 1 || u.asisTurno === 'Tarde' ? ' · ' + esc(u.asisTurno) : ''}</h2><small>${fechaLarga(u.asisFecha)}${saved ? ' · guardada por ' + esc(who(saved.por)) : ' · sin guardar'}</small></div>${soloVer ? '' : `<button class="btn sm" data-act="asis-todos">Marcar todos presentes</button>`}</div>${info}
@@ -1338,7 +1404,7 @@ VIEWS.asistencia = () => {
       <textarea class="inp" id="asis-nota" data-in="asis-nota" maxlength="1000" placeholder="Ej: participó Juan Pérez de CPI1 · se cortó la luz a las 10 · no llegamos a terminar el tema">${esc(D.nota)}</textarea>
       <div class="chips">${NOTA_CLASE.map(x => `<button class="chip" data-act="asis-nota-chip" data-v="${esc(x)}">+ ${esc(x.replace(/:\s*$/, ''))}</button>`).join('')}</div></div>`}
     <div class="savebar"><div class="cnt"><span><i class="dot d-P"></i>${cnt.P}</span><span><i class="dot d-A"></i>${cnt.A}</span><span><i class="dot d-T"></i>${cnt.T}</span><span><i class="dot d-J"></i>${cnt.J}</span>${cnt[''] ? `<span class="muted"><i class="dot d-0"></i>${cnt['']} sin marcar</span>` : ''}</div>
-    ${soloVer ? '' : `<div class="actions">${saved && isStaff() ? `<button class="btn sm ghost danger" data-act="asis-borrar">Borrar lista</button>` : ''}<button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="asis-guardar">${D.dirty ? 'Guardar lista' : saved ? 'Guardada' : 'Guardar lista'}</button></div>`}</div></div>`;
+    ${soloVer ? '' : `<div class="actions">${saved && isAdmin() ? `<button class="btn sm ghost danger" data-act="asis-borrar">Borrar lista</button>` : ''}<button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="asis-guardar">${D.dirty ? 'Guardar lista' : saved ? 'Guardada' : 'Guardar lista'}</button></div>`}</div></div>`;
   return h;
 };
 function vHistorial() {
@@ -1437,7 +1503,8 @@ function asegurarClases(d, h) {
 VIEWS.horario = () => {
   if (isProfe()) return vHorProfe();
   if (!ready('grupos', 'prof', 'clases')) return loadingView();
-  const tabs = isAdmin() ? [['semana', 'Semana'], ['armar', 'Armar horario'], ['disp', 'Disponibilidad'], ['plantel', 'Plantel'], ['pago', 'Pago a profes']] : [['semana', 'Semana']];
+  const ncp = cambiosPend().length;
+  const tabs = isAdmin() ? [['semana', 'Semana'], ['armar', 'Armar horario'], ['cambios', 'Cambios' + (ncp ? ` (${ncp})` : '')], ['disp', 'Disponibilidad'], ['plantel', 'Plantel'], ['pago', 'Pago a profes']] : [['semana', 'Semana']];
   if (!tabs.some(t => t[0] === S.ui.horTab)) S.ui.horTab = 'semana';
   let h = ph('Horario', isAdmin() ? 'Armá la semana, mirá quién dio cada clase y cuánto se le paga a cada profe' : 'Clases de la semana y quién da cada una');
   if (tabs.length > 1) h += `<div class="tabsbar">${tabs.map(([v, l]) => `<button data-act="hortab" data-v="${v}" aria-pressed="${S.ui.horTab === v}">${l}</button>`).join('')}</div>`;
@@ -1445,6 +1512,7 @@ VIEWS.horario = () => {
   if (t === 'armar') return h + (ready('punt', 'semana') && S.sem ? vHorArmar() : loadingView());
   if (t === 'disp') return h + (ready('semana') && S.sem ? vHorDisp() : loadingView());
   if (t === 'plantel') return h + (ready('punt') ? vHorPlantel() : loadingView());
+  if (t === 'cambios') return h + (ready('cambios') ? vHorCambios() : loadingView());
   if (t === 'pago') return h + (ready('punt') ? vHorPago() : loadingView());
   return h + vHorSemana();
 };
@@ -1471,12 +1539,12 @@ function vHorSemana() {
   return h;
 }
 function celdaClase(c) {
-  const t = hoy(); const dict = c.dictada_por; const reemp = dict && c.profesor_id && dict !== c.profesor_id;
+  const t = hoy(); const dict = c.dictada_por; const reemp = dict && dict !== c.profesor_id && c.materia !== 'examen';
   let est = '';
-  if (dict) est = `<span class="ok">✓ Lista${c.dictada_en ? ' ' + horaDe(c.dictada_en) : ''}${reemp || !c.profesor_id ? ' · ' + esc(primerN(dict)) : ''}</span>`;
+  if (dict) est = `<span class="ok">✓ Lista${c.dictada_en ? ' ' + horaDe(c.dictada_en) : ''}${reemp || !c.profesor_id ? ' · ' + esc(primerN(dict)) : ''}</span>${reemp ? `<span class="no">${cambioDe(c)?.estado === 'rechazado' ? 'cambio rechazado' : 'cambio sin aprobar'}</span>` : ''}`;
   else if (c.materia && c.materia !== 'examen' && c.fecha < t) est = `<span class="no">Sin lista</span>`;
   else if (c.fecha === t && c.materia !== 'examen') est = `<span class="t">Hoy · sin lista todavía</span>`;
-  const prof = c.materia === 'examen' ? `<span class="t">sin profe</span>` : c.profesor_id ? `<span class="p">${esc(primerN(c.profesor_id))}</span>${reemp ? '<span class="t">la dio otro profe</span>' : ''}` : c.materia ? `<span class="sc">SIN COBERTURA</span>` : `<span class="t">fuera del horario</span>`;
+  const prof = c.materia === 'examen' ? `<span class="t">sin profe</span>` : c.profesor_id ? `<span class="p">${esc(primerN(c.profesor_id))}</span>` : c.materia ? `<span class="sc">SIN COBERTURA</span>` : `<span class="t">fuera del horario</span>`;
   const nt = tieneNotas(c) ? `<span class="nt" title="${esc(notaTxt(c))}">✎ Con observaciones</span>` : '';
   return `<div class="wc ${isAdmin() ? 'click' : ''} ${c.fecha === t ? 'hoy' : ''}" ${isAdmin() ? `data-act="clase-editar" data-id="${esc(c.id)}"` : ''}><span class="d">${dkDe(c.fecha)} ${dm(c.fecha)}</span><span class="t">${esc(c.turno)}</span>${mchip(c.materia)}${c.tema ? `<span class="tema">${esc(c.tema)}</span>` : ''}${prof}${est}${nt}</div>`;
 }
@@ -1487,7 +1555,7 @@ function openClaseForm(id) {
     <div class="fld"><label for="cl-mat">Materia</label><select class="inp" id="cl-mat"><option value="">—</option>${Object.keys(MATS).map(k => `<option value="${k}" ${c.materia === k ? 'selected' : ''}>${MATS[k].l}</option>`).join('')}</select></div>
     <div class="fld"><label for="cl-tema">Tema</label><input class="inp" id="cl-tema" value="${esc(c.tema || '')}"></div>
     <div class="fld"><label for="cl-prof">Profe del horario</label><select class="inp" id="cl-prof">${opt(c.profesor_id, 'Sin profe')}</select></div>
-    <div class="fld"><label for="cl-dict">Dio la clase (cuenta para el pago)</label><select class="inp" id="cl-dict">${opt(c.dictada_por, 'Nadie todavía')}</select>${c.dictada_en ? `<span class="hint">Lista llamada a las ${horaDe(c.dictada_en)}</span>` : ''}</div>
+    <div class="fld"><label for="cl-dict">Dio la clase (cuenta para el pago)</label><select class="inp" id="cl-dict">${opt(c.dictada_por, 'Nadie todavía')}</select><span class="hint">${c.dictada_en ? `Lista llamada a las ${horaDe(c.dictada_en)}. ` : ''}Si elegís a otro profe, la clase pasa a su nombre (cambio aprobado).</span></div>
     ${tieneNotas(c) ? `<div class="fld full"><label>Lo que anotó el profe al llamar lista</label>${notaHtml(c)}</div>` : ''}
     <div class="fld full"><label for="cl-obs">Observación de la oficina</label><input class="inp" id="cl-obs" value="${esc(c.obs || '')}" placeholder="Ej: firmó en papel, se cambió con otro profe"></div></div>`,
     `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="clase-guardar" data-id="${esc(id)}">Guardar</button>`);
@@ -1647,6 +1715,178 @@ function cardMiDisp() {
   return h + `</div>`;
 }
 
+/* ---------- turnos de la oficina ---------- */
+function cardTurnoHoy() {
+  if (!S.loaded.ofi) return '';
+  const me = S.session.user.id, t = hoy(); const mios = oTurnosDe(t).filter(x => x.user_id === me && x.estado !== 'rechazado').sort((a, b) => OTURNOS.indexOf(a.turno) - OTURNOS.indexOf(b.turno));
+  return `<div class="card"><div class="card-h"><h2>Tu turno de hoy</h2><small>${fmtF(t)}</small></div><div class="rows">${mios.map(x => `<div class="row"><div class="t">${esc(x.turno)}<small>${x.estado === 'pendiente' ? 'Lo pediste vos · falta que la dirección lo apruebe' : 'Te toca según el horario de la oficina'}</small></div><div class="r">${x.marcado_en ? pill('✓ Marcado ' + horaDe(x.marcado_en), 'ok') : `<button class="btn sm primary" data-act="oturno-marcar" data-id="${esc(x.id)}">${ic('check')}Marcar turno</button>`}</div></div>`).join('') || `<div class="empty">Hoy no tenés turno en el horario.</div>`}</div>
+    <div class="card-b" style="padding-top:0"><button class="btn sm ghost" data-act="oturno-nuevo" data-f="${t}">${ic('plus')}Trabajé un turno que no estaba en mi horario</button></div></div>`;
+}
+VIEWS['mis-turnos'] = () => {
+  if (!ready('ofi', 'perfiles')) return loadingView();
+  const me = S.session.user.id, l = lunesDe(hoy());
+  let h = ph('Mis turnos', 'Marcá tu turno cada día que trabajás', `<button class="btn" data-act="oturno-nuevo">${ic('plus')}Pedir turno</button>`);
+  h += cardTurnoHoy();
+  const mios = Object.values(S.oTurnos).filter(x => x.user_id === me && x.fecha >= l && x.fecha <= addDays(l, 13)).sort((a, b) => a.fecha.localeCompare(b.fecha) || OTURNOS.indexOf(a.turno) - OTURNOS.indexOf(b.turno));
+  h += `<div class="card"><div class="card-h"><h2>Tus turnos</h2><small>Esta semana y la que viene</small></div><div class="rows">${mios.map(x => `<div class="row"><div class="t">${x.fecha === hoy() ? '<b>Hoy</b>' : dkDe(x.fecha) + ' ' + dm(x.fecha)} · ${esc(x.turno)}${x.motivo ? `<small>${esc(x.motivo)}</small>` : ''}</div><div class="r">${x.estado === 'pendiente' ? pill('Falta aprobar', 'pend') : x.estado === 'rechazado' ? pill('Rechazado', 'bad') : ''}${x.marcado_en ? pill('✓ ' + horaDe(x.marcado_en), 'ok') : x.fecha < hoy() && x.estado !== 'rechazado' ? pill('Sin marcar', 'bad') : ''}</div></div>`).join('') || '<div class="empty">La dirección todavía no te armó turnos para estas dos semanas.</div>'}</div></div>`;
+  h += cardMiDispOfi();
+  const sem = Object.values(S.oTurnos).filter(x => x.fecha >= l && x.fecha <= addDays(l, 6) && x.estado !== 'rechazado');
+  if (sem.length) h += `<div class="card"><div class="card-h"><h2>Quién está en la oficina esta semana</h2></div><div class="rows">${DK.map(k => { const f = fDia(l, k); const xs = sem.filter(x => x.fecha === f); if (!xs.length) return ''; return `<div class="row"><div class="t">${dkDe(f)} ${dm(f)}<small>${OTURNOS.filter(t => xs.some(x => x.turno === t)).map(t => `${t}: ${xs.filter(x => x.turno === t).map(x => esc(primerP(x.user_id))).join(', ')}`).join(' · ')}</small></div></div>`; }).join('')}</div></div>`;
+  const mes = hoy().slice(0, 7); const dados = Object.values(S.oTurnos).filter(x => x.user_id === me && x.fecha.startsWith(mes) && x.marcado_en);
+  const n = dados.filter(oCuenta).length, np = dados.filter(x => x.estado === 'pendiente').length;
+  h += `<div class="card"><div class="card-h"><h2>Turnos marcados en ${MESES[+mes.slice(5) - 1]}</h2>${pill(n + ' turno' + (n === 1 ? '' : 's'), 'acc')}</div><div class="card-b"><small class="muted">${np ? `${np} turno${np === 1 ? '' : 's'} más esperan la aprobación de la dirección. ` : ''}Solo cuentan los turnos que marcaste el mismo día.</small></div></div>`;
+  return h;
+};
+function cardMiDispOfi() {
+  const w = S.oSem; if (!w) return '';
+  const est = estadoCarga(w); if (!S.oDispDraft || S.oDispDraft.sem !== w.id) S.oDispDraft = { sem: w.id, dias: JSON.parse(JSON.stringify(S.oMiDisp?.dias || {})) };
+  const D = S.oDispDraft.dias; const dias = DK.filter(k => ofiAbre(k).length);
+  let h = `<div class="card"><div class="card-h"><div><h2>Tu disponibilidad</h2><small>Semana del ${rangoSem(w.lunes)}</small></div>${S.oMiDisp?.enviado ? pill('Enviada', 'ok') : pill('Sin enviar', 'pend')}</div><div class="card-b">`;
+  if (est === 'antes') h += `<p class="muted" style="margin:0 0 10px">La carga abre el miércoles.</p>`;
+  else if (est === 'cerrada') h += `<p class="muted" style="margin:0 0 10px">La carga de esta semana ya cerró (sábado 17:00). Si necesitás cambiar algo, avisale a la dirección.</p>`;
+  else h += `<p style="margin:0 0 10px">Marcá con una <b>X</b> los turnos en los que <b>sí</b> podés trabajar esa semana.</p>`;
+  const ts = OTURNOS.filter(t => dias.some(k => ofiAbre(k).includes(t)));
+  h += `<table class="dispg"><thead><tr><th>Día</th>${ts.map(t => `<th>${t}</th>`).join('')}</tr></thead><tbody>${dias.map(k => `<tr><td><b>${DK_FULL[DK.indexOf(k)]}</b> <small class="muted">${dm(fDia(w.lunes, k))}</small></td>${ts.map(t => `<td>${ofiAbre(k).includes(t) ? `<button class="xb" data-act="odisp-x" data-d="${k}" data-t="${t}" aria-pressed="${!!D[k]?.[t]}" ${est !== 'abierta' ? 'disabled' : ''} aria-label="${k} ${t}">X</button>` : ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  if (est === 'abierta') h += `<div class="savebar"><small>${S.oMiDisp?.enviado ? 'Ya la enviaste. Podés cambiarla hasta el sábado 17:00.' : 'Todavía no la enviaste.'}</small><button class="btn primary" data-act="odisp-enviar">Enviar disponibilidad</button></div>`;
+  return h + `</div>`;
+}
+let OT = null;
+function openPedirTurno(f) {
+  OT = { f: f || hoy() };
+  openModal('Pedir turno', `<p class="muted" style="margin:0 0 12px">Para un turno que no está en tu horario (cubrir a alguien, un día con mucho movimiento). Si es hoy, queda marcado al toque. Cuenta para el pago cuando la dirección lo aprueba.</p><div class="form">
+    <div class="fld"><label for="ot-f">Día</label><input type="date" class="inp" id="ot-f" value="${esc(OT.f)}" min="${hoy()}" max="${addDays(hoy(), 21)}"></div>
+    <div class="fld"><label for="ot-t">Turno</label><select class="inp" id="ot-t">${OTURNOS.map(t => `<option>${t}</option>`).join('')}</select></div>
+    <div class="fld full"><label for="ot-m">Motivo</label><input class="inp" id="ot-m" maxlength="300" placeholder="Ej: cubrí a Ana, que estaba enferma"></div>
+    <div class="full err" id="ot-err"></div></div>`, `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="oturno-pedir">Enviar pedido</button>`, 'narrow');
+}
+
+VIEWS.oficina = () => {
+  if (!ready('ofi', 'perfiles')) return loadingView();
+  const tabs = [['semana', 'Turnos de la semana'], ['disp', 'Disponibilidad'], ['pago', 'Pago por turno']];
+  if (!tabs.some(t => t[0] === S.ui.ofiTab)) S.ui.ofiTab = 'semana';
+  let h = ph('Turnos de oficina', 'Armá los turnos de la semana; cada persona marca su turno el día que trabaja');
+  h += `<div class="tabsbar">${tabs.map(([v, l]) => `<button data-act="ofitab" data-v="${v}" aria-pressed="${S.ui.ofiTab === v}">${l}</button>`).join('')}</div>`;
+  if (!ofiPersonas().length) return h + `<div class="card"><div class="empty"><b>Todavía no hay personas de oficina</b>Sumalas en Equipo → “Sumar persona de oficina”. Les llega un correo para crear su contraseña.<br><br><button class="btn primary" data-act="nav" data-v="equipo">Ir a Equipo</button></div></div>`;
+  if (S.ui.ofiTab === 'disp') return h + vOfiDisp();
+  if (S.ui.ofiTab === 'pago') return h + vOfiPago();
+  return h + vOfiSemana();
+};
+function ofiWkh() {
+  const l = S.oSem.lunes;
+  return `<div class="filters wkh"><button class="btn sm" data-act="ofi-sem" data-d="-7" aria-label="Semana anterior">‹</button><span class="lbl">${rangoSem(l)}</span><button class="btn sm" data-act="ofi-sem" data-d="7" aria-label="Semana siguiente">›</button>${l !== lunesSig() ? `<button class="btn sm ghost" data-act="ofi-sem" data-d="0">Próxima semana</button>` : ''}${l !== lunesDe(hoy()) ? `<button class="btn sm ghost" data-act="ofi-sem" data-d="hoy">Esta semana</button>` : ''}</div>`;
+}
+function filaOPend(x) {
+  return `<div class="row"><div class="t">${esc(nomP(x.user_id))} · ${dkDe(x.fecha)} ${dm(x.fecha)} · ${esc(x.turno)}<small>${x.motivo ? '“' + esc(x.motivo) + '” · ' : ''}${x.marcado_en ? 'Marcó a las ' + horaDe(x.marcado_en) : 'Todavía no marcó'}</small></div><div class="r"><button class="btn sm ghost danger" data-act="oturno-resolver" data-id="${esc(x.id)}" data-v="0">Rechazar</button><button class="btn sm primary" data-act="oturno-resolver" data-id="${esc(x.id)}" data-v="1">Aprobar</button></div></div>`;
+}
+function vOfiSemana() {
+  const w = S.oSem, l = w.lunes, ps = ofiPersonas(), t = hoy();
+  let h = ofiWkh();
+  const pend = oPend();
+  if (pend.length) h += `<div class="card"><div class="card-h"><h2>Turnos pedidos para aprobar</h2>${pill(pend.length, 'pend')}</div><div class="rows">${pend.map(filaOPend).join('')}</div></div>`;
+  const hoyT = oTurnosDe(t).filter(x => x.estado !== 'rechazado');
+  if (hoyT.length) h += `<div class="card"><div class="card-h"><h2>Hoy en la oficina</h2><small>${fmtF(t)}</small></div><div class="rows">${OTURNOS.flatMap(tt => hoyT.filter(x => x.turno === tt)).map(x => `<div class="row"><div class="t">${esc(x.turno)} · ${esc(nomP(x.user_id))}</div><div class="r">${x.estado === 'pendiente' ? pill('Pedido', 'pend') : ''}${x.marcado_en ? pill('✓ Marcó ' + horaDe(x.marcado_en), 'ok') : pill('Sin marcar', '')}</div></div>`).join('')}</div></div>`;
+  const vacios = DK.reduce((n, k) => n + ofiAbre(k).filter(tt => !oTurnosDe(fDia(l, k), tt).some(x => x.estado !== 'rechazado')).length, 0);
+  h += `<div class="card"><div class="card-h"><div><h2>Turnos de la semana</h2><small>Tocá un nombre para asignarle o sacarle el turno. En verde, los que dijeron que pueden.</small></div><div class="actions"><button class="btn sm" data-act="oturno-auto" ${vacios ? '' : 'disabled'}>Completar con disponibles</button><button class="btn sm wa" data-act="oturno-msg">${ic('wa')}Mensaje para el grupo</button></div></div>`;
+  h += DK.map(k => {
+    const f = fDia(l, k); const abre = ofiAbre(k); const extra = OTURNOS.filter(tt => !abre.includes(tt) && oTurnosDe(f, tt).length); const ts = OTURNOS.filter(tt => abre.includes(tt) || extra.includes(tt));
+    if (!ts.length) return '';
+    return `<div class="ot-dia"><h3>${DK_FULL[DK.indexOf(k)]} <small class="muted">${dm(f)}</small></h3>${ts.map(tt => {
+      const xs = oTurnosDe(f, tt); const asign = xs.filter(x => x.estado !== 'rechazado');
+      const chips = ps.map(p => { const x = xs.find(y => y.user_id === p.id && y.estado !== 'rechazado');
+        if (x && x.estado === 'pendiente') return `<span class="chip pend">${esc(primerP(p.id))} <small>pedido</small></span>`;
+        if (x) return `<button class="chip" aria-pressed="true" data-act="oturno-x" data-id="${esc(x.id)}">${esc(primerP(p.id))}${x.marcado_en ? ` <small>✓ ${horaDe(x.marcado_en)}</small>` : ''}</button>`;
+        return `<button class="chip ${oLibre(p.id, k, tt) ? 'libre' : 'nolibre'}" data-act="oturno-x" data-f="${f}" data-t="${tt}" data-u="${esc(p.id)}">${esc(primerP(p.id))}</button>`; }).join('');
+      return `<div class="ot-fila"><span class="tl">${tt}</span><div class="chips">${chips}${!asign.length && abre.includes(tt) ? '<span class="ot-vacio">sin nadie</span>' : ''}</div></div>`; }).join('')}</div>`;
+  }).join('');
+  h += `</div>`;
+  const C = S.cfg.ofiTurnos || OFI_DEF;
+  h += `<details class="card"><summary class="card-h" style="cursor:pointer"><h2>Horario de la oficina</h2><small>Qué turnos abre cada día</small></summary><div class="card-b" style="display:grid;gap:8px">${DK.map(k => `<div class="ot-fila"><span class="tl">${k}</span><div class="chips">${OTURNOS.map(tt => `<button class="chip" data-act="ofi-abre" data-d="${k}" data-t="${tt}" aria-pressed="${(C[k] || []).includes(tt)}">${tt}</button>`).join('')}</div></div>`).join('')}</div></details>`;
+  return h;
+}
+function vOfiDisp() {
+  const w = S.oSem, ps = ofiPersonas(), est = estadoCarga(w); const env = new Set(S.oDisp.filter(r => r.enviado).map(r => r.user_id));
+  let h = ofiWkh();
+  h += `<div class="card"><div class="card-h"><div><h2>${ps.filter(p => env.has(p.id)).length} de ${ps.length} cargaron</h2><small>${est === 'abierta' ? 'Carga abierta · cierra el sábado a las 17:00 (igual que los profes)' : est === 'antes' ? 'La carga abre el miércoles' : 'Carga cerrada'}</small></div></div>
+    <div class="tw"><table class="dispg"><thead><tr><th>Persona</th><th>Estado</th>${DK.map(k => `<th>${k}<br><small>${dm(fDia(w.lunes, k))}</small></th>`).join('')}</tr></thead><tbody>${ps.map(p => { const d = S.oDisp.find(r => r.user_id === p.id)?.dias || {};
+      return `<tr><td><b>${esc(nomP(p.id))}</b></td><td>${env.has(p.id) ? pill('Cargó', 'ok') : pill('Pendiente', 'pend')}</td>${DK.map(k => `<td><small>${OTURNOS.filter(tt => d[k]?.[tt]).map(tt => tt[0]).join(' ') || '<span class="muted">—</span>'}</small></td>`).join('')}</tr>`; }).join('')}</tbody></table></div>
+    <div class="card-b"><small class="muted">M = mañana · T = tarde · N = noche. La reapertura de la carga se maneja desde Horario → Disponibilidad.</small></div></div>`;
+  return h;
+}
+function ofiPagoMes(mes) {
+  const d0 = mes + '-01', d1 = addDays(addMonths(d0, 1), -1);
+  const xs = Object.values(S.oTurnos).filter(x => x.fecha >= d0 && x.fecha <= d1);
+  const filas = ofiPersonas().map(p => { const mios = xs.filter(x => x.user_id === p.id); const n = mios.filter(oCuenta).length; const m = num(S.oMontos[p.id]);
+    return { p, n, m, tot: n * m, pend: mios.filter(x => x.estado === 'pendiente' && x.marcado_en).length, sin: mios.filter(x => x.estado === 'asignado' && !x.marcado_en && x.fecha < hoy()).length }; });
+  return { d0, d1, filas, xs };
+}
+function vOfiPago() {
+  if (!S.ui.ofiMes) S.ui.ofiMes = hoy().slice(0, 7);
+  const mes = S.ui.ofiMes; const d0 = mes + '-01';
+  if (d0 < S.oRango[0] || S.oCargando) { if (!S.oCargando) { S.oCargando = true; S.oRango = [d0 < S.oRango[0] ? d0 : S.oRango[0], S.oRango[1]]; LOADERS.ofi().then(() => { S.oCargando = false; render(); }).catch(e => { S.oCargando = false; toast(errText(e), 'error'); }); } return loadingView(); }
+  const { filas, xs } = ofiPagoMes(mes);
+  let h = `<div class="filters"><input type="month" class="inp" data-ch="ofiMes" value="${esc(mes)}" style="width:auto" aria-label="Mes"><small class="muted">Cuenta cada turno asignado (o pedido y aprobado) que la persona marcó el mismo día.</small></div>`;
+  h += `<div class="kpis">${kpi('Total a pagar', money(sum(filas.map(f => f.tot))), cap(MESES[+mes.slice(5) - 1]) + ' ' + mes.slice(0, 4))}${kpi('Turnos trabajados', fmtN(sum(filas.map(f => f.n))), filas.length + ' persona' + (filas.length === 1 ? '' : 's'))}${kpi('Sin aprobar', sum(filas.map(f => f.pend)), 'turnos pedidos y marcados', sum(filas.map(f => f.pend)) ? 'bad' : '')}${kpi('Sin marcar', sum(filas.map(f => f.sin)), 'turnos asignados que ya pasaron', sum(filas.map(f => f.sin)) ? 'bad' : '')}</div>`;
+  h += `<div class="card"><div class="tw"><table><thead><tr><th>Persona</th><th class="n">Turnos</th><th class="n">Sin marcar</th><th class="n">Por turno (Gs.)</th><th class="n">Total</th></tr></thead><tbody>${filas.map(f => `<tr><td><b>${esc(nomP(f.p.id))}</b>${f.pend ? `<br><small class="bad-t">${f.pend} sin aprobar</small>` : ''}</td><td class="n num">${f.n}</td><td class="n">${f.sin || '—'}</td><td class="n"><input class="inp money" style="width:120px;text-align:right" inputmode="numeric" data-ch="omonto" data-u="${esc(f.p.id)}" value="${f.m ? fmtN(f.m) : ''}" placeholder="0" aria-label="Pago por turno de ${esc(nomP(f.p.id))}"></td><td class="n num"><b>${money(f.tot)}</b></td></tr>`).join('')}</tbody></table></div><div class="card-b"><small class="muted">El pago por turno solo lo ves vos.</small></div></div>`;
+  const det = xs.filter(x => x.marcado_en || (x.estado === 'asignado' && x.fecha < hoy())).sort((a, b) => a.fecha.localeCompare(b.fecha) || OTURNOS.indexOf(a.turno) - OTURNOS.indexOf(b.turno));
+  if (det.length) h += `<div class="card"><div class="card-h"><h2>Detalle del mes</h2></div><div class="rows">${det.map(x => `<div class="row"><div class="t">${dkDe(x.fecha)} ${dm(x.fecha)} · ${esc(x.turno)} · ${esc(nomP(x.user_id))}${x.motivo ? `<small>${esc(x.motivo)}</small>` : ''}</div><div class="r">${x.estado === 'pendiente' ? pill('Falta aprobar', 'pend') : x.estado === 'rechazado' ? pill('Rechazado', 'bad') : ''}${x.marcado_en ? pill('✓ ' + horaDe(x.marcado_en), 'ok') : pill('Sin marcar', 'bad')}</div></div>`).join('')}</div></div>`;
+  return h;
+}
+function ofiMensaje() {
+  const l = S.oSem.lunes; const lines = [`*Turnos de oficina* · semana del ${rangoSem(l)}`, ''];
+  DK.forEach(k => { const f = fDia(l, k); const ts = OTURNOS.map(tt => [tt, oTurnosDe(f, tt).filter(x => x.estado !== 'rechazado')]).filter(([, xs]) => xs.length);
+    if (ts.length) lines.push(`*${DK_FULL[DK.indexOf(k)]} ${dm(f)}*: ` + ts.map(([tt, xs]) => `${tt}: ${xs.map(x => primerP(x.user_id)).join(', ')}`).join(' · ')); });
+  lines.push('', 'Acordate de marcar tu turno en la app cada día que trabajás.');
+  return lines.join('\n');
+}
+
+/* pedidos de cambio (dirección) */
+function filaCambio(x) {
+  const c = claseDe(x.grupo_id, x.fecha, x.turno); const [el, ek] = ESTADO_CAMBIO[x.estado] || ['', ''];
+  const clase = c?.materia ? `${matL(c.materia)}${c.tema ? ' — ' + c.tema : ''}` : 'No había clase publicada en ese turno';
+  const antes = x.profe_antes ? 'le tocaba a ' + primerN(x.profe_antes) : (c?.materia && c.materia !== 'examen' ? 'estaba sin profe' : '');
+  const lista = c?.dictada_por === x.profesor_id ? `Ya llamó lista a las ${horaDe(c.dictada_en)}` : c?.dictada_por ? `La lista la llamó ${primerN(c.dictada_por)}` : x.fecha < hoy() ? 'No llamó lista' : 'Todavía no llamó lista';
+  const btns = x.estado === 'pendiente' ? `<button class="btn sm ghost danger" data-act="cambio-resolver" data-id="${esc(x.id)}" data-v="0">Rechazar</button><button class="btn sm primary" data-act="cambio-resolver" data-id="${esc(x.id)}" data-v="1">Aprobar</button>`
+    : `<button class="btn sm ghost" data-act="cambio-resolver" data-id="${esc(x.id)}" data-v="${x.estado === 'aprobado' ? 0 : 1}">${x.estado === 'aprobado' ? 'Pasar a rechazado' : 'Aprobar igual'}</button>`;
+  return `<div class="row"><div class="t">${esc(profN(x.profesor_id))} · ${esc(gName(x.grupo_id))} · ${dkDe(x.fecha)} ${dm(x.fecha)} ${esc(x.turno)}
+    <small>${esc(clase)}${antes ? ' · ' + esc(antes) : ''}</small><small>${esc(lista)}${x.motivo ? ' · “' + esc(x.motivo) + '”' : ''}</small></div><div class="r">${pill(el, ek)}${btns}</div></div>`;
+}
+function vHorCambios() {
+  const all = Object.values(S.cambios).sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.creado || '').localeCompare(a.creado || ''));
+  const pend = all.filter(x => x.estado === 'pendiente'), res = all.filter(x => x.estado !== 'pendiente').slice(0, 40);
+  if (!asegurarClases(all.length ? all[all.length - 1].fecha : hoy(), addDays(hoy(), 21))) return loadingView();
+  let h = `<div class="banner">Cuando un profe va a dar una clase que no está a su nombre (reemplazo, cambio entre profes), la pide desde la app. Con el pedido ya puede llamar lista; la clase le cuenta para el pago cuando la aprobás. Podés aprobar antes o después de la clase.</div>`;
+  h += `<div class="card"><div class="card-h"><h2>Para aprobar</h2>${pend.length ? pill(pend.length, 'pend') : ''}</div><div class="rows">${pend.map(filaCambio).join('') || '<div class="empty">No hay pedidos de cambio pendientes.</div>'}</div></div>`;
+  if (res.length) h += `<div class="card"><div class="card-h"><h2>Resueltos</h2><small>Último mes y medio</small></div><div class="rows">${res.map(filaCambio).join('')}</div></div>`;
+  return h;
+}
+// pedido de cambio (profe)
+let CB = null;
+async function openCambio(g, f, t) {
+  CB = { g: g || '', f: f || hoy(), t: t || '' };
+  openModal('Pedir cambio de clase', `<div class="empty">Cargando grupos…</div>`, '', 'narrow');
+  const { data, error } = await S.sb.rpc('grupos_lista'); if (error) { closeModal(); toast(errText(error), 'error'); return; }
+  CB.gs = data || []; if (!CB.g) CB.g = CB.gs[0]?.id || '';
+  renderCambio();
+}
+function turnosCambio() { const g = CB.gs.find(x => x.id === CB.g); const tl = turnosDe((g?.dias || {})[dkDe(CB.f)] || '-'); return tl.length ? tl : TURNOS; }
+function renderCambio() {
+  if (!modalOpen()) return;
+  const tl = turnosCambio(); if (!tl.includes(CB.t)) CB.t = tl[0];
+  openModal('Pedir cambio de clase', `<p class="muted" style="margin:0 0 12px">Para una clase que no está a tu nombre en el horario: un reemplazo o un cambio con otro profe. Con el pedido ya podés llamar lista ese día. Te cuenta para el pago cuando la dirección lo apruebe.</p><div class="form">
+    <div class="fld full"><label for="cb-g">Grupo</label><select class="inp" id="cb-g" data-ch="cb-g">${CB.gs.map(x => `<option value="${esc(x.id)}" ${x.id === CB.g ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>
+    <div class="fld"><label for="cb-f">Día</label><input type="date" class="inp" id="cb-f" data-ch="cb-f" value="${esc(CB.f)}" min="${hoy()}" max="${addDays(hoy(), 21)}"></div>
+    <div class="fld"><label for="cb-t">Turno</label><select class="inp" id="cb-t" data-ch="cb-t">${tl.map(x => `<option ${x === CB.t ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+    <div class="full" id="cb-info"><small class="muted">Buscando la clase…</small></div>
+    <div class="fld full"><label for="cb-m">Motivo</label><input class="inp" id="cb-m" maxlength="300" placeholder="Ej: reemplazo a Iván, que está enfermo"></div>
+    <div class="full err" id="cb-err"></div></div>`, `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="cambio-enviar">Enviar pedido</button>`, 'narrow');
+  infoCambio();
+}
+async function infoCambio() {
+  const { g, f, t } = CB; const { data } = await S.sb.rpc('info_clase', { g, f, t }); const el = $('#cb-info'); if (!el || CB.g !== g || CB.f !== f || CB.t !== t) return;
+  const c = (data || [])[0];
+  el.innerHTML = c?.materia ? `<div class="banner">${mchip(c.materia)} ${esc(c.tema || '')}${c.materia === 'examen' ? ' · examen' : c.profe ? ` · le toca a <b>${esc(c.profe)}</b>` : ' · sin profe en el horario'}</div>` : `<small class="muted">No hay clase publicada en ese turno. Igual podés pedirla si la vas a dar.</small>`;
+}
+
 /* plantel (dirección) */
 function vHorPlantel() {
   const ps = Object.values(S.prof).sort((a, b) => (b.activo - a.activo) || (a.nombre || '').localeCompare(b.nombre || '', 'es'));
@@ -1684,20 +1924,22 @@ async function invitarProfe(pid) {
 function pagoDelMes(mes) {
   const d0 = mes + '-01', d1 = addDays(addMonths(d0, 1), -1);
   const cls = Object.values(S.clases).filter(c => c.fecha >= d0 && c.fecha <= d1); const by = {};
-  cls.filter(c => c.dictada_por).forEach(c => (by[c.dictada_por] ||= []).push(c));
+  cls.filter(c => cuentaPago(c) || (c.dictada_por && c.materia === 'examen')).forEach(c => (by[c.dictada_por] ||= []).push(c));
   const filas = Object.entries(by).map(([pid, l]) => { const n = l.filter(c => c.materia !== 'examen').length; const m = num(S.punt[pid]?.monto_clase);
     return { pid, l: l.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno)), n, ex: l.length - n, m, tot: n * m }; })
     .sort((a, b) => b.tot - a.tot || profN(a.pid).localeCompare(profN(b.pid), 'es'));
   const sinLista = cls.filter(c => !c.dictada_por && c.materia && c.materia !== 'examen' && c.fecha < hoy()).sort((a, b) => a.fecha.localeCompare(b.fecha));
-  return { d0, d1, filas, sinLista };
+  const sinAprobar = cls.filter(c => c.dictada_por && c.materia !== 'examen' && c.dictada_por !== c.profesor_id).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  return { d0, d1, filas, sinLista, sinAprobar };
 }
 function vHorPago() {
   const mes = S.ui.pagoMes, d0 = mes + '-01', d1 = addDays(addMonths(d0, 1), -1);
-  let h = `<div class="filters"><input type="month" class="inp" id="pagoMes" data-ch="pagoMes" value="${esc(mes)}" style="width:auto" aria-label="Mes"><small class="muted">Cuenta cada clase en la que el profe llamó lista. Mañana y tarde cuentan por separado.</small></div>`;
+  let h = `<div class="filters"><input type="month" class="inp" id="pagoMes" data-ch="pagoMes" value="${esc(mes)}" style="width:auto" aria-label="Mes"><small class="muted">Cuenta cada clase en la que el profe del horario llamó lista (o con el cambio aprobado). Mañana y tarde cuentan por separado.</small></div>`;
   if (!asegurarClases(d0, d1)) return h + loadingView();
-  const { filas, sinLista } = pagoDelMes(mes);
-  h += `<div class="kpis">${kpi('Total a pagar', money(sum(filas.map(f => f.tot))), cap(MESES[+mes.slice(5) - 1]) + ' ' + mes.slice(0, 4))}${kpi('Clases dadas', fmtN(sum(filas.map(f => f.n))), filas.length + ' profe' + (filas.length === 1 ? '' : 's'))}${kpi('Clases sin lista', sinLista.length, 'ya pasaron y nadie llamó lista', sinLista.length ? 'bad' : '')}</div>`;
-  h += `<div class="card"><div class="card-h"><h2>Por profe</h2><button class="btn sm" data-act="pago-exp">${ic('download')}Exportar detalle</button></div><div class="tw"><table><thead><tr><th>Profe</th><th class="n">Clases</th><th class="n">Exámenes</th><th class="n">Por clase</th><th class="n">Total</th></tr></thead><tbody>${filas.map(f => `<tr class="click" data-act="pago-ver" data-id="${esc(f.pid)}"><td><b>${esc(profN(f.pid))}</b></td><td class="n num">${f.n}</td><td class="n">${f.ex || '—'}</td><td class="n">${f.m ? money(f.m) : '<span class="bad-t">sin cargar</span>'}</td><td class="n num"><b>${money(f.tot)}</b></td></tr>${S.ui.pagoVer === f.pid ? `<tr><td colspan="5" style="padding:0 0 10px"><div class="rows">${f.l.map(c => `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>Lista a las ${horaDe(c.dictada_en) || '—'}${c.profesor_id && c.profesor_id !== c.dictada_por ? ' · reemplazo de ' + esc(primerN(c.profesor_id)) : ''}${!c.materia ? ' · fuera del horario' : ''}${c.materia === 'examen' ? ' · examen, no suma' : ''}${c.obs ? ' · ' + esc(c.obs) : ''}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></td></tr>` : ''}`).join('') || '<tr><td colspan="5" class="muted">Ningún profe llamó lista en este mes.</td></tr>'}</tbody></table></div><div class="card-b"><small class="muted">Tocá un profe para ver sus clases. Los exámenes que cuidó se ven, pero no suman al pago.</small></div></div>`;
+  const { filas, sinLista, sinAprobar } = pagoDelMes(mes);
+  h += `<div class="kpis">${kpi('Total a pagar', money(sum(filas.map(f => f.tot))), cap(MESES[+mes.slice(5) - 1]) + ' ' + mes.slice(0, 4))}${kpi('Clases dadas', fmtN(sum(filas.map(f => f.n))), filas.length + ' profe' + (filas.length === 1 ? '' : 's'))}${kpi('Sin aprobar', sinAprobar.length, 'cambios que todavía no aprobaste', sinAprobar.length ? 'bad' : '')}${kpi('Clases sin lista', sinLista.length, 'ya pasaron y nadie llamó lista', sinLista.length ? 'bad' : '')}</div>`;
+  if (sinAprobar.length) h += `<div class="card"><div class="card-h"><h2>Clases dadas con cambio sin aprobar</h2><button class="btn sm" data-act="hortab" data-v="cambios">Ir a Cambios</button></div><div class="rows">${sinAprobar.map(c => { const x = cambioDe(c); return `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>La dio ${esc(profN(c.dictada_por))}${c.profesor_id ? ' · le tocaba a ' + esc(primerN(c.profesor_id)) : ' · sin profe en el horario'}</small></div><div class="r">${x ? pill(ESTADO_CAMBIO[x.estado][0], ESTADO_CAMBIO[x.estado][1]) : ''}${x?.estado === 'pendiente' ? `<button class="btn sm primary" data-act="cambio-resolver" data-id="${esc(x.id)}" data-v="1">Aprobar</button>` : ''}</div></div>`; }).join('')}</div><div class="card-b"><small class="muted">No suman al total hasta que las apruebes.</small></div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Por profe</h2><button class="btn sm" data-act="pago-exp">${ic('download')}Exportar detalle</button></div><div class="tw"><table><thead><tr><th>Profe</th><th class="n">Clases</th><th class="n">Exámenes</th><th class="n">Por clase</th><th class="n">Total</th></tr></thead><tbody>${filas.map(f => `<tr class="click" data-act="pago-ver" data-id="${esc(f.pid)}"><td><b>${esc(profN(f.pid))}</b></td><td class="n num">${f.n}</td><td class="n">${f.ex || '—'}</td><td class="n">${f.m ? money(f.m) : '<span class="bad-t">sin cargar</span>'}</td><td class="n num"><b>${money(f.tot)}</b></td></tr>${S.ui.pagoVer === f.pid ? `<tr><td colspan="5" style="padding:0 0 10px"><div class="rows">${f.l.map(c => `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>Lista a las ${horaDe(c.dictada_en) || '—'}${cambioDe(c)?.estado === 'aprobado' && cambioDe(c).profe_antes ? ' · reemplazo de ' + esc(primerN(cambioDe(c).profe_antes)) : ''}${!c.materia ? ' · fuera del horario' : ''}${c.materia === 'examen' ? ' · examen, no suma' : ''}${c.obs ? ' · ' + esc(c.obs) : ''}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></td></tr>` : ''}`).join('') || '<tr><td colspan="5" class="muted">Ningún profe llamó lista en este mes.</td></tr>'}</tbody></table></div><div class="card-b"><small class="muted">Tocá un profe para ver sus clases. Los exámenes que cuidó se ven, pero no suman al pago.</small></div></div>`;
   if (sinLista.length) h += `<div class="card"><div class="card-h"><h2>Clases sin lista</h2><small>Si el profe vino y firmó en papel, tocá la clase y marcá quién la dio</small></div><div class="rows">${sinLista.map(c => `<div class="row click" data-act="clase-editar" data-id="${esc(c.id)}"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${esc(matL(c.materia))}${c.profesor_id ? ' · le tocaba a ' + esc(profN(c.profesor_id)) : ' · sin cobertura'}</small></div><div class="r">${pill('Sin lista', 'bad')}</div></div>`).join('')}</div></div>`;
   return h;
 }
@@ -1707,22 +1949,31 @@ function vHorProfe() {
   if (!ready('grupos', 'prof', 'clases', 'semana')) return loadingView();
   if (!S.miProf) return ph('Horario', '') + `<div class="card"><div class="empty"><b>Todavía no estás en el plantel de profes</b>Pedile a la dirección que te sume con este correo: ${esc(S.perfil.email)}</div></div>`;
   const me = S.miProf.id, l = lunesDe(hoy());
-  let h = ph('Horario', 'Tus clases y tu disponibilidad');
-  const mias = Object.values(S.clases).filter(c => (c.profesor_id === me || c.dictada_por === me) && c.fecha >= l && c.fecha <= addDays(l, 13)).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
-  h += `<div class="card"><div class="card-h"><h2>Tus clases</h2><small>Esta semana y la que viene</small></div><div class="rows">${mias.map(rowClaseProfe).join('') || '<div class="empty">No tenés clases publicadas en estas dos semanas.</div>'}</div></div>`;
+  let h = ph('Horario', 'Tus clases y tu disponibilidad', `<button class="btn" data-act="cambio-nuevo">${ic('plus')}Pedir cambio</button>`);
+  const mias = Object.values(S.clases).filter(c => (c.profesor_id === me || c.dictada_por === me) && c.fecha >= l && c.fecha <= addDays(l, 13));
+  // pedidos pendientes de clases que todavía no están a su nombre
+  const pc = Object.values(S.cambios || {}).filter(x => x.profesor_id === me && x.estado === 'pendiente' && x.fecha >= l && x.fecha <= addDays(l, 13) && !mias.some(c => c.grupo_id === x.grupo_id && c.fecha === x.fecha && c.turno === x.turno))
+    .map(x => ({ ...(claseDe(x.grupo_id, x.fecha, x.turno) || {}), grupo_id: x.grupo_id, fecha: x.fecha, turno: x.turno, _pedido: x }));
+  const todas = [...mias, ...pc].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
+  h += `<div class="card"><div class="card-h"><h2>Tus clases</h2><small>Esta semana y la que viene</small></div><div class="rows">${todas.map(rowClaseProfe).join('') || '<div class="empty">No tenés clases publicadas en estas dos semanas.</div>'}</div></div>`;
+  const mp = Object.values(S.cambios || {}).filter(x => x.profesor_id === me).sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 12);
+  if (mp.length) h += `<div class="card"><div class="card-h"><h2>Tus pedidos de cambio</h2></div><div class="rows">${mp.map(x => `<div class="row"><div class="t">${dkDe(x.fecha)} ${dm(x.fecha)} · ${esc(x.turno)} · ${esc(gName(x.grupo_id) || 'Grupo')}<small>${x.motivo ? esc(x.motivo) : 'Sin motivo'}${x.profe_antes ? ' · le tocaba a ' + esc(primerN(x.profe_antes)) : ''}</small></div><div class="r">${pill(...ESTADO_CAMBIO[x.estado])}</div></div>`).join('')}</div></div>`;
   h += cardMiDisp();
   const mes = hoy().slice(0, 7); const dadas = Object.values(S.clases).filter(c => c.dictada_por === me && c.fecha.startsWith(mes)).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
-  h += `<div class="card"><div class="card-h"><h2>Clases que diste en ${MESES[+mes.slice(5) - 1]}</h2>${pill(dadas.filter(c => c.materia !== 'examen').length + ' clase' + (dadas.filter(c => c.materia !== 'examen').length === 1 ? '' : 's'), 'acc')}</div><div class="rows">${dadas.map(c => `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>Lista a las ${horaDe(c.dictada_en)}${c.materia === 'examen' ? ' · examen' : ''}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('') || '<div class="empty">Todavía no llamaste lista este mes. Cada vez que llamás lista, la clase queda registrada acá.</div>'}</div></div>`;
+  const nOk = dadas.filter(cuentaPago).length;
+  h += `<div class="card"><div class="card-h"><h2>Clases que diste en ${MESES[+mes.slice(5) - 1]}</h2>${pill(nOk + ' clase' + (nOk === 1 ? '' : 's'), 'acc')}</div><div class="rows">${dadas.map(c => `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>Lista a las ${horaDe(c.dictada_en)}${c.materia === 'examen' ? ' · examen' : ''}${c.materia !== 'examen' && !cuentaPago(c) ? ' · cambio sin aprobar, todavía no cuenta' : ''}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('') || '<div class="empty">Todavía no llamaste lista este mes. Cada vez que llamás lista, la clase queda registrada acá.</div>'}</div></div>`;
   return h;
 }
 function rowClaseProfe(c) {
-  const me = S.miProf.id, t = hoy(); let r = '';
-  if (c.dictada_por === me) r = pill('✓ Lista ' + horaDe(c.dictada_en), 'ok');
+  const me = S.miProf.id, t = hoy(); let r = ''; const x = c._pedido || null;
+  if (c.dictada_por === me) r = pill('✓ Lista ' + horaDe(c.dictada_en), 'ok') + (c.profesor_id !== me && c.materia !== 'examen' ? pill('Falta aprobar', 'pend') : '');
+  else if (x && c.fecha === t) r = pill('Falta aprobar', 'pend') + `<button class="btn sm primary" data-act="tomar" data-g="${esc(c.grupo_id)}" data-t="${esc(c.turno)}">${ic('check')}Llamar lista</button>`;
+  else if (x) r = pill('Pedido · falta aprobar', 'pend');
   else if (c.dictada_por) r = pill('La dio ' + primerN(c.dictada_por));
   else if (c.materia === 'examen') r = pill('Examen');
   else if (c.fecha === t) r = `<button class="btn sm primary" data-act="tomar" data-g="${esc(c.grupo_id)}" data-t="${esc(c.turno)}">${ic('check')}Llamar lista</button>`;
   else if (c.fecha < t) r = pill('Sin lista', 'bad');
-  return `<div class="row"><div class="t">${c.fecha === t ? '<b>Hoy</b>' : dkDe(c.fecha) + ' ' + dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${esc(matL(c.materia))}${c.tema ? ' — ' + esc(c.tema) : ''}${c.dictada_por === me && c.profesor_id && c.profesor_id !== me ? ' · reemplazo' : ''}${tieneNotas(c) ? ' · ✎ con observaciones' : ''}</small></div><div class="r">${r}</div></div>`;
+  return `<div class="row"><div class="t">${c.fecha === t ? '<b>Hoy</b>' : dkDe(c.fecha) + ' ' + dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${c.materia ? esc(matL(c.materia)) : 'Sin clase publicada'}${c.tema ? ' — ' + esc(c.tema) : ''}${x ? ' · pedido de cambio' : ''}${tieneNotas(c) ? ' · ✎ con observaciones' : ''}</small></div><div class="r">${r}</div></div>`;
 }
 
 /* horario del alumno: materia y tema, sin el profe */
@@ -1740,12 +1991,11 @@ VIEWS['mi-horario'] = () => {
 
 /* --- equipo (dirección) --- */
 VIEWS.equipo = () => {
-  if (!ready('perfiles', 'grupos', 'pg')) return loadingView();
+  if (!ready('perfiles', 'grupos')) return loadingView();
   const staff = Object.values(S.perfiles).filter(p => p.rol !== 'alumno').sort((a, b) => ['admin', 'oficina', 'profe'].indexOf(a.rol) - ['admin', 'oficina', 'profe'].indexOf(b.rol) || (a.nombre || a.email).localeCompare(b.nombre || b.email, 'es'));
-  let h = ph('Equipo', 'Dirección, oficina y profes con acceso a la app', `<button class="btn primary" data-act="invitar-equipo">${ic('mail')}Sumar profe u oficina</button>`);
-  h += `<div class="card"><div class="tw"><table><thead><tr><th>Persona</th><th>Rol</th><th>Grupos</th><th>Estado</th><th></th></tr></thead><tbody>${staff.map(p => { const gs = S.profeGrupos.filter(x => x.profe_id === p.id).map(x => gName(x.grupo_id));
-    return `<tr><td><b>${esc(p.nombre || '—')}</b><br><small>${esc(p.email)}</small></td><td>${pill(ROLE_LBL[p.rol], p.rol === 'admin' ? 'acc' : '')}</td><td><small>${p.rol === 'profe' ? esc(gs.join(', ') || 'Sin grupos') : '—'}</small></td><td>${p.activo ? pill('Activo', 'ok') : pill('Desactivado')}</td><td class="n" style="white-space:nowrap"><button class="btn sm" data-act="equipo-editar" data-id="${esc(p.id)}">${ic('edit')}Editar</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">Todavía no sumaste a nadie.</td></tr>'}</tbody></table></div></div>`;
-  h += `<div class="banner">Cada persona recibe un correo para crear su contraseña. Los profes ven los grupos donde tienen clase en el horario (y los que les asignes acá): llaman lista, cargan notas y ven contactos. Los profes se suman desde Horario → Plantel. La oficina ve todo y cobra, pero no puede borrar pagos ni cambiar roles.</div>`;
+  let h = ph('Equipo', 'Dirección, oficina y profes con acceso a la app', `<button class="btn primary" data-act="invitar-equipo">${ic('mail')}Sumar persona de oficina</button>`);
+  h += `<div class="card"><div class="tw"><table><thead><tr><th>Persona</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>${staff.map(p => `<tr><td><b>${esc(p.nombre || '—')}</b><br><small>${esc(p.email)}</small></td><td>${pill(ROLE_LBL[p.rol], p.rol === 'admin' ? 'acc' : '')}</td><td>${p.activo ? pill('Activo', 'ok') : pill('Desactivado')}</td><td class="n" style="white-space:nowrap"><button class="btn sm" data-act="equipo-editar" data-id="${esc(p.id)}">${ic('edit')}Editar</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Todavía no sumaste a nadie.</td></tr>'}</tbody></table></div></div>`;
+  h += `<div class="banner">Cada persona recibe un correo para crear su contraseña.<br><b>Oficina:</b> inscribe, carga y edita alumnos, grupos, cobros, listas y notas; marca sus turnos. No borra ni anula nada, no ve pagos de profes ni cambia roles: eso es solo de la dirección.<br><b>Profes:</b> se suman desde Horario → Plantel. Ven los grupos donde les toca clase según el horario publicado; si dan otra clase, piden el cambio y vos lo aprobás en Horario → Cambios.</div>`;
   return h;
 };
 
@@ -1859,20 +2109,17 @@ const slug = t => norm(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slic
 
 /* ---------- formularios: equipo ---------- */
 function openInvitarEquipo() {
-  openModal('Sumar profe u oficina', `<div class="form">
+  openModal('Sumar persona de oficina', `<p class="muted" style="margin:0 0 12px">Le llega un correo para crear su contraseña y entra con rol Oficina. Los profes se suman desde Horario → Plantel.</p><div class="form">
     <div class="fld full"><label for="e-email">Correo *</label><input class="inp" id="e-email" type="email" autocomplete="off"></div>
-    <div class="fld"><label for="e-nom">Nombre</label><input class="inp" id="e-nom"></div>
-    <div class="fld"><label for="e-tipo">Rol</label><select class="inp" id="e-tipo" data-ch="e-tipo"><option value="profe">Profe</option><option value="oficina">Oficina</option></select></div>
-    <div class="fld full" id="e-grupos-w"><label>Grupos que da</label><div class="checks">${gruposActivos().map(g => `<label class="chk"><input type="checkbox" name="e-g" value="${esc(g.id)}">${esc(g.nombre)}</label>`).join('') || '<small class="muted">Todavía no hay grupos.</small>'}</div></div>
+    <div class="fld full"><label for="e-nom">Nombre y apellido</label><input class="inp" id="e-nom"></div>
     <div class="full err" id="e-err"></div></div>`, `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="equipo-invitar">${ic('mail')}Enviar invitación</button>`);
 }
 function openEquipoEditar(pid) {
-  const p = S.perfiles[pid]; const mios = new Set(S.profeGrupos.filter(x => x.profe_id === pid).map(x => x.grupo_id)); const soyYo = pid === S.session.user.id;
+  const p = S.perfiles[pid]; const soyYo = pid === S.session.user.id;
   openModal('Editar ' + (p.nombre || p.email), `<div class="form">
     <div class="fld full"><label for="q-nom">Nombre</label><input class="inp" id="q-nom" value="${esc(p.nombre)}"></div>
-    <div class="fld"><label for="q-rol">Rol</label><select class="inp" id="q-rol" ${soyYo ? 'disabled' : ''}>${['profe', 'oficina', 'admin'].map(r => `<option value="${r}" ${p.rol === r ? 'selected' : ''}>${ROLE_LBL[r]}</option>`).join('')}</select>${soyYo ? '<span class="hint">No podés cambiar tu propio rol.</span>' : ''}</div>
-    <label class="chk" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="q-act" ${p.activo ? 'checked' : ''} ${soyYo ? 'disabled' : ''}>Acceso activo</label>
-    <div class="fld full"><label>Grupos que da (si es profe)</label><div class="checks">${gruposOrden().map(g => `<label class="chk"><input type="checkbox" name="q-g" value="${esc(g.id)}" ${mios.has(g.id) ? 'checked' : ''}>${esc(g.nombre)}</label>`).join('')}</div></div></div>`,
+    <div class="fld"><label for="q-rol">Rol</label><select class="inp" id="q-rol" ${soyYo ? 'disabled' : ''}>${['profe', 'oficina', ...(p.rol === 'admin' ? ['admin'] : [])].map(r => `<option value="${r}" ${p.rol === r ? 'selected' : ''}>${ROLE_LBL[r]}</option>`).join('')}</select>${soyYo ? '<span class="hint">No podés cambiar tu propio rol.</span>' : ''}</div>
+    <label class="chk" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="q-act" ${p.activo ? 'checked' : ''} ${soyYo ? 'disabled' : ''}>Acceso activo</label></div>`,
     `<button class="btn" data-act="equipo-reenviar" data-id="${esc(pid)}" style="margin-right:auto">${ic('mail')}Reenviar acceso</button><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="equipo-guardar" data-id="${esc(pid)}">Guardar</button>`);
 }
 
@@ -1984,7 +2231,7 @@ function openExamForm(eid) {
     <div class="fld"><label for="x-fec">Fecha</label><input type="date" class="inp" id="x-fec" value="${esc(e.fecha || '')}"></div>
     <div class="fld"><label for="x-max">Puntaje máximo</label><input class="inp" id="x-max" type="number" min="1" value="${esc(e.max || 100)}"></div>
     <div class="full err" id="x-err"></div></div>`,
-    `${eid ? `<button class="btn ghost danger" data-act="examen-borrar" data-id="${esc(eid)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="examen-guardar" data-id="${esc(eid || '')}">Guardar</button>`);
+    `${eid && isAdmin() ? `<button class="btn ghost danger" data-act="examen-borrar" data-id="${esc(eid)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="examen-guardar" data-id="${esc(eid || '')}">Guardar</button>`);
 }
 
 /* ---------- importar desde Excel ---------- */
@@ -2246,7 +2493,7 @@ const A = {
   asistab: el => { S.ui.asisTab = el.dataset.v; if (el.dataset.v === 'hist') S.ui.histGrupo = S.ui.asisGrupo; render(); },
   'asis-grupo': el => { const v = el.dataset.v; if (S.draftAsis?.dirty) { confirmDlg('La lista tiene cambios sin guardar. ¿Descartarlos?', 'Descartar', () => { S.draftAsis = null; S.ui.asisGrupo = v; render(); }); return; } S.ui.asisGrupo = v; render(); },
   'asis-abrir': el => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = el.dataset.g; S.ui.asisFecha = el.dataset.f; S.ui.asisTurno = el.dataset.t || ''; S.draftAsis = null; render(); },
-  marca: el => { const D = S.draftAsis; if (!D || (isProfe() && S.ui.asisFecha !== hoy())) return; const id = el.dataset.id, v = el.dataset.v; if (D.marcas[id] === v) delete D.marcas[id]; else D.marcas[id] = v; D.dirty = true; render(); },
+  marca: el => { const D = S.draftAsis; if (!D || !puedeLlamar(S.ui.asisGrupo, S.ui.asisFecha, S.ui.asisTurno)) return; const id = el.dataset.id, v = el.dataset.v; if (D.marcas[id] === v) delete D.marcas[id]; else D.marcas[id] = v; D.dirty = true; render(); },
   'asis-nota': el => {
     const D = S.draftAsis, a = S.alumnos[el.dataset.id]; if (!D || !a) return;
     openModal('Nota · ' + nombreA(a), `<div class="form"><div class="fld full"><label for="an-txt">¿Qué pasó con este alumno hoy?</label><textarea class="inp" id="an-txt" maxlength="300" placeholder="Ej: se retiró 10:30 porque lo buscó la mamá">${esc(D.notas[a.id] || '')}</textarea>
@@ -2278,11 +2525,69 @@ const A = {
   'hor-sem': el => { const d = +el.dataset.d; S.ui.horLunes = d ? addDays(S.ui.horLunes || lunesDe(hoy()), d) : lunesDe(hoy()); render(); },
   'arm-sem': async el => { const d = +el.dataset.d; S.ui.armLunes = d ? addDays(S.ui.armLunes || lunesSig(), d) : lunesSig(); S.loaded.semana = false; S.sem = null; render(); await load(['semana']); },
   'clase-editar': el => openClaseForm(el.dataset.id),
+  'cambio-nuevo': el => openCambio(el.dataset.g, el.dataset.f, el.dataset.t),
+  // --- turnos de oficina
+  ofitab: el => { S.ui.ofiTab = el.dataset.v; render(); },
+  'ofi-sem': async el => { const d = el.dataset.d; S.ui.ofiLunes = d === 'hoy' ? lunesDe(hoy()) : +d ? addDays(S.ui.ofiLunes || lunesSig(), +d) : lunesSig();
+    const l = S.ui.ofiLunes; if (l < S.oRango[0] || addDays(l, 6) > S.oRango[1]) S.oRango = [l < S.oRango[0] ? l : S.oRango[0], addDays(l, 6) > S.oRango[1] ? addDays(l, 6) : S.oRango[1]];
+    S.loaded.ofi = false; render(); await load(['ofi']); },
+  'ofi-abre': el => { const k = el.dataset.d, t = el.dataset.t; const C = JSON.parse(JSON.stringify(S.cfg.ofiTurnos || OFI_DEF)); const a = C[k] || []; C[k] = a.includes(t) ? a.filter(x => x !== t) : OTURNOS.filter(x => x === t || a.includes(x)); guardarCfg({ ofiTurnos: C }); },
+  'oturno-x': async el => {
+    if (el.dataset.id) { const x = S.oTurnos[el.dataset.id]; if (!x) return;
+      if (x.marcado_en) { toast('Ya marcó ese turno: no se puede sacar.', 'error'); return; }
+      el.disabled = true; if (await run(S.sb.from('oficina_turnos').delete().eq('id', x.id))) { delete S.oTurnos[x.id]; render(); } else el.disabled = false; return; }
+    el.disabled = true; const r = await run(S.sb.from('oficina_turnos').insert({ fecha: el.dataset.f, turno: el.dataset.t, user_id: el.dataset.u }).select().single());
+    if (r) { S.oTurnos[r.id] = r; render(); } else el.disabled = false;
+  },
+  'oturno-auto': async el => {
+    const l = S.oSem.lunes, ps = ofiPersonas(); const cuenta = {}; ps.forEach(p => cuenta[p.id] = 0);
+    Object.values(S.oTurnos).filter(x => x.fecha >= l && x.fecha <= addDays(l, 6) && x.estado !== 'rechazado').forEach(x => { if (x.user_id in cuenta) cuenta[x.user_id]++; });
+    const nuevos = [];
+    DK.forEach(k => { const f = fDia(l, k); ofiAbre(k).forEach(tt => { if (oTurnosDe(f, tt).some(x => x.estado !== 'rechazado')) return;
+      const libres = ps.filter(p => oLibre(p.id, k, tt) && !oTurnosDe(f, tt).some(x => x.user_id === p.id)).sort((a, b) => cuenta[a.id] - cuenta[b.id] || nomP(a.id).localeCompare(nomP(b.id), 'es'));
+      if (libres[0]) { nuevos.push({ fecha: f, turno: tt, user_id: libres[0].id }); cuenta[libres[0].id]++; } }); });
+    if (!nuevos.length) { toast('No hay turnos vacíos con alguien disponible.', 'error'); return; }
+    el.disabled = true; const r = await run(S.sb.from('oficina_turnos').insert(nuevos).select(), `Se asignaron ${nuevos.length} turno${nuevos.length === 1 ? '' : 's'}`);
+    if (r) { r.forEach(x => S.oTurnos[x.id] = x); render(); } else el.disabled = false;
+  },
+  'oturno-msg': () => { openModal('Mensaje para el grupo de la oficina', `<textarea class="inp" id="ot-msg" style="min-height:260px">${esc(ofiMensaje())}</textarea>`, `<button class="btn" data-act="close">Cerrar</button><button class="btn" data-act="ot-copiar">${ic('copy')}Copiar</button><a class="btn wa" href="https://wa.me/?text=${encodeURIComponent(ofiMensaje())}" target="_blank" rel="noopener">${ic('wa')}Abrir WhatsApp</a>`); },
+  'ot-copiar': async () => { try { await navigator.clipboard.writeText($('#ot-msg').value); toast('Mensaje copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
+  'oturno-resolver': async el => { const ok = el.dataset.v === '1'; el.classList.add('disabled');
+    if (await run(S.sb.rpc('resolver_turno', { tid: el.dataset.id, aprobar: ok }), ok ? 'Turno aprobado' : 'Turno rechazado')) await load(['ofi']); else el.classList.remove('disabled'); },
+  'oturno-marcar': async el => { el.classList.add('disabled');
+    if (await run(S.sb.rpc('marcar_turno', { tid: el.dataset.id }), 'Turno marcado')) await load(['ofi']); else el.classList.remove('disabled'); },
+  'oturno-nuevo': el => openPedirTurno(el.dataset.f),
+  'oturno-pedir': async el => {
+    const f = $('#ot-f').value || hoy(), t = $('#ot-t').value, motivo = $('#ot-m').value.trim(); el.classList.add('disabled'); $('#ot-err').textContent = '';
+    const { data: id, error } = await S.sb.rpc('pedir_turno', { f, t, motivo });
+    if (error) { $('#ot-err').textContent = errText(error); el.classList.remove('disabled'); return; }
+    if (f === hoy()) { const { error: e2 } = await S.sb.rpc('marcar_turno', { tid: id }); if (e2) toast(errText(e2), 'error'); }
+    closeModal(); toast(f === hoy() ? 'Turno pedido y marcado. Falta que la dirección lo apruebe.' : 'Turno pedido a la dirección.'); await load(['ofi']);
+  },
+  'odisp-x': el => { const D = S.oDispDraft.dias; const k = el.dataset.d, t = el.dataset.t; D[k] = D[k] || {}; if (D[k][t]) delete D[k][t]; else D[k][t] = true; el.setAttribute('aria-pressed', !!D[k][t]); },
+  'odisp-enviar': async el => { el.classList.add('disabled');
+    const r = await run(S.sb.from('oficina_disp').upsert({ semana_id: S.oSem.id, user_id: S.session.user.id, dias: S.oDispDraft.dias, enviado: true, act: new Date().toISOString() }).select().single(), 'Disponibilidad enviada');
+    if (r) { S.oMiDisp = r; render(); } else el.classList.remove('disabled'); },
+  'cambio-enviar': async el => {
+    const motivo = $('#cb-m').value.trim(); el.classList.add('disabled'); $('#cb-err').textContent = '';
+    const { error } = await S.sb.rpc('pedir_cambio', { g: CB.g, f: CB.f, t: CB.t, motivo });
+    if (error) { $('#cb-err').textContent = errText(error); el.classList.remove('disabled'); return; }
+    const { g, f, t } = CB; closeModal();
+    toast(f === hoy() ? 'Pedido enviado. Ya podés llamar lista.' : 'Pedido enviado a la dirección.');
+    await load(['cambios', 'grupos', 'alumnos', 'asis', 'clases']);
+    if (f === hoy()) go('asistencia', () => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = g; S.ui.asisFecha = f; S.ui.asisTurno = t; S.draftAsis = null; });
+  },
+  'cambio-resolver': async el => {
+    const x = S.cambios[el.dataset.id]; const ok = el.dataset.v === '1'; if (!x) return;
+    const go_ = async () => { el.classList.add('disabled'); if (await run(S.sb.rpc('resolver_cambio', { cid: x.id, aprobar: ok }), ok ? 'Cambio aprobado' : 'Cambio rechazado')) await load(['cambios', 'clases']); else el.classList.remove('disabled'); };
+    if (ok) go_(); else confirmDlg(`¿Rechazar el pedido de ${profN(x.profesor_id)}? Si ya llamó lista, esa clase no le cuenta para el pago.`, 'Rechazar', go_);
+  },
   'clase-guardar': async el => {
     const id = el.dataset.id, c = S.clases[id]; const dict = $('#cl-dict').value || null;
     const row = { materia: $('#cl-mat').value || null, tema: $('#cl-tema').value.trim() || null, profesor_id: $('#cl-prof').value || null, dictada_por: dict, obs: $('#cl-obs').value.trim() || null,
       dictada_en: dict ? (c.dictada_por === dict && c.dictada_en ? c.dictada_en : (c.dictada_en || new Date().toISOString())) : null };
     if (row.materia === 'examen') row.profesor_id = null;
+    else if (dict && dict !== row.profesor_id) row.profesor_id = dict;   // la dirección decide quién la dio: queda a su nombre
     el.classList.add('disabled'); const r = await run(S.sb.from('clases').update(row).eq('id', id).select().single(), 'Clase actualizada');
     if (!r) { el.classList.remove('disabled'); return; } S.clases[id] = r; closeModal(); render();
   },
@@ -2404,24 +2709,19 @@ const A = {
   'invitar-equipo': () => openInvitarEquipo(),
   'equipo-invitar': async el => {
     const email = $('#e-email').value.trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('#e-err').textContent = 'Revisá el correo.'; return; }
-    const tipo = $('#e-tipo').value; const grupos = $$('input[name="e-g"]:checked').map(x => x.value);
     el.classList.add('disabled'); $('#e-err').textContent = '';
-    const r = await invocar('invitar', { tipo, email, nombre: $('#e-nom').value.trim(), grupos: tipo === 'profe' ? grupos : [] });
+    const r = await invocar('invitar', { tipo: 'oficina', email, nombre: $('#e-nom').value.trim(), grupos: [] });
     if (r.error) { $('#e-err').textContent = r.error; el.classList.remove('disabled'); return; }
-    closeModal(); toast('Invitación enviada a ' + email); load(['perfiles', 'pg']);
+    closeModal(); toast('Invitación enviada a ' + email); load(['perfiles']);
   },
   'equipo-editar': el => openEquipoEditar(el.dataset.id),
   'equipo-guardar': async el => {
     const pid = el.dataset.id; const p = S.perfiles[pid]; const soyYo = pid === S.session.user.id;
     const cambios = { nombre: $('#q-nom').value.trim() }; if (!soyYo) { cambios.rol = $('#q-rol').value; cambios.activo = $('#q-act').checked; }
-    const nuevos = new Set($$('input[name="q-g"]:checked').map(x => x.value)); const antes = new Set(S.profeGrupos.filter(x => x.profe_id === pid).map(x => x.grupo_id));
     el.classList.add('disabled');
-    let ok = !!(await run(S.sb.from('perfiles').update(cambios).eq('id', pid)));
-    const add = [...nuevos].filter(g => !antes.has(g)).map(g => ({ profe_id: pid, grupo_id: g })); const del = [...antes].filter(g => !nuevos.has(g));
-    if (ok && add.length) ok = !!(await run(S.sb.from('profe_grupos').insert(add)));
-    if (ok && del.length) ok = !!(await run(S.sb.from('profe_grupos').delete().eq('profe_id', pid).in('grupo_id', del)));
+    const ok = !!(await run(S.sb.from('perfiles').update(cambios).eq('id', pid)));
     if (!ok) { el.classList.remove('disabled'); return; }
-    closeModal(); toast('Cambios guardados'); load(['perfiles', 'pg']);
+    closeModal(); toast('Cambios guardados'); load(['perfiles']);
   },
   'equipo-reenviar': async el => {
     const p = S.perfiles[el.dataset.id]; el.classList.add('disabled');
@@ -2494,12 +2794,16 @@ const CH = {
   'pool-dia': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; if (el.value) it.dia = el.value; else delete it.dia; render(); guardarPool(el.dataset.g); },
   'pool-nivel': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; if (el.value) it.nivel = el.value; else delete it.nivel; render(); guardarPool(el.dataset.g); },
   pagoMes: el => { S.ui.pagoMes = el.value || hoy().slice(0, 7); S.ui.pagoVer = ''; render(); },
+  'cb-g': el => { CB.g = el.value; renderCambio(); },
+  ofiMes: el => { S.ui.ofiMes = el.value || hoy().slice(0, 7); render(); },
+  omonto: async el => { const u = el.dataset.u, v = parseMoney(el.value); if (await run(S.sb.from('oficina_montos').upsert({ user_id: u, monto_turno: v }), 'Pago por turno guardado')) { S.oMontos[u] = v; render(); } },
+  'cb-f': el => { CB.f = el.value || hoy(); renderCambio(); },
+  'cb-t': el => { CB.t = el.value; infoCambio(); },
   cobGrupo: el => { S.ui.cobGrupo = el.value; render(); },
   'pg-al': el => { PG.aid = el.value; PG.itemId = ''; $('#pg-body').innerHTML = pagoBody(); },
   'pg-item': el => { PG.itemId = el.value; $('#pg-body').innerHTML = pagoBody(); },
   'k-gru': el => { const p = S.grupos[el.value]?.programa; if (p && PROGRAMAS.includes(p)) $('#k-prog').value = p; if (!$('#k-tit').value && el.value) $('#k-tit').value = gName(el.value); },
   'i-gru': el => { const p = S.grupos[el.value]?.programa; if (p && PROGRAMAS.includes(p)) $('#i-prog').value = p; },
-  'e-tipo': el => { $('#e-grupos-w').style.display = el.value === 'profe' ? '' : 'none'; },
   logo: async el => {
     const f = el.files && el.files[0]; if (!f) return;
     try { const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(f); });

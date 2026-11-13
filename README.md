@@ -5,8 +5,8 @@ App web del Cursillo VIBE para dirección, oficina, profes y alumnos. Se instala
 | Rol | Qué hace |
 |---|---|
 | **Dirección** (informacion@vibe.com.py) | Todo: grupos, alumnos, cobros, asistencia, notas, horario, plantel, pago a profes, equipo y ajustes. Es la única que puede anular pagos, borrar, cambiar roles y ver puntajes y pagos de profes. |
-| **Oficina** | Invita alumnos, asigna grupos, cobra y emite recibos, toma lista, carga notas y ve el horario de la semana. |
-| **Profe** | Ve sus clases, carga su disponibilidad, llama lista (solo el día de la clase: queda como su firma), carga notas y ve contactos. No ve cuotas ni puntajes. |
+| **Oficina** | Invita alumnos, asigna grupos, cobra y emite recibos, toma lista, carga notas y ve el horario de la semana. Carga su disponibilidad y marca sus turnos. No borra ni anula nada. Se suma desde **Equipo → Sumar persona de oficina**. |
+| **Profe** | Ve los grupos donde le toca clase según el horario publicado, carga su disponibilidad, llama lista (solo el día de la clase y en sus clases: queda como su firma), carga notas y ve contactos. Si da una clase que no es suya, pide el cambio. No ve cuotas ni puntajes. |
 | **Alumno** | Completa su ficha, ve su horario (materia y tema de cada día, sin el nombre del profe), sus cuotas y recibos, sus notas, su asistencia y edita sus datos. |
 
 **Cómo entra un alumno (dos caminos):**
@@ -27,10 +27,20 @@ Reemplaza a la app vibe-horarios (sus datos se importaron con `supabase/importar
 - **Disponibilidad**: cada profe marca sus turnos libres de la semana siguiente desde el miércoles hasta el sábado 17:00. La dirección puede reabrir la carga y avisar por WhatsApp a los que faltan.
 - **Armar horario**: se cargan las materias de la semana por grupo (sin día) y el armado elige el día según los profes libres, con las mismas reglas de siempre (los grupos con prioridad reciben a los mejores profes, Geometría en dos días seguidos con profes distintos, nivel mínimo, clases encadenadas, día fijo, examen sin profe, equidad mínima). Se puede cambiar cualquier bloque a mano y después **publicar**.
 - **Semana**: las clases publicadas, con quién llamó lista en cada una.
+- **Cambios**: cuando un profe va a dar una clase que no está a su nombre (reemplazo, cambio entre profes), la pide desde la app. Con el pedido ya puede llamar lista; la dirección lo aprueba antes o después de la clase y recién ahí la clase pasa a su nombre y le cuenta para el pago.
 - **Plantel**: profes, puntajes y pago por clase (solo la dirección).
-- **Pago a profes**: por mes, cuenta cada clase en la que el profe llamó lista. Mañana y tarde cuentan por separado. Los exámenes que cuidó se ven pero no suman. Las clases sin lista se pueden marcar a mano (si firmó en papel).
+- **Pago a profes**: por mes, cuenta cada clase en la que el profe del horario (o con el cambio aprobado) llamó lista. Mañana y tarde cuentan por separado. Los exámenes que cuidó se ven pero no suman. Las clases sin lista se pueden marcar a mano (si firmó en papel).
 
-Cuando un profe llama lista, la clase queda registrada a su nombre con la hora (si no era el del horario, queda como reemplazo). Solo puede llamar lista el mismo día; la oficina corrige listas viejas.
+Cuando un profe llama lista, la clase queda registrada a su nombre con la hora. Solo puede llamar lista el mismo día y en sus clases (o con un pedido de cambio); la oficina corrige listas viejas.
+
+## Turnos de oficina
+
+En **Turnos oficina** (solo la dirección): turnos Mañana, Tarde y Noche.
+
+- Cada persona de oficina carga su disponibilidad de la semana siguiente (mismo plazo que los profes) desde **Mis turnos**.
+- La dirección arma la semana tocando nombres (en verde, los que pueden) o con "Completar con disponibles", y manda el mensaje al grupo por WhatsApp. En "Horario de la oficina" se eligen los turnos que abre cada día.
+- Cada persona **marca su turno** el día que trabaja (desde Inicio o Mis turnos). Si trabaja un turno que no tenía, lo pide y la dirección lo aprueba.
+- **Pago por turno**: por mes, cuenta cada turno asignado (o pedido y aprobado) que la persona marcó el mismo día. El monto por turno solo lo ve la dirección.
 
 ## Archivos
 

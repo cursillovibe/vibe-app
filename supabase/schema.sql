@@ -230,6 +230,53 @@ alter table public.clases add column if not exists notas_alumnos jsonb not null 
 alter table public.clases add column if not exists nota_por uuid references auth.users(id) on delete set null;
 alter table public.clases add column if not exists nota_en timestamptz;
 
+-- Pedidos de cambio: un profe va a dar (o ya dio) una clase que no estaba a su nombre en el horario.
+-- Con el pedido ya puede llamar lista ese día; la clase le cuenta para el pago cuando la dirección lo aprueba.
+create table if not exists public.cambios (
+  id           uuid primary key default gen_random_uuid(),
+  profesor_id  uuid not null references public.profesores(id) on delete cascade,   -- el que pide
+  grupo_id     uuid not null references public.grupos(id) on delete cascade,
+  fecha        date not null,
+  turno        text not null check (turno in ('Mañana','Tarde')),
+  motivo       text,
+  estado       text not null default 'pendiente' check (estado in ('pendiente','aprobado','rechazado')),
+  profe_antes  uuid references public.profesores(id) on delete set null,           -- el que la tenía en el horario
+  creado       timestamptz not null default now(),
+  resuelto_por uuid references auth.users(id) on delete set null,
+  resuelto_en  timestamptz,
+  unique (profesor_id, grupo_id, fecha, turno)
+);
+create index if not exists cambios_fecha_idx on public.cambios(fecha);
+
+-- Turnos de la oficina (Mañana, Tarde, Noche): disponibilidad, turnos asignados y marcación del día.
+create table if not exists public.oficina_disp (
+  semana_id uuid not null references public.semanas(id) on delete cascade,
+  user_id   uuid not null references public.perfiles(id) on delete cascade,
+  dias      jsonb not null default '{}'::jsonb,       -- {"Lun":{"Mañana":true,"Noche":true}, ...}
+  enviado   boolean not null default false,
+  act       timestamptz not null default now(),
+  primary key (semana_id, user_id)
+);
+create table if not exists public.oficina_turnos (
+  id           uuid primary key default gen_random_uuid(),
+  fecha        date not null,
+  turno        text not null check (turno in ('Mañana','Tarde','Noche')),
+  user_id      uuid not null references public.perfiles(id) on delete cascade,
+  estado       text not null default 'asignado' check (estado in ('asignado','pendiente','rechazado')),
+  motivo       text,             -- lo pidió la persona: turno fuera de lo que le armó la dirección
+  marcado_en   timestamptz,      -- marcó el turno ese día; cuenta para el pago si está asignado
+  creado       timestamptz not null default now(),
+  resuelto_por uuid references auth.users(id) on delete set null,
+  resuelto_en  timestamptz,
+  unique (fecha, turno, user_id)
+);
+create index if not exists oficina_turnos_fecha_idx on public.oficina_turnos(fecha);
+-- Pago por turno de cada persona de la oficina: solo la dirección
+create table if not exists public.oficina_montos (
+  user_id     uuid primary key references public.perfiles(id) on delete cascade,
+  monto_turno integer not null default 0
+);
+
 -- ---------- funciones de permisos ------------------------------------
 
 create or replace function public.mi_rol() returns text
@@ -258,14 +305,17 @@ language sql stable security definer set search_path = public as $$
   where pr.user_id = auth.uid() and pr.activo and p.activo
 $$;
 
--- Un profe ve un grupo si lo tiene asignado o si tiene clases ahí en el horario (último mes y medio / próximas 3 semanas)
+-- Un profe ve un grupo si tiene clases ahí en el horario o pidió un cambio en ese grupo
+-- (último mes y medio / próximas 3 semanas). No hay asignación manual de grupos.
 create or replace function public.da_clase(g uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from perfiles p where p.id = auth.uid() and p.activo and p.rol = 'profe')
-     and (exists (select 1 from profe_grupos pg where pg.profe_id = auth.uid() and pg.grupo_id = g)
-          or exists (select 1 from clases c join profesores pr on pr.id = c.profesor_id
-                     where pr.user_id = auth.uid() and c.grupo_id = g
-                       and c.fecha between public.hoy_py() - 45 and public.hoy_py() + 21))
+     and (exists (select 1 from clases c join profesores pr on pr.id = c.profesor_id
+                  where pr.user_id = auth.uid() and c.grupo_id = g
+                    and c.fecha between public.hoy_py() - 45 and public.hoy_py() + 21)
+          or exists (select 1 from cambios x join profesores pr on pr.id = x.profesor_id
+                     where pr.user_id = auth.uid() and x.grupo_id = g and x.estado <> 'rechazado'
+                       and x.fecha between public.hoy_py() - 45 and public.hoy_py() + 21))
 $$;
 
 -- La carga de disponibilidad abre el miércoles anterior y cierra el sábado a las 17:00 (hora de Paraguay);
@@ -275,6 +325,22 @@ language sql stable security definer set search_path = public as $$
   select exists (select 1 from semanas w where w.id = s and (
     (now() at time zone 'UTC' - interval '3 hours') between (w.lunes - 5)::timestamp and (w.lunes - 2)::timestamp + interval '17 hours'
     or (w.carga_abierta_hasta is not null and now() < w.carga_abierta_hasta)))
+$$;
+
+-- El profe llama lista (y anota la clase) solo el día de la clase y solo si esa clase es suya en el horario
+-- o pidió el cambio (pendiente o aprobado).
+create or replace function public.puede_llamar(g uuid, f date, t text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select f = public.hoy_py()
+     and exists (select 1 from perfiles p where p.id = auth.uid() and p.activo and p.rol = 'profe')
+     and (exists (select 1 from clases c where c.grupo_id = g and c.fecha = f and c.turno = t and c.profesor_id = public.mi_profesor())
+          or exists (select 1 from cambios x where x.grupo_id = g and x.fecha = f and x.turno = t
+                     and x.profesor_id = public.mi_profesor() and x.estado <> 'rechazado'))
+$$;
+
+create or replace function public.es_oficina() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select rol = 'oficina' from perfiles where id = auth.uid() and activo), false)
 $$;
 
 create or replace function public.mi_alumno() returns uuid
@@ -458,6 +524,11 @@ begin
       n := n + 1;
     end loop;
   end loop;
+  -- los cambios ya aprobados por la dirección se mantienen aunque se vuelva a publicar
+  update clases c set profesor_id = x.profesor_id
+    from cambios x
+   where x.estado = 'aprobado' and x.grupo_id = c.grupo_id and x.fecha = c.fecha and x.turno = c.turno
+     and c.fecha between w.lunes and w.lunes + 6;
   update semanas set publicada = now() where id = sem;
   return n;
 end $$;
@@ -467,10 +538,10 @@ create or replace function public.anotar_clase(g uuid, f date, t text, nota text
 language plpgsql security definer set search_path = public as $$
 declare limpio jsonb := '{}'::jsonb; k text; v text;
 begin
-  if not (public.es_staff() or (public.da_clase(g) and f = public.hoy_py())) then
+  if t not in ('Mañana', 'Tarde') then raise exception 'Turno no válido'; end if;
+  if not (public.es_staff() or public.puede_llamar(g, f, t)) then
     raise exception 'Solo podés anotar en tus clases y el mismo día';
   end if;
-  if t not in ('Mañana', 'Tarde') then raise exception 'Turno no válido'; end if;
   for k, v in select key, value from jsonb_each_text(coalesce(notas, '{}'::jsonb)) loop
     if btrim(coalesce(v, '')) <> '' and exists (select 1 from alumnos a where a.id::text = k) then
       limpio := limpio || jsonb_build_object(k, left(btrim(v), 300));
@@ -480,6 +551,114 @@ begin
   values (g, f, t, nullif(left(btrim(coalesce(nota, '')), 1000), ''), limpio, auth.uid(), now())
   on conflict (grupo_id, fecha, turno) do update
     set nota_profe = excluded.nota_profe, notas_alumnos = excluded.notas_alumnos, nota_por = excluded.nota_por, nota_en = excluded.nota_en;
+end $$;
+
+-- Grupos activos (solo nombre y días) para que el profe elija dónde pide un cambio
+create or replace function public.grupos_lista()
+returns table (id uuid, nombre text, dias jsonb, orden int)
+language sql stable security definer set search_path = public as $$
+  select g.id, g.nombre, g.dias, g.orden from grupos g
+  where g.activo and (public.es_staff() or public.mi_profesor() is not null)
+  order by g.orden, g.nombre
+$$;
+
+-- Qué clase hay en ese grupo, día y turno (para el pedido de cambio)
+create or replace function public.info_clase(g uuid, f date, t text)
+returns table (materia text, tema text, profe text)
+language sql stable security definer set search_path = public as $$
+  select c.materia, c.tema, pr.nombre from clases c left join profesores pr on pr.id = c.profesor_id
+  where c.grupo_id = g and c.fecha = f and c.turno = t and (public.es_staff() or public.mi_profesor() is not null)
+$$;
+
+-- El profe pide dar una clase que no está a su nombre (hoy o hasta 3 semanas adelante)
+create or replace function public.pedir_cambio(g uuid, f date, t text, motivo text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_profesor(); r uuid;
+begin
+  if p is null or not exists (select 1 from perfiles where id = auth.uid() and activo and rol = 'profe') then
+    raise exception 'Solo los profes piden cambios';
+  end if;
+  if t not in ('Mañana', 'Tarde') then raise exception 'Turno no válido'; end if;
+  if f < public.hoy_py() or f > public.hoy_py() + 21 then raise exception 'Podés pedir cambios desde hoy hasta 3 semanas adelante'; end if;
+  if not exists (select 1 from grupos where id = g and activo) then raise exception 'Grupo no válido'; end if;
+  if exists (select 1 from clases where grupo_id = g and fecha = f and turno = t and profesor_id = p) then
+    raise exception 'Esa clase ya está a tu nombre en el horario';
+  end if;
+  if exists (select 1 from cambios where profesor_id = p and grupo_id = g and fecha = f and turno = t and estado = 'rechazado') then
+    raise exception 'La dirección ya rechazó ese cambio';
+  end if;
+  insert into cambios (profesor_id, grupo_id, fecha, turno, motivo, profe_antes)
+  values (p, g, f, t, nullif(left(btrim(coalesce(motivo, '')), 300), ''),
+          (select c.profesor_id from clases c where c.grupo_id = g and c.fecha = f and c.turno = t))
+  on conflict (profesor_id, grupo_id, fecha, turno) do update set motivo = excluded.motivo
+  returning id into r;
+  return r;
+end $$;
+
+-- La dirección aprueba o rechaza. Aprobado: la clase pasa a nombre del profe que la pidió (y le cuenta para el pago).
+create or replace function public.resolver_cambio(cid uuid, aprobar boolean) returns void
+language plpgsql security definer set search_path = public as $$
+declare x cambios;
+begin
+  if not public.es_admin() then raise exception 'Solo la dirección aprueba cambios'; end if;
+  select * into x from cambios where id = cid for update;
+  if not found then raise exception 'No existe el pedido'; end if;
+  if x.profe_antes is null then
+    select c.profesor_id into x.profe_antes from clases c
+     where c.grupo_id = x.grupo_id and c.fecha = x.fecha and c.turno = x.turno and c.profesor_id is distinct from x.profesor_id;
+  end if;
+  update cambios set estado = case when aprobar then 'aprobado' else 'rechazado' end,
+         resuelto_por = auth.uid(), resuelto_en = now(), profe_antes = x.profe_antes
+   where id = cid;
+  if aprobar then
+    insert into clases (grupo_id, fecha, turno, profesor_id) values (x.grupo_id, x.fecha, x.turno, x.profesor_id)
+    on conflict (grupo_id, fecha, turno) do update set profesor_id = excluded.profesor_id;
+  elsif x.estado = 'aprobado' then
+    -- se había aprobado y ahora se rechaza: la clase vuelve al profe del horario
+    update clases set profesor_id = x.profe_antes
+     where grupo_id = x.grupo_id and fecha = x.fecha and turno = x.turno and profesor_id = x.profesor_id;
+  end if;
+end $$;
+
+-- Oficina: marcar el turno el mismo día (su firma)
+create or replace function public.marcar_turno(tid uuid) returns timestamptz
+language plpgsql security definer set search_path = public as $$
+declare r timestamptz;
+begin
+  if not public.es_staff() then raise exception 'Sin permiso'; end if;
+  update oficina_turnos set marcado_en = coalesce(marcado_en, now())
+   where id = tid and user_id = auth.uid() and fecha = public.hoy_py() and estado <> 'rechazado'
+  returning marcado_en into r;
+  if r is null then raise exception 'Solo podés marcar tus turnos y el mismo día'; end if;
+  return r;
+end $$;
+
+-- Oficina: pedir un turno que no estaba en lo que armó la dirección (hoy o hasta 3 semanas adelante)
+create or replace function public.pedir_turno(f date, t text, motivo text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare r uuid; e text;
+begin
+  if not public.es_oficina() then raise exception 'Solo el personal de oficina pide turnos'; end if;
+  if t not in ('Mañana', 'Tarde', 'Noche') then raise exception 'Turno no válido'; end if;
+  if f < public.hoy_py() or f > public.hoy_py() + 21 then raise exception 'Podés pedir turnos desde hoy hasta 3 semanas adelante'; end if;
+  select estado into e from oficina_turnos where fecha = f and turno = t and user_id = auth.uid();
+  if e = 'rechazado' then raise exception 'La dirección ya rechazó ese turno'; end if;
+  if e is not null then raise exception 'Ya tenés ese turno'; end if;
+  insert into oficina_turnos (fecha, turno, user_id, estado, motivo)
+  values (f, t, auth.uid(), 'pendiente', nullif(left(btrim(coalesce(motivo, '')), 300), ''))
+  returning id into r;
+  return r;
+end $$;
+
+-- La dirección aprueba o rechaza un turno pedido
+create or replace function public.resolver_turno(tid uuid, aprobar boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.es_admin() then raise exception 'Solo la dirección aprueba turnos'; end if;
+  update oficina_turnos set estado = case when aprobar then 'asignado' else 'rechazado' end,
+         resuelto_por = auth.uid(), resuelto_en = now()
+   where id = tid;
+  if not found then raise exception 'No existe el turno'; end if;
 end $$;
 
 -- Horario del alumno: materia y tema de cada clase de su grupo, sin el profe
@@ -524,8 +703,12 @@ drop policy if exists grupos_ver on public.grupos;
 create policy grupos_ver on public.grupos for select to authenticated
   using (public.es_staff() or public.da_clase(id) or id = public.mi_grupo());
 drop policy if exists grupos_escribir on public.grupos;
-create policy grupos_escribir on public.grupos for all to authenticated
+create policy grupos_escribir on public.grupos for insert to authenticated with check (public.es_staff());
+drop policy if exists grupos_editar on public.grupos;
+create policy grupos_editar on public.grupos for update to authenticated
   using (public.es_staff()) with check (public.es_staff());
+drop policy if exists grupos_borrar on public.grupos;
+create policy grupos_borrar on public.grupos for delete to authenticated using (public.es_admin());
 
 -- alumnos
 drop policy if exists alumnos_ver on public.alumnos;
@@ -555,20 +738,26 @@ create policy pagos_borrar on public.pagos for delete to authenticated using (pu
 drop policy if exists asistencia_ver on public.asistencia;
 create policy asistencia_ver on public.asistencia for select to authenticated
   using (public.es_staff() or public.da_clase(grupo_id) or alumno_id = public.mi_alumno());
--- El profe solo llama lista el mismo día de la clase (es su firma). La oficina corrige cualquier fecha.
+-- El profe solo llama lista el mismo día y en sus clases del horario o con cambio pedido (es su firma).
+-- La oficina corrige cualquier fecha.
 drop policy if exists asistencia_escribir on public.asistencia;
 create policy asistencia_escribir on public.asistencia for all to authenticated
-  using (public.es_staff() or (public.da_clase(grupo_id) and fecha = public.hoy_py()))
-  with check (public.es_staff() or (public.da_clase(grupo_id) and fecha = public.hoy_py()));
+  using (public.es_staff() or public.puede_llamar(grupo_id, fecha, turno))
+  with check (public.es_staff() or public.puede_llamar(grupo_id, fecha, turno));
 
 -- exámenes
 drop policy if exists examenes_ver on public.examenes;
 create policy examenes_ver on public.examenes for select to authenticated
   using (public.es_staff() or public.da_clase(grupo_id) or grupo_id = public.mi_grupo() or public.rendi_examen(id));
 drop policy if exists examenes_escribir on public.examenes;
-create policy examenes_escribir on public.examenes for all to authenticated
+create policy examenes_escribir on public.examenes for insert to authenticated
+  with check (public.es_staff() or public.da_clase(grupo_id));
+drop policy if exists examenes_editar on public.examenes;
+create policy examenes_editar on public.examenes for update to authenticated
   using (public.es_staff() or public.da_clase(grupo_id))
   with check (public.es_staff() or public.da_clase(grupo_id));
+drop policy if exists examenes_borrar on public.examenes;
+create policy examenes_borrar on public.examenes for delete to authenticated using (public.es_admin());
 
 -- notas
 drop policy if exists notas_ver on public.notas;
@@ -587,10 +776,16 @@ drop policy if exists profe_grupos_escribir on public.profe_grupos;
 create policy profe_grupos_escribir on public.profe_grupos for all to authenticated
   using (public.es_staff()) with check (public.es_staff());
 
--- links de inscripción (solo la oficina; el alumno usa info_link / usar_link)
+-- links de inscripción (solo la oficina; borrar solo la dirección; el alumno usa info_link / usar_link)
 drop policy if exists links_staff on public.links_inscripcion;
-create policy links_staff on public.links_inscripcion for all to authenticated
+create policy links_staff on public.links_inscripcion for select to authenticated using (public.es_staff());
+drop policy if exists links_crear on public.links_inscripcion;
+create policy links_crear on public.links_inscripcion for insert to authenticated with check (public.es_staff());
+drop policy if exists links_editar on public.links_inscripcion;
+create policy links_editar on public.links_inscripcion for update to authenticated
   using (public.es_staff()) with check (public.es_staff());
+drop policy if exists links_borrar on public.links_inscripcion;
+create policy links_borrar on public.links_inscripcion for delete to authenticated using (public.es_admin());
 
 -- horario
 alter table public.profesores          enable row level security;
@@ -651,23 +846,66 @@ drop policy if exists clases_admin on public.clases;
 create policy clases_admin on public.clases for all to authenticated
   using (public.es_admin()) with check (public.es_admin());
 
+-- pedidos de cambio: la oficina y la dirección los ven; cada profe los suyos; se crean y resuelven por RPC
+alter table public.cambios        enable row level security;
+alter table public.oficina_disp   enable row level security;
+alter table public.oficina_turnos enable row level security;
+alter table public.oficina_montos enable row level security;
+drop policy if exists cambios_ver on public.cambios;
+create policy cambios_ver on public.cambios for select to authenticated
+  using (public.es_staff() or profesor_id = public.mi_profesor());
+drop policy if exists cambios_admin on public.cambios;
+create policy cambios_admin on public.cambios for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+
+-- turnos de oficina: la oficina ve todos los turnos (para coordinarse); arma y borra solo la dirección;
+-- marcar y pedir turnos va por RPC
+drop policy if exists oturnos_ver on public.oficina_turnos;
+create policy oturnos_ver on public.oficina_turnos for select to authenticated using (public.es_staff());
+drop policy if exists oturnos_admin on public.oficina_turnos;
+create policy oturnos_admin on public.oficina_turnos for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+-- disponibilidad de la oficina: cada uno la suya con la carga abierta (mismo plazo que los profes)
+drop policy if exists odisp_ver on public.oficina_disp;
+create policy odisp_ver on public.oficina_disp for select to authenticated
+  using (public.es_admin() or (user_id = auth.uid() and public.es_oficina()));
+drop policy if exists odisp_admin on public.oficina_disp;
+create policy odisp_admin on public.oficina_disp for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+drop policy if exists odisp_crear on public.oficina_disp;
+create policy odisp_crear on public.oficina_disp for insert to authenticated
+  with check (user_id = auth.uid() and public.es_oficina() and public.carga_abierta(semana_id));
+drop policy if exists odisp_editar on public.oficina_disp;
+create policy odisp_editar on public.oficina_disp for update to authenticated
+  using (user_id = auth.uid() and public.es_oficina() and public.carga_abierta(semana_id))
+  with check (user_id = auth.uid() and public.es_oficina() and public.carga_abierta(semana_id));
+drop policy if exists omontos_admin on public.oficina_montos;
+create policy omontos_admin on public.oficina_montos for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+
 -- ---------- permisos de tablas para el rol de la API --------------------
 revoke all on all tables in schema public from anon;
 grant select, insert, update, delete on public.perfiles, public.config, public.grupos, public.alumnos,
   public.pagos, public.asistencia, public.examenes, public.notas, public.profe_grupos, public.links_inscripcion,
   public.profesores, public.profesores_puntajes, public.semanas, public.disponibilidad, public.materias_semana,
-  public.horarios, public.clases to authenticated;
+  public.horarios, public.clases, public.cambios, public.oficina_disp, public.oficina_turnos, public.oficina_montos to authenticated;
 revoke all on public.config_privada from authenticated;
 grant usage on sequence public.recibo_seq to authenticated;
 grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(),
   public.mi_rol(), public.es_staff(), public.es_admin(), public.da_clase(uuid), public.mi_alumno(), public.mi_grupo(),
   public.examen_de_clase(uuid), public.rendi_examen(uuid),
   public.hoy_py(), public.mi_profesor(), public.carga_abierta(uuid), public.abrir_semana(date),
-  public.publicar_horario(uuid), public.mi_horario(date, date), public.anotar_clase(uuid, date, text, text, jsonb)
+  public.publicar_horario(uuid), public.mi_horario(date, date), public.anotar_clase(uuid, date, text, text, jsonb),
+  public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
+  public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
+  public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean)
   to authenticated;
 revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(), public.usar_link(text),
   public.abrir_semana(date), public.publicar_horario(uuid), public.mi_horario(date, date), public.mi_profesor(),
-  public.carga_abierta(uuid), public.anotar_clase(uuid, date, text, text, jsonb) from anon;
+  public.carga_abierta(uuid), public.anotar_clase(uuid, date, text, text, jsonb),
+  public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
+  public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
+  public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean) from public, anon;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 
