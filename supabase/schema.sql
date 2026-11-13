@@ -224,6 +224,11 @@ create table if not exists public.clases (
   unique (grupo_id, fecha, turno)
 );
 create index if not exists clases_fecha_idx on public.clases(fecha);
+-- Notas del profe al llamar lista (las ve la oficina; el alumno no): de la clase y por alumno {"<alumno_id>":"se retiró 10:30"}
+alter table public.clases add column if not exists nota_profe text;
+alter table public.clases add column if not exists notas_alumnos jsonb not null default '{}'::jsonb;
+alter table public.clases add column if not exists nota_por uuid references auth.users(id) on delete set null;
+alter table public.clases add column if not exists nota_en timestamptz;
 
 -- ---------- funciones de permisos ------------------------------------
 
@@ -434,6 +439,7 @@ begin
   select data into h from horarios where semana_id = sem order by generado desc limit 1;
   if h is null then raise exception 'Todavía no se armó el horario de esta semana'; end if;
   delete from clases c where c.fecha between w.lunes and w.lunes + 6 and c.dictada_por is null
+    and c.nota_profe is null and c.notas_alumnos = '{}'::jsonb
     and not exists (select 1 from asistencia a where a.grupo_id = c.grupo_id and a.fecha = c.fecha and a.turno = c.turno);
   for g in select key, value from jsonb_each(h) loop
     continue when not exists (select 1 from grupos gr where gr.id::text = g.key);
@@ -454,6 +460,26 @@ begin
   end loop;
   update semanas set publicada = now() where id = sem;
   return n;
+end $$;
+
+-- Notas de la clase y por alumno. El profe solo en sus grupos y el mismo día; la oficina cualquier día.
+create or replace function public.anotar_clase(g uuid, f date, t text, nota text, notas jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare limpio jsonb := '{}'::jsonb; k text; v text;
+begin
+  if not (public.es_staff() or (public.da_clase(g) and f = public.hoy_py())) then
+    raise exception 'Solo podés anotar en tus clases y el mismo día';
+  end if;
+  if t not in ('Mañana', 'Tarde') then raise exception 'Turno no válido'; end if;
+  for k, v in select key, value from jsonb_each_text(coalesce(notas, '{}'::jsonb)) loop
+    if btrim(coalesce(v, '')) <> '' and exists (select 1 from alumnos a where a.id::text = k) then
+      limpio := limpio || jsonb_build_object(k, left(btrim(v), 300));
+    end if;
+  end loop;
+  insert into clases (grupo_id, fecha, turno, nota_profe, notas_alumnos, nota_por, nota_en)
+  values (g, f, t, nullif(left(btrim(coalesce(nota, '')), 1000), ''), limpio, auth.uid(), now())
+  on conflict (grupo_id, fecha, turno) do update
+    set nota_profe = excluded.nota_profe, notas_alumnos = excluded.notas_alumnos, nota_por = excluded.nota_por, nota_en = excluded.nota_en;
 end $$;
 
 -- Horario del alumno: materia y tema de cada clase de su grupo, sin el profe
@@ -617,10 +643,10 @@ drop policy if exists horarios_admin on public.horarios;
 create policy horarios_admin on public.horarios for all to authenticated
   using (public.es_admin()) with check (public.es_admin());
 
--- clases publicadas: la oficina las ve; el profe ve las suyas; el alumno usa mi_horario (sin el nombre del profe)
+-- clases publicadas: la oficina las ve; el profe ve las suyas (y las que anotó); el alumno usa mi_horario (sin el nombre del profe)
 drop policy if exists clases_ver on public.clases;
 create policy clases_ver on public.clases for select to authenticated
-  using (public.es_staff() or (public.mi_profesor() is not null and (profesor_id = public.mi_profesor() or dictada_por = public.mi_profesor())));
+  using (public.es_staff() or nota_por = auth.uid() or (public.mi_profesor() is not null and (profesor_id = public.mi_profesor() or dictada_por = public.mi_profesor())));
 drop policy if exists clases_admin on public.clases;
 create policy clases_admin on public.clases for all to authenticated
   using (public.es_admin()) with check (public.es_admin());
@@ -637,11 +663,11 @@ grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(
   public.mi_rol(), public.es_staff(), public.es_admin(), public.da_clase(uuid), public.mi_alumno(), public.mi_grupo(),
   public.examen_de_clase(uuid), public.rendi_examen(uuid),
   public.hoy_py(), public.mi_profesor(), public.carga_abierta(uuid), public.abrir_semana(date),
-  public.publicar_horario(uuid), public.mi_horario(date, date)
+  public.publicar_horario(uuid), public.mi_horario(date, date), public.anotar_clase(uuid, date, text, text, jsonb)
   to authenticated;
 revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(), public.usar_link(text),
   public.abrir_semana(date), public.publicar_horario(uuid), public.mi_horario(date, date), public.mi_profesor(),
-  public.carga_abierta(uuid) from anon;
+  public.carga_abierta(uuid), public.anotar_clase(uuid, date, text, text, jsonb) from anon;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 

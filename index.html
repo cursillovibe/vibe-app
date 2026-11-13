@@ -235,6 +235,15 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.45}
 .att button[aria-pressed="true"][data-v="A"]{background:var(--bad);border-color:var(--bad);color:#fff}
 .att button[aria-pressed="true"][data-v="T"]{background:var(--late);border-color:var(--late);color:#fff}
 .att button[aria-pressed="true"][data-v="J"]{background:var(--pend);border-color:var(--pend);color:#fff}
+.att .nb{width:36px;display:grid;place-items:center;font-weight:400}
+.att .nb svg{width:16px;height:16px}
+.att .nb.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.row .t small.na{color:var(--accent-ink);font-weight:600;margin-top:2px}
+.nclase{padding:12px 16px;border-top:1px solid var(--line);display:grid;gap:8px}
+.nclase label{font-weight:700;font-size:14px}
+.nclase textarea.inp{min-height:70px}
+.nclase .ro{white-space:pre-wrap;font-size:14px}
+.nota-l{font-size:13px;font-weight:400;color:var(--accent-ink);white-space:pre-wrap;margin-top:2px}
 .savebar{position:sticky;bottom:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px;background:var(--surface);border-top:1px solid var(--line);border-radius:0 0 var(--r) var(--r)}
 @media (max-width: 860px){.savebar{bottom:64px}}
 .cnt{display:flex;gap:12px;font-size:13px;font-weight:700;flex-wrap:wrap}
@@ -326,6 +335,7 @@ button.mchip{border:0;cursor:pointer;font-family:inherit}
 .wc .sc{font-size:11px;font-weight:800;color:var(--bad)}
 .wc .ok{font-size:11px;font-weight:700;color:var(--ok)}
 .wc .no{font-size:11px;font-weight:700;color:var(--bad)}
+.wc .nt{font-size:11px;font-weight:700;color:var(--accent-ink)}
 .lnk{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 .gbloque{display:flex;flex-direction:column;gap:8px}
 .gbloque h3{margin:0;font-family:var(--font-display);font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -602,6 +612,18 @@ const primerN = id => (S.prof[id]?.nombre || '—').split(' ')[0];
 const horaDe = ts => ts ? new Date(ts).toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Asuncion' }) : '';
 const clasesSem = l => { const f = addDays(l, 6); return Object.values(S.clases).filter(c => c.fecha >= l && c.fecha <= f); };
 const claseDe = (g, f, t) => Object.values(S.clases).find(c => c.grupo_id === g && c.fecha === f && c.turno === t);
+// notas del profe al llamar lista: de la clase (texto libre) y por alumno {alumno_id: texto}
+const NOTA_CLASE = ['Participó de otro grupo: ', 'No se terminó el tema'];
+const NOTA_AL = ['Se retiró temprano', 'Se sintió mal', 'No trajo material'];
+function notasDe(c) { const n = c?.nota_profe || '', ns = { ...(c?.notas_alumnos || {}) }; return { nota: n, notas: ns, notaO: n, notasO: { ...ns } }; }
+const jsonK = o => JSON.stringify(Object.keys(o).filter(k => o[k]).sort().map(k => [k, o[k]]));
+const tieneNotas = c => !!(c && (c.nota_profe || Object.keys(c.notas_alumnos || {}).length));
+function notaHtml(c) {
+  let h = c.nota_profe ? `<div class="nota-l">${esc(c.nota_profe)}</div>` : '';
+  for (const [k, v] of Object.entries(c.notas_alumnos || {})) h += `<div class="nota-l"><b>${esc(S.alumnos[k] ? nombreA(S.alumnos[k]) : 'Alumno')}:</b> ${esc(v)}</div>`;
+  return h;
+}
+const notaTxt = c => [c.nota_profe, ...Object.entries(c.notas_alumnos || {}).map(([k, v]) => (S.alumnos[k] ? nombreA(S.alumnos[k]) : 'Alumno') + ': ' + v)].filter(Boolean).join('\n');
 // La carga abre el miércoles anterior y cierra el sábado a las 17:00 (hora de Paraguay). Igual que en la base.
 function estadoCarga(w) {
   if (!w) return 'cerrada';
@@ -1266,6 +1288,8 @@ function vAlumno(a) {
     h += `<div class="card"><div class="card-h"><h2>Asistencia</h2><div class="cnt"><span><i class="dot d-P"></i>${as.P} presente</span><span><i class="dot d-T"></i>${as.T} tarde</span><span><i class="dot d-A"></i>${as.A} ausente</span><span><i class="dot d-J"></i>${as.J} justificada</span></div></div>
       <div class="card-b">${as.marcas.length ? `<div class="strip" aria-label="Últimas clases">${as.marcas.slice(-60).map(m => `<i class="d-${m.m}" title="${fmtF(m.f)}: ${{ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[m.m]}"></i>`).join('')}</div>
       ${as.faltas.length ? `<p style="margin:14px 0 0"><b>Faltas:</b> ${as.faltas.slice().reverse().map(fmtF).join(', ')}</p>` : '<p class="muted" style="margin:14px 0 0">Sin faltas.</p>'}` : '<span class="muted">Todavía no hay listas tomadas para este alumno.</span>'}</div></div>`;
+    const na = isAlumno() ? [] : Object.values(S.clases).filter(c => c.notas_alumnos && c.notas_alumnos[a.id]).sort((x, y) => y.fecha.localeCompare(x.fecha) || y.turno.localeCompare(x.turno));
+    if (na.length) h += `<div class="card"><div class="card-h"><h2>Notas de los profes</h2><small>No las ve el alumno</small></div><div class="rows">${na.map(c => `<div class="row"><div class="t">${fmtF(c.fecha)} · ${esc(c.turno)}${c.grupo_id !== a.grupoId ? ' · ' + esc(gName(c.grupo_id)) : ''}<small class="na">${esc(c.notas_alumnos[a.id])}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></div>`;
   } else if (tab === 'examenes') {
     const vals = exs.map(e => Math.round(num(e.notas[a.id]) / num(e.max || 100) * 100));
     h += `<div class="card"><div class="card-h"><h2>Exámenes</h2>${sparkline(vals)}</div>${exs.length ? `<div class="tw"><table><thead><tr><th>Examen</th><th>Fecha</th><th class="n">Nota</th><th class="n">%</th><th class="n">Puesto</th></tr></thead><tbody>${exs.slice().reverse().map(e => { const v = num(e.notas[a.id]); const p = Math.round(v / num(e.max || 100) * 100); const ranking = Object.values(e.notas).map(num).sort((x, y) => y - x); return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td>${esc(e.nombre)}${e.materia ? `<br><small>${esc(e.materia)}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n num">${fmtN(v)} / ${fmtN(e.max || 100)}</td><td class="n ${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</td><td class="n">${ranking.indexOf(v) + 1}° de ${ranking.length}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Sin notas cargadas.</div>'}</div>`;
@@ -1282,7 +1306,7 @@ function vAlumno(a) {
 
 /* --- asistencia --- */
 function syncDrafts() {
-  const d = S.draftAsis; if (d && !d.dirty) { const saved = S.asis[d.key]; d.marcas = { ...(saved?.marcas || {}) }; }
+  const d = S.draftAsis; if (d && !d.dirty) { const saved = S.asis[d.key]; d.marcas = { ...(saved?.marcas || {}) }; Object.assign(d, notasDe(claseDe(d.g, d.f, d.t))); }
   const e = S.draftExam; if (e && !e.dirty) { const saved = S.exams[e.eid]; e.notas = { ...(saved?.notas || {}) }; }
 }
 VIEWS.asistencia = () => {
@@ -1297,10 +1321,10 @@ VIEWS.asistencia = () => {
   const g = S.grupos[u.asisGrupo]; const tl = turnosDia(g, u.asisFecha);
   if (!tl.includes(u.asisTurno)) u.asisTurno = tl[0];
   const key = asisKey(g.id, u.asisFecha, u.asisTurno); const saved = S.asis[key];
-  if (!S.draftAsis || S.draftAsis.key !== key) S.draftAsis = { key, marcas: { ...(saved?.marcas || {}) }, orig: { ...(saved?.marcas || {}) }, dirty: false };
+  const cl = claseDe(g.id, u.asisFecha, u.asisTurno);
+  if (!S.draftAsis || S.draftAsis.key !== key) S.draftAsis = { key, g: g.id, f: u.asisFecha, t: u.asisTurno, marcas: { ...(saved?.marcas || {}) }, ...notasDe(cl), dirty: false };
   const D = S.draftAsis; const al = alumnosDe(g.id);
   const soloVer = isProfe() && u.asisFecha !== hoy(); const dis = soloVer ? 'disabled' : '';
-  const cl = claseDe(g.id, u.asisFecha, u.asisTurno);
   const cnt = { P: 0, A: 0, T: 0, J: 0, '': 0 }; al.forEach(a => cnt[D.marcas[a.id] || '']++);
   h += `<div class="filters"><div class="chips">${gs.map(x => `<button class="chip" data-act="asis-grupo" data-v="${esc(x.id)}" aria-pressed="${x.id === g.id}">${esc(x.nombre)}</button>`).join('')}</div>
     <input type="date" class="inp" id="asisFecha" data-ch="asisFecha" value="${esc(u.asisFecha)}" style="width:auto" aria-label="Fecha">
@@ -1309,7 +1333,10 @@ VIEWS.asistencia = () => {
   let info = '';
   if (cl) { const dic = cl.dictada_por; info = `<div class="card-b" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:0">${mchip(cl.materia)}${cl.tema ? `<span>${esc(cl.tema)}</span>` : ''}${!isProfe() && cl.profesor_id ? `<small class="muted">· le toca a ${esc(profN(cl.profesor_id))}</small>` : ''}${dic ? pill(`Clase registrada${S.miProf && dic === S.miProf.id ? '' : ' a ' + primerN(dic)} · ${horaDe(cl.dictada_en)}`, 'ok') : ''}</div>`; }
   h += `<div class="card"><div class="card-h"><div><h2>${esc(g.nombre)}${tl.length > 1 || u.asisTurno === 'Tarde' ? ' · ' + esc(u.asisTurno) : ''}</h2><small>${fechaLarga(u.asisFecha)}${saved ? ' · guardada por ' + esc(who(saved.por)) : ' · sin guardar'}</small></div>${soloVer ? '' : `<button class="btn sm" data-act="asis-todos">Marcar todos presentes</button>`}</div>${info}
-    ${al.length ? `<div class="rows">${al.map(a => { const m = D.marcas[a.id] || ''; return `<div class="row"><div class="t">${esc(nombreA(a))}</div><div class="att" role="group" aria-label="Asistencia de ${esc(nombreA(a))}">${['P', 'A', 'T', 'J'].map(v => `<button data-act="marca" data-id="${esc(a.id)}" data-v="${v}" aria-pressed="${m === v}" title="${{ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[v]}" ${dis}>${v}</button>`).join('')}</div></div>`; }).join('')}</div>` : '<div class="empty">Este grupo no tiene alumnos activos.</div>'}
+    ${al.length ? `<div class="rows">${al.map(a => { const m = D.marcas[a.id] || ''; const na = D.notas[a.id] || ''; return `<div class="row"><div class="t">${esc(nombreA(a))}${na ? `<small class="na">${ic('edit')} ${esc(na)}</small>` : ''}</div><div class="att" role="group" aria-label="Asistencia de ${esc(nombreA(a))}">${['P', 'A', 'T', 'J'].map(v => `<button data-act="marca" data-id="${esc(a.id)}" data-v="${v}" aria-pressed="${m === v}" title="${{ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[v]}" ${dis}>${v}</button>`).join('')}${soloVer ? '' : `<button class="nb ${na ? 'on' : ''}" data-act="asis-nota" data-id="${esc(a.id)}" title="Anotar algo de este alumno" aria-label="Nota sobre ${esc(nombreA(a))}">${ic('edit')}</button>`}</div></div>`; }).join('')}</div>` : '<div class="empty">Este grupo no tiene alumnos activos.</div>'}
+    ${soloVer ? (D.nota ? `<div class="nclase"><label>Observaciones de la clase</label><div class="ro">${esc(D.nota)}</div></div>` : '') : `<div class="nclase"><label for="asis-nota">Observaciones de la clase <small class="muted" style="font-weight:400">(opcional · las ve la oficina, no los alumnos)</small></label>
+      <textarea class="inp" id="asis-nota" data-in="asis-nota" maxlength="1000" placeholder="Ej: participó Juan Pérez de CPI1 · se cortó la luz a las 10 · no llegamos a terminar el tema">${esc(D.nota)}</textarea>
+      <div class="chips">${NOTA_CLASE.map(x => `<button class="chip" data-act="asis-nota-chip" data-v="${esc(x)}">+ ${esc(x.replace(/:\s*$/, ''))}</button>`).join('')}</div></div>`}
     <div class="savebar"><div class="cnt"><span><i class="dot d-P"></i>${cnt.P}</span><span><i class="dot d-A"></i>${cnt.A}</span><span><i class="dot d-T"></i>${cnt.T}</span><span><i class="dot d-J"></i>${cnt.J}</span>${cnt[''] ? `<span class="muted"><i class="dot d-0"></i>${cnt['']} sin marcar</span>` : ''}</div>
     ${soloVer ? '' : `<div class="actions">${saved && isStaff() ? `<button class="btn sm ghost danger" data-act="asis-borrar">Borrar lista</button>` : ''}<button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="asis-guardar">${D.dirty ? 'Guardar lista' : saved ? 'Guardada' : 'Guardar lista'}</button></div>`}</div></div>`;
   return h;
@@ -1323,6 +1350,8 @@ function vHistorial() {
   h += `<div class="card"><div class="tw"><table class="mx"><thead><tr><th>Alumno</th><th>%</th>${docs.map(d => `<th><button data-act="asis-abrir" data-g="${esc(g.id)}" data-f="${esc(d.fecha)}" data-t="${esc(d.turno)}" title="${esc(d.turno)}">${fmtCorta(d.fecha)}${multi ? `<br><small>${d.turno === 'Tarde' ? 'tarde' : 'mañana'}</small>` : ''}</button></th>`).join('')}</tr></thead><tbody>
     ${al.map(a => { const as = asisAlumno(a); return `<tr><td><b>${esc(nombreA(a))}</b></td><td class="${as.pct != null && as.pct < 70 ? 'bad-t' : ''}"><b>${as.pct == null ? '—' : as.pct + '%'}</b></td>${docs.map(d => { const m = d.marcas?.[a.id]; return `<td>${m ? `<span class="c d-${m}">${m}</span>` : '<span class="c e">·</span>'}</td>`; }).join('')}</tr>`; }).join('')}
     </tbody></table></div></div>`;
+  const obs = Object.values(S.clases).filter(c => c.grupo_id === g.id && tieneNotas(c)).sort((x, y) => y.fecha.localeCompare(x.fecha) || y.turno.localeCompare(x.turno));
+  if (obs.length) h += `<div class="card"><div class="card-h"><h2>Observaciones de los profes</h2><small>${obs.length} clase${obs.length === 1 ? '' : 's'} con notas</small></div><div class="rows">${obs.map(c => `<div class="row click" data-act="asis-abrir" data-g="${esc(c.grupo_id)}" data-f="${esc(c.fecha)}" data-t="${esc(c.turno)}"><div class="t">${dkDe(c.fecha)} ${fmtCorta(c.fecha)} · ${esc(c.turno)}${c.dictada_por ? ' · ' + esc(primerN(c.dictada_por)) : ''}${notaHtml(c)}</div></div>`).join('')}</div></div>`;
   return h;
 }
 
@@ -1448,7 +1477,8 @@ function celdaClase(c) {
   else if (c.materia && c.materia !== 'examen' && c.fecha < t) est = `<span class="no">Sin lista</span>`;
   else if (c.fecha === t && c.materia !== 'examen') est = `<span class="t">Hoy · sin lista todavía</span>`;
   const prof = c.materia === 'examen' ? `<span class="t">sin profe</span>` : c.profesor_id ? `<span class="p">${esc(primerN(c.profesor_id))}</span>${reemp ? '<span class="t">la dio otro profe</span>' : ''}` : c.materia ? `<span class="sc">SIN COBERTURA</span>` : `<span class="t">fuera del horario</span>`;
-  return `<div class="wc ${isAdmin() ? 'click' : ''} ${c.fecha === t ? 'hoy' : ''}" ${isAdmin() ? `data-act="clase-editar" data-id="${esc(c.id)}"` : ''}><span class="d">${dkDe(c.fecha)} ${dm(c.fecha)}</span><span class="t">${esc(c.turno)}</span>${mchip(c.materia)}${c.tema ? `<span class="tema">${esc(c.tema)}</span>` : ''}${prof}${est}</div>`;
+  const nt = tieneNotas(c) ? `<span class="nt" title="${esc(notaTxt(c))}">✎ Con observaciones</span>` : '';
+  return `<div class="wc ${isAdmin() ? 'click' : ''} ${c.fecha === t ? 'hoy' : ''}" ${isAdmin() ? `data-act="clase-editar" data-id="${esc(c.id)}"` : ''}><span class="d">${dkDe(c.fecha)} ${dm(c.fecha)}</span><span class="t">${esc(c.turno)}</span>${mchip(c.materia)}${c.tema ? `<span class="tema">${esc(c.tema)}</span>` : ''}${prof}${est}${nt}</div>`;
 }
 function openClaseForm(id) {
   const c = S.clases[id]; if (!c) return; const ps = profsActivos();
@@ -1458,7 +1488,8 @@ function openClaseForm(id) {
     <div class="fld"><label for="cl-tema">Tema</label><input class="inp" id="cl-tema" value="${esc(c.tema || '')}"></div>
     <div class="fld"><label for="cl-prof">Profe del horario</label><select class="inp" id="cl-prof">${opt(c.profesor_id, 'Sin profe')}</select></div>
     <div class="fld"><label for="cl-dict">Dio la clase (cuenta para el pago)</label><select class="inp" id="cl-dict">${opt(c.dictada_por, 'Nadie todavía')}</select>${c.dictada_en ? `<span class="hint">Lista llamada a las ${horaDe(c.dictada_en)}</span>` : ''}</div>
-    <div class="fld full"><label for="cl-obs">Observación</label><input class="inp" id="cl-obs" value="${esc(c.obs || '')}" placeholder="Ej: firmó en papel, se cambió con otro profe"></div></div>`,
+    ${tieneNotas(c) ? `<div class="fld full"><label>Lo que anotó el profe al llamar lista</label>${notaHtml(c)}</div>` : ''}
+    <div class="fld full"><label for="cl-obs">Observación de la oficina</label><input class="inp" id="cl-obs" value="${esc(c.obs || '')}" placeholder="Ej: firmó en papel, se cambió con otro profe"></div></div>`,
     `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="clase-guardar" data-id="${esc(id)}">Guardar</button>`);
 }
 
@@ -1691,7 +1722,7 @@ function rowClaseProfe(c) {
   else if (c.materia === 'examen') r = pill('Examen');
   else if (c.fecha === t) r = `<button class="btn sm primary" data-act="tomar" data-g="${esc(c.grupo_id)}" data-t="${esc(c.turno)}">${ic('check')}Llamar lista</button>`;
   else if (c.fecha < t) r = pill('Sin lista', 'bad');
-  return `<div class="row"><div class="t">${c.fecha === t ? '<b>Hoy</b>' : dkDe(c.fecha) + ' ' + dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${esc(matL(c.materia))}${c.tema ? ' — ' + esc(c.tema) : ''}${c.dictada_por === me && c.profesor_id && c.profesor_id !== me ? ' · reemplazo' : ''}</small></div><div class="r">${r}</div></div>`;
+  return `<div class="row"><div class="t">${c.fecha === t ? '<b>Hoy</b>' : dkDe(c.fecha) + ' ' + dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${esc(matL(c.materia))}${c.tema ? ' — ' + esc(c.tema) : ''}${c.dictada_por === me && c.profesor_id && c.profesor_id !== me ? ' · reemplazo' : ''}${tieneNotas(c) ? ' · ✎ con observaciones' : ''}</small></div><div class="r">${r}</div></div>`;
 }
 
 /* horario del alumno: materia y tema, sin el profe */
@@ -2216,18 +2247,30 @@ const A = {
   'asis-grupo': el => { const v = el.dataset.v; if (S.draftAsis?.dirty) { confirmDlg('La lista tiene cambios sin guardar. ¿Descartarlos?', 'Descartar', () => { S.draftAsis = null; S.ui.asisGrupo = v; render(); }); return; } S.ui.asisGrupo = v; render(); },
   'asis-abrir': el => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = el.dataset.g; S.ui.asisFecha = el.dataset.f; S.ui.asisTurno = el.dataset.t || ''; S.draftAsis = null; render(); },
   marca: el => { const D = S.draftAsis; if (!D || (isProfe() && S.ui.asisFecha !== hoy())) return; const id = el.dataset.id, v = el.dataset.v; if (D.marcas[id] === v) delete D.marcas[id]; else D.marcas[id] = v; D.dirty = true; render(); },
+  'asis-nota': el => {
+    const D = S.draftAsis, a = S.alumnos[el.dataset.id]; if (!D || !a) return;
+    openModal('Nota · ' + nombreA(a), `<div class="form"><div class="fld full"><label for="an-txt">¿Qué pasó con este alumno hoy?</label><textarea class="inp" id="an-txt" maxlength="300" placeholder="Ej: se retiró 10:30 porque lo buscó la mamá">${esc(D.notas[a.id] || '')}</textarea>
+      <div class="chips" style="margin-top:8px">${NOTA_AL.map(x => `<button class="chip" data-act="an-chip" data-v="${esc(x)}">+ ${esc(x)}</button>`).join('')}</div></div></div>`,
+      `${D.notas[a.id] ? `<button class="btn ghost danger" data-act="asis-nota-ok" data-id="${esc(a.id)}" data-quitar="1">Quitar nota</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="asis-nota-ok" data-id="${esc(a.id)}">Listo</button>`, 'narrow');
+  },
+  'an-chip': el => { const ta = $('#an-txt'); if (!ta) return; let v = el.dataset.v; if (v === 'Se retiró temprano' && S.ui.asisFecha === hoy()) v = 'Se retiró a las ' + horaDe(new Date().toISOString()); ta.value = ta.value.trim() ? ta.value.trim().replace(/[.,;]$/, '') + ', ' + v.charAt(0).toLowerCase() + v.slice(1) : v; ta.focus(); },
+  'asis-nota-ok': el => { const D = S.draftAsis; if (!D) return; const id = el.dataset.id; const v = el.dataset.quitar ? '' : ($('#an-txt')?.value || '').trim(); if (v) D.notas[id] = v.slice(0, 300); else delete D.notas[id]; D.dirty = true; closeModal(); render(); },
+  'asis-nota-chip': el => { const ta = $('#asis-nota'); const D = S.draftAsis; if (!ta || !D) return; const cur = ta.value.replace(/\s+$/, ''); ta.value = (cur ? cur + '\n' : '') + el.dataset.v; D.nota = ta.value; asisDirty(); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); },
   'asis-todos': () => { const D = S.draftAsis; if (!D) return; alumnosDe(S.ui.asisGrupo).forEach(a => { if (!D.marcas[a.id]) D.marcas[a.id] = 'P'; }); D.dirty = true; render(); },
   'asis-guardar': async el => {
     const D = S.draftAsis; if (!D || !D.dirty) return; const g = S.ui.asisGrupo, f = S.ui.asisFecha, t = S.ui.asisTurno || 'Mañana';
     const saved = S.asis[D.key]?.marcas || {};
     const filas = Object.entries(D.marcas).filter(([k, v]) => v && S.alumnos[k]).map(([k, v]) => ({ grupo_id: g, fecha: f, turno: t, alumno_id: k, marca: v, act: new Date().toISOString() }));
     const quitar = Object.keys(saved).filter(k => !D.marcas[k]);
+    const cambioLista = jsonK(D.marcas) !== jsonK(saved);
+    const cambioNotas = D.nota.trim() !== D.notaO.trim() || jsonK(D.notas) !== jsonK(D.notasO);
     el.classList.add('disabled');
     let ok = true;
-    if (filas.length) ok = !!(await run(S.sb.from('asistencia').upsert(filas, { onConflict: 'grupo_id,fecha,turno,alumno_id' })));
-    if (ok && quitar.length) ok = !!(await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f).eq('turno', t).in('alumno_id', quitar)));
+    if (cambioLista && filas.length) ok = !!(await run(S.sb.from('asistencia').upsert(filas, { onConflict: 'grupo_id,fecha,turno,alumno_id' })));
+    if (ok && cambioLista && quitar.length) ok = !!(await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f).eq('turno', t).in('alumno_id', quitar)));
+    if (ok && cambioNotas) ok = !!(await run(S.sb.rpc('anotar_clase', { g, f, t, nota: D.nota.trim(), notas: Object.fromEntries(Object.entries(D.notas).filter(([k, v]) => v && S.alumnos[k])) })));
     if (!ok) { el.classList.remove('disabled'); return; }
-    D.dirty = false; toast(S.miProf && filas.length ? 'Lista guardada. Tu clase quedó registrada.' : 'Lista guardada'); await load(['asis', 'clases']);
+    D.dirty = false; toast(cambioLista ? (S.miProf && filas.length ? 'Lista guardada. Tu clase quedó registrada.' : 'Lista guardada') : 'Observaciones guardadas'); await load(['asis', 'clases']);
   },
   'asis-borrar': () => { const g = S.ui.asisGrupo, f = S.ui.asisFecha, t = S.ui.asisTurno || 'Mañana'; confirmDlg('¿Borrar la lista de este día y turno?', 'Borrar lista', async () => { if (await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f).eq('turno', t), 'Lista borrada')) { S.draftAsis = null; await load(['asis']); } }); },
   // --- horario
@@ -2436,8 +2479,11 @@ const IN = {
   q: el => { S.ui.q = el.value; sched(); },
   pf: el => { const it = PF.items[+el.dataset.i]; if (!it) return; const k = el.dataset.k; it[k] = k === 'monto' ? parseMoney(el.value) : el.value; const t = $('#pf-total'); if (t) t.textContent = 'Total ' + money(sum(PF.items.map(i => i.monto))); },
   nota: el => { const D = S.draftExam; if (!D) return; D.notas[el.dataset.id] = el.value; D.dirty = true; const sb = el.closest('.card').querySelector('.savebar'); if (sb) { sb.querySelector('small').textContent = 'Hay cambios sin guardar'; sb.querySelector('.btn').classList.remove('disabled'); } },
-  'wa-msg': () => { $('#wa-btn').innerHTML = waBtn(); }
+  'wa-msg': () => { $('#wa-btn').innerHTML = waBtn(); },
+  'asis-nota': el => { const D = S.draftAsis; if (!D) return; D.nota = el.value; asisDirty(); }
 };
+// marca la lista como modificada sin re-renderizar (para no perder el foco del cuadro de texto)
+function asisDirty() { const D = S.draftAsis; if (!D) return; D.dirty = true; const b = $('[data-act="asis-guardar"]'); if (b) { b.classList.remove('disabled'); b.textContent = 'Guardar lista'; } }
 const CH = {
   fGrupo: el => { S.ui.fGrupo = el.value; render(); },
   fEstado: el => { S.ui.fEstado = el.value; render(); },
