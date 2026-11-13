@@ -1,6 +1,6 @@
 -- Importa los datos de la app vibe-horarios (plantel, grupos, semanas, disponibilidad,
 -- materias y el último horario de cada semana). Se puede correr más de una vez.
--- __DATOS__ se reemplaza por el JSON exportado de la base de vibe-horarios.
+-- Entre las marcas $mig$ va el JSON exportado de la base de vibe-horarios.
 create temp table if not exists mig (j jsonb);
 truncate mig;
 insert into mig values ($mig$__DATOS__$mig$::jsonb);
