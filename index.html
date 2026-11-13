@@ -310,6 +310,56 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.45}
 .sheet-list button:hover{background:var(--sunken)}
 .nota{width:90px!important;text-align:right}
 .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+/* horario */
+.mchip{display:inline-block;font-size:12px;font-weight:700;border-radius:7px;padding:3px 8px;white-space:nowrap;line-height:1.3}
+button.mchip{border:0;cursor:pointer;font-family:inherit}
+.wkh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wkh .lbl{font-family:var(--font-display);font-weight:700;min-width:150px;text-align:center}
+.wk{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(148px,1fr))}
+.wc{border:1px solid var(--line);border-radius:10px;padding:9px 8px;text-align:center;background:var(--surface);display:flex;flex-direction:column;gap:4px;align-items:center;min-height:118px}
+.wc.click{cursor:pointer}.wc.click:hover{border-color:var(--accent)}
+.wc.fer{background:var(--bad-soft);border-color:transparent;justify-content:center}
+.wc.hoy{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.wc .d{font-weight:700;font-size:13px}.wc .t{font-size:11px;color:var(--muted)}
+.wc .tema{font-size:11px;color:var(--muted);max-width:100%;overflow-wrap:anywhere}
+.wc .p{font-size:13px;font-weight:600}
+.wc .sc{font-size:11px;font-weight:800;color:var(--bad)}
+.wc .ok{font-size:11px;font-weight:700;color:var(--ok)}
+.wc .no{font-size:11px;font-weight:700;color:var(--bad)}
+.lnk{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.gbloque{display:flex;flex-direction:column;gap:8px}
+.gbloque h3{margin:0;font-family:var(--font-display);font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dispg{border-collapse:collapse;width:100%}
+.dispg th,.dispg td{padding:6px 4px;text-align:center;border-top:1px solid var(--line)}
+.dispg th{font-size:12px;color:var(--muted);font-weight:600;border-top:0}
+.dispg td:first-child,.dispg th:first-child{text-align:left;padding-left:2px}
+.xb{width:52px;height:44px;border-radius:10px;border:2px solid var(--line);background:var(--surface);font-family:var(--font-display);font-weight:800;font-size:18px;color:transparent;cursor:pointer}
+.xb[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#17140F}
+.xb:disabled{cursor:default;opacity:.6}
+.dots{display:inline-flex;flex-direction:column;gap:3px;align-items:center}
+.dots i{width:10px;height:10px;border-radius:50%;background:var(--sunken);display:block}
+.dots i.m{background:var(--accent)}.dots i.t{background:var(--accent-ink)}
+.pool{display:flex;flex-direction:column;gap:6px}
+.pool .it{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pool .it .inp{flex:1;min-width:140px;padding:6px 9px;font-size:13px}
+.pool .it select.inp{flex:0 0 auto;min-width:0;width:auto}
+.tg{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:4px 7px;font-size:12px;cursor:pointer;color:var(--muted)}
+.tg[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.cnts{display:flex;flex-wrap:wrap;gap:6px}
+.cnts span{border:1px solid var(--line);border-radius:8px;padding:3px 8px;font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.cnts span b{background:var(--accent-soft);color:var(--accent-ink);border-radius:6px;padding:0 6px}
+.cnts span.cero{border-color:var(--bad);color:var(--bad)}.cnts span.cero b{background:var(--bad-soft);color:var(--bad)}
+.cnts span.nada{opacity:.5}
+.pick{display:flex;flex-direction:column;gap:6px}
+.pick button{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 11px;text-align:left;cursor:pointer;color:var(--ink);font:inherit}
+.pick button:hover:not(:disabled){border-color:var(--accent)}
+.pick button:disabled{opacity:.5;cursor:default}
+.pick button.act{border-color:var(--accent);background:var(--accent-soft)}
+.sc-b{font-size:12px;font-weight:800;border-radius:6px;padding:1px 7px}
+.sc-hi{background:var(--ok-soft);color:var(--ok)}.sc-md{background:var(--late-soft);color:var(--late)}.sc-lo{background:var(--bad-soft);color:var(--bad)}.sc-no{color:var(--muted)}
+.sgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width: 560px){.sgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.clist .row .t small{display:block}
 </style>
 </head>
 <body>
@@ -446,9 +496,12 @@ const S = {
   grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {},
   loaded: {}, lastLoad: 0, idx: { pagosByAlumno: {}, asisByGrupo: {}, examsByGrupo: {} },
   view: 'inicio', selAlumno: null, selGrupo: null,
-  ui: { q: '', fGrupo: '', fEstado: 'activos', fDeuda: false, asisTab: 'tomar', asisGrupo: '', asisFecha: hoy(), histGrupo: '',
-        cobTab: 'porcobrar', cobGrupo: '', cobMes: hoy().slice(0, 7), cobSoloVenc: true, exGrupo: '', exSel: null, alTab: 'cuenta' },
-  draftAsis: null, draftExam: null
+  ui: { q: '', fGrupo: '', fEstado: 'activos', fDeuda: false, asisTab: 'tomar', asisGrupo: '', asisFecha: hoy(), asisTurno: '', histGrupo: '',
+        cobTab: 'porcobrar', cobGrupo: '', cobMes: hoy().slice(0, 7), cobSoloVenc: true, exGrupo: '', exSel: null, alTab: 'cuenta',
+        horTab: 'semana', horLunes: '', armLunes: '', pagoMes: hoy().slice(0, 7), pagoVer: '' },
+  draftAsis: null, draftExam: null,
+  // horario
+  prof: {}, punt: {}, clases: {}, clRango: null, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: []
 };
 const rol = () => S.perfil?.rol || '';
 const isAdmin = () => rol() === 'admin';
@@ -460,7 +513,8 @@ const DEFAULT_MSG = 'Hola {encargado}, ¿cómo estás? Te escribimos del {cursil
 const yo = () => isAlumno() ? Object.values(S.alumnos).find(a => a.userId === S.session?.user?.id) : null;
 
 /* ---------- mapeo base ↔ app ---------- */
-const mapG = r => ({ id: r.id, nombre: r.nombre, programa: r.programa || '', horario: r.horario || '', inicio: r.inicio || '', fin: r.fin || '', activo: r.activo !== false, plan: Array.isArray(r.plan) ? r.plan : [] });
+const mapG = r => ({ id: r.id, nombre: r.nombre, programa: r.programa || '', horario: r.horario || '', inicio: r.inicio || '', fin: r.fin || '', activo: r.activo !== false, plan: Array.isArray(r.plan) ? r.plan : [],
+  dias: r.dias && typeof r.dias === 'object' ? r.dias : {}, prioridad: !!r.prioridad, orden: num(r.orden), descripcion: r.descripcion || '' });
 const mapA = r => ({ id: r.id, userId: r.user_id, email: r.email || '', nombre: r.nombre || '', apellido: r.apellido || '', ci: r.ci || '', fechaNac: r.fecha_nac || '', tel: r.tel || '', ciudad: r.ciudad || '', colegio: r.colegio || '',
   encargado: r.encargado || '', encargadoTel: r.encargado_tel || '', programa: r.programa || '', linkId: r.link_id || '', ficha: r.ficha || {}, fichaCompleta: !!r.ficha_completa, fichaFecha: r.ficha_fecha || '', grupoId: r.grupo_id || '', estado: r.estado,
   desc: num(r.descuento), cuotaEsp: r.cuota_especial, matExon: !!r.mat_exonerada, obs: r.obs || '', inscripcion: (r.creado || '').slice(0, 10) });
@@ -469,10 +523,10 @@ const mapP = r => ({ id: r.id, nro: r.nro, alumnoId: r.alumno_id, grupoId: r.gru
 /* ---------- índices y cálculos ---------- */
 function rebuild(which) {
   if (which === 'pagos') { const m = {}; Object.values(S.pagos).forEach(p => (m[p.alumnoId] ||= []).push(p)); Object.values(m).forEach(l => l.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || num(b.nro) - num(a.nro))); S.idx.pagosByAlumno = m; }
-  if (which === 'asis') { const m = {}; Object.values(S.asis).forEach(d => (m[d.grupoId] ||= []).push(d)); Object.values(m).forEach(l => l.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))); S.idx.asisByGrupo = m; }
+  if (which === 'asis') { const m = {}; Object.values(S.asis).forEach(d => (m[d.grupoId] ||= []).push(d)); Object.values(m).forEach(l => l.sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.turno || '').localeCompare(b.turno || ''))); S.idx.asisByGrupo = m; }
   if (which === 'exams') { const m = {}; Object.values(S.exams).forEach(d => (m[d.grupoId] ||= []).push(d)); Object.values(m).forEach(l => l.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))); S.idx.examsByGrupo = m; }
 }
-const gruposOrden = () => Object.values(S.grupos).sort((a, b) => (b.activo !== false) - (a.activo !== false) || (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+const gruposOrden = () => Object.values(S.grupos).sort((a, b) => (b.activo !== false) - (a.activo !== false) || num(a.orden) - num(b.orden) || (a.nombre || '').localeCompare(b.nombre || '', 'es'));
 const gruposActivos = () => gruposOrden().filter(g => g.activo !== false);
 const alumnosDe = (gid, bajas = false) => Object.values(S.alumnos).filter(a => a.grupoId === gid && (a.estado === 'activo' || (bajas && a.estado === 'baja'))).sort(cmpA);
 const activos = () => Object.values(S.alumnos).filter(a => a.estado === 'activo');
@@ -517,6 +571,156 @@ function asisGrupo(gid, desde) {
   return pct(pres, base);
 }
 function asis7() { let pres = 0, base = 0; const d0 = addDays(hoy(), -6); Object.values(S.asis).forEach(d => { if ((d.fecha || '') < d0) return; Object.values(d.marcas || {}).forEach(m => { if (m === 'P' || m === 'T') { pres++; base++; } else if (m === 'A') base++; }); }); return pct(pres, base); }
+/* ---------- horario: fechas, turnos y materias ---------- */
+const DK = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const DK_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const TURNOS = ['Mañana', 'Tarde'];
+const TURNO_H = { 'Mañana': '8:00–12:00', 'Tarde': '13:30–17:30' };
+const CODE_LBL = { '-': '—', M: 'Mañana', T: 'Tarde', MT: 'Doble' };
+const MATS = {
+  arit: { l: 'Aritmética', bg: '#fef3c7', fg: '#92400e' }, alg: { l: 'Álgebra', bg: '#dbeafe', fg: '#1e40af' },
+  geo: { l: 'Geometría', bg: '#d1fae5', fg: '#065f46' }, trig: { l: 'Trigonometría', bg: '#ede9fe', fg: '#5b21b6' },
+  calc: { l: 'Cálculo', bg: '#ffe4e6', fg: '#9f1239' }, fis: { l: 'Física', bg: '#cffafe', fg: '#155e75' },
+  examen: { l: 'Examen', bg: '#e2e8f0', fg: '#334155' }
+};
+const MAT_KEYS = ['arit', 'alg', 'geo', 'trig', 'calc', 'fis'];
+const matL = m => MATS[m]?.l || m || '';
+const mchip = (m, extra = '') => m ? `<span class="mchip" style="background:${MATS[m]?.bg || '#eee'};color:${MATS[m]?.fg || '#333'}" ${extra}>${esc(matL(m))}</span>` : '';
+function asisKey(g, f, t) { return g + '_' + f + '_' + (t || 'Mañana'); }
+function dkDe(f) { return DK[(new Date(f + 'T12:00:00').getDay() + 6) % 7]; }
+function lunesDe(f) { const d = new Date(f + 'T12:00:00'); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return ymd(d); }
+function lunesSig() { return addDays(lunesDe(hoy()), 7); }
+const fDia = (l, k) => addDays(l, DK.indexOf(k));
+const dm = f => (+f.slice(8, 10)) + '/' + (+f.slice(5, 7));
+const rangoSem = l => { const f = addDays(l, 6); return `${+l.slice(8, 10)} ${MESES[+l.slice(5, 7) - 1].slice(0, 3)} – ${+f.slice(8, 10)} ${MESES[+f.slice(5, 7) - 1].slice(0, 3)}`; };
+function turnosDe(code) { return code === 'M' ? ['Mañana'] : code === 'T' ? ['Tarde'] : code === 'MT' ? ['Mañana', 'Tarde'] : []; }
+// turnos con clase ese día según el grupo; si no está configurado, se puede llamar lista en cualquiera
+function turnosDia(g, f) { const t = turnosDe(g?.dias?.[dkDe(f)] || '-'); return t.length ? t : TURNOS; }
+const turnosProg = (g, f) => turnosDe(g?.dias?.[dkDe(f)] || '-');
+const profN = id => S.prof[id]?.nombre || '—';
+const primerN = id => (S.prof[id]?.nombre || '—').split(' ')[0];
+const horaDe = ts => ts ? new Date(ts).toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Asuncion' }) : '';
+const clasesSem = l => { const f = addDays(l, 6); return Object.values(S.clases).filter(c => c.fecha >= l && c.fecha <= f); };
+const claseDe = (g, f, t) => Object.values(S.clases).find(c => c.grupo_id === g && c.fecha === f && c.turno === t);
+// La carga abre el miércoles anterior y cierra el sábado a las 17:00 (hora de Paraguay). Igual que en la base.
+function estadoCarga(w) {
+  if (!w) return 'cerrada';
+  const ahora = Date.now() - 3 * 3600e3; const L = Date.parse(w.lunes + 'T00:00:00Z');
+  if (ahora >= L - 5 * 864e5 && ahora <= L - 2 * 864e5 + 17 * 3600e3) return 'abierta';
+  if (w.carga_abierta_hasta && Date.now() < Date.parse(w.carga_abierta_hasta)) return 'abierta';
+  return ahora < L - 5 * 864e5 ? 'antes' : 'cerrada';
+}
+const cargaReabierta = w => { if (!w || !w.carga_abierta_hasta || Date.now() >= Date.parse(w.carga_abierta_hasta)) return false; const ahora = Date.now() - 3 * 3600e3, L = Date.parse(w.lunes + 'T00:00:00Z'); return !(ahora >= L - 5 * 864e5 && ahora <= L - 2 * 864e5 + 17 * 3600e3); };
+
+/* ---------- motor de armado (portado de vibe-horarios/scheduler.js, mismas reglas) ---------- */
+function antigDeAnios(y) { if (y <= 1) return 3; if (y <= 3) return 3 + ((y - 1) / 2) * 3.5; if (y < 5) return 6.5 + ((y - 3) / 2) * 3.5; return 10; }
+function conocProm(scores) { const v = Object.values(scores || {}).filter(x => typeof x === 'number'); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
+function totalPuntaje(p) { return conocProm(p.scores) * 0.5 + num(p.manejo) * 0.25 + antigDeAnios(num(p.anios)) * 0.15 + num(p.punt) * 0.1; }
+function armarHorario({ profesores, grupos, pool, feriados = [], disponibilidad }) {
+  const count = {}; profesores.forEach(p => (count[p.id] = 0));
+  const ocupado = {}; const out = {};
+  const disponible = (id, day, turno) => { const d = disponibilidad[id]; return !!(d && d.enviado && d.dias && d.dias[day] && d.dias[day][turno]); };
+  const MIN_NIVEL = { medio: 6, alto: 8 }; const minDe = it => MIN_NIVEL[it && it.nivel] || 0;
+  const bestProfe = (mat, day, turno, prioridad, excludeId, minScore = 0) => {
+    const cands = profesores.filter(p => {
+      if (typeof p.scores[mat] !== 'number') return false;
+      if (p.scores[mat] < minScore) return false;
+      if (!disponible(p.id, day, turno)) return false;
+      if (ocupado[p.id + '|' + day + '|' + turno]) return false;
+      if (excludeId && p.id === excludeId) return false;
+      return true;
+    });
+    if (!cands.length) return { profe: null, score: -1 };
+    cands.sort((a, b) => { if (b.scores[mat] !== a.scores[mat]) return b.scores[mat] - a.scores[mat]; if (prioridad) { const ta = totalPuntaje(a), tb = totalPuntaje(b); if (tb !== ta) return tb - ta; } return count[a.id] - count[b.id]; });
+    return { profe: cands[0], score: cands[0].scores[mat] };
+  };
+  const orden = [...grupos].sort((a, b) => (b.prioridad ? 1 : 0) - (a.prioridad ? 1 : 0));
+  orden.forEach(g => {
+    const prioridad = g.prioridad; const slots = [];
+    DK.forEach(day => { if (feriados.includes(day)) return; turnosDe(g.dias[day]).forEach(turno => slots.push({ day, turno })); });
+    const items = (pool[g.id] || []).slice(); const assign = {}; const usadas = new Set();
+    items.forEach((it, i) => {
+      if (!it || !it.dia) return;
+      const cand = slots.map((s, idx) => ({ s, idx })).filter(({ s, idx }) => s.day === it.dia && !usadas.has(idx));
+      if (!cand.length) return;
+      let best = null;
+      cand.forEach(({ s, idx }) => { const r = bestProfe(it.mat, s.day, s.turno, prioridad, null, minDe(it)); const c = { idx, s, r, covered: r.profe ? 1 : 0, sc: r.score }; if (!best || c.covered > best.covered || (c.covered === best.covered && c.sc > best.sc)) best = c; });
+      assign[best.idx] = { mat: it.mat, tema: it.tema, nivel: it.nivel, profe: best.r.profe ? best.r.profe.id : null };
+      if (best.r.profe) { count[best.r.profe.id]++; ocupado[best.r.profe.id + '|' + best.s.day + '|' + best.s.turno] = true; }
+      usadas.add(best.idx); items[i] = null;
+    });
+    const geoIdx = items.map((it, i) => (it && it.mat === 'geo' ? i : -1)).filter(i => i >= 0);
+    if (geoIdx.length >= 2) {
+      let best = null;
+      for (let i = 0; i < slots.length - 1; i++) {
+        if (usadas.has(i) || usadas.has(i + 1)) continue;
+        const s1 = slots[i], s2 = slots[i + 1]; if (s1.day === s2.day) continue;
+        const p1 = bestProfe('geo', s1.day, s1.turno, prioridad, null, minDe(items[geoIdx[0]]));
+        const p2 = bestProfe('geo', s2.day, s2.turno, prioridad, p1.profe ? p1.profe.id : null, minDe(items[geoIdx[1]]));
+        const cand = { i, p1, p2, covered: (p1.profe ? 1 : 0) + (p2.profe ? 1 : 0), sc: p1.score + p2.score };
+        if (!best || cand.covered > best.covered || (cand.covered === best.covered && cand.sc > best.sc)) best = cand;
+      }
+      if (best) {
+        const s1 = slots[best.i], s2 = slots[best.i + 1];
+        assign[best.i] = { mat: 'geo', tema: items[geoIdx[0]].tema, nivel: items[geoIdx[0]].nivel, profe: best.p1.profe ? best.p1.profe.id : null };
+        assign[best.i + 1] = { mat: 'geo', tema: items[geoIdx[1]].tema, nivel: items[geoIdx[1]].nivel, profe: best.p2.profe ? best.p2.profe.id : null };
+        if (best.p1.profe) { count[best.p1.profe.id]++; ocupado[best.p1.profe.id + '|' + s1.day + '|' + s1.turno] = true; }
+        if (best.p2.profe) { count[best.p2.profe.id]++; ocupado[best.p2.profe.id + '|' + s2.day + '|' + s2.turno] = true; }
+        usadas.add(best.i); usadas.add(best.i + 1); items[geoIdx[0]] = null; items[geoIdx[1]] = null;
+      }
+    }
+    for (let k = 1; k < items.length; k++) {
+      const it2 = items[k]; if (!it2 || !it2.seguida) continue;
+      const it1 = items[k - 1]; if (!it1) continue;
+      let best = null;
+      for (let i = 0; i < slots.length - 1; i++) {
+        if (usadas.has(i) || usadas.has(i + 1)) continue;
+        const s1 = slots[i], s2 = slots[i + 1]; if (s1.day === s2.day) continue;
+        const p1 = bestProfe(it1.mat, s1.day, s1.turno, prioridad, null, minDe(it1));
+        const p2 = bestProfe(it2.mat, s2.day, s2.turno, prioridad, null, minDe(it2));
+        const cand = { i, p1, p2, covered: (p1.profe ? 1 : 0) + (p2.profe ? 1 : 0), sc: p1.score + p2.score };
+        if (!best || cand.covered > best.covered || (cand.covered === best.covered && cand.sc > best.sc)) best = cand;
+      }
+      if (best) {
+        const s1 = slots[best.i], s2 = slots[best.i + 1];
+        assign[best.i] = { mat: it1.mat, tema: it1.tema, nivel: it1.nivel, profe: best.p1.profe ? best.p1.profe.id : null };
+        assign[best.i + 1] = { mat: it2.mat, tema: it2.tema, nivel: it2.nivel, profe: best.p2.profe ? best.p2.profe.id : null };
+        if (best.p1.profe) { count[best.p1.profe.id]++; ocupado[best.p1.profe.id + '|' + s1.day + '|' + s1.turno] = true; }
+        if (best.p2.profe) { count[best.p2.profe.id]++; ocupado[best.p2.profe.id + '|' + s2.day + '|' + s2.turno] = true; }
+        usadas.add(best.i); usadas.add(best.i + 1); items[k - 1] = null; items[k] = null;
+      }
+    }
+    let remItems = items.map((it, i) => (it ? { ...it, _i: i } : null)).filter(Boolean);
+    let remSlots = slots.map((s, i) => ({ ...s, idx: i })).filter(s => !usadas.has(s.idx));
+    while (remItems.length && remSlots.length) {
+      let best = null;
+      remItems.forEach(it => remSlots.forEach(s => { const r = bestProfe(it.mat, s.day, s.turno, prioridad, null, minDe(it)); const cand = { it, s, r, covered: r.profe ? 1 : 0, sc: r.score }; if (!best || cand.covered > best.covered || (cand.covered === best.covered && cand.sc > best.sc)) best = cand; }));
+      const { it, s, r } = best;
+      assign[s.idx] = { mat: it.mat, tema: it.tema, nivel: it.nivel, profe: r.profe ? r.profe.id : null };
+      if (r.profe) { count[r.profe.id]++; ocupado[r.profe.id + '|' + s.day + '|' + s.turno] = true; }
+      remItems = remItems.filter(x => x._i !== it._i); remSlots = remSlots.filter(x => x.idx !== s.idx);
+    }
+    out[g.id] = slots.map((s, i) => ({ day: s.day, turno: s.turno, materia: assign[i] ? assign[i].mat : null, tema: assign[i] ? assign[i].tema : '', nivel: assign[i] ? assign[i].nivel || null : null, profe: assign[i] ? assign[i].profe : null }));
+  });
+  // equidad mínima: ningún profe que envió disponibilidad queda sin clases (bloque fácil, sin tocar grupos con prioridad ni clases con nivel exigido)
+  const FACILES = ['arit', 'alg']; const gruposNormales = grupos.filter(g => !g.prioridad);
+  profesores.forEach(p => {
+    const d = disponibilidad[p.id]; if (!d || !d.enviado) return; if (count[p.id] > 0) return;
+    let hecho = false;
+    gruposNormales.forEach(g => { if (hecho) return; (out[g.id] || []).forEach(slot => {
+      if (hecho) return; if (!slot.materia || !FACILES.includes(slot.materia)) return; if (slot.nivel && MIN_NIVEL[slot.nivel]) return; if (slot.profe !== null) return;
+      if (!disponible(p.id, slot.day, slot.turno)) return; if (ocupado[p.id + '|' + slot.day + '|' + slot.turno]) return;
+      slot.profe = p.id; count[p.id]++; ocupado[p.id + '|' + slot.day + '|' + slot.turno] = true; hecho = true; }); });
+    gruposNormales.forEach(g => { if (hecho) return; (out[g.id] || []).forEach(slot => {
+      if (hecho) return; if (!slot.materia || !FACILES.includes(slot.materia)) return; if (slot.nivel && MIN_NIVEL[slot.nivel]) return;
+      if (!slot.profe || slot.profe === p.id) return; if (count[slot.profe] < 2) return;
+      if (!disponible(p.id, slot.day, slot.turno)) return; if (ocupado[p.id + '|' + slot.day + '|' + slot.turno]) return;
+      count[slot.profe]--; delete ocupado[slot.profe + '|' + slot.day + '|' + slot.turno];
+      slot.profe = p.id; count[p.id]++; ocupado[p.id + '|' + slot.day + '|' + slot.turno] = true; hecho = true; }); });
+  });
+  return out;
+}
+
 function statsGrupo(g) {
   const al = alumnosDe(g.id); const t = hoy(); let esp = 0, cob = 0, venc = 0, deud = 0;
   al.forEach(a => { const c = cuenta(a); c.items.forEach(i => { if (i.venc && i.venc <= t) { esp += i.deb; cob += Math.min(i.pag, i.deb); } }); venc += c.vencido; if (c.vencido > 0) deud++; });
@@ -558,8 +762,8 @@ const LOADERS = {
   alumnos: async () => { S.alumnos = idx((await fetchAll('alumnos', '*', q => q.order('id'))).map(mapA)); },
   pagos: async () => { S.pagos = idx((await fetchAll('pagos', '*', q => q.order('nro'))).map(mapP)); rebuild('pagos'); },
   asis: async () => {
-    const rows = await fetchAll('asistencia', 'grupo_id,fecha,alumno_id,marca,por', q => q.order('fecha').order('grupo_id').order('alumno_id'));
-    const m = {}; rows.forEach(r => { const k = r.grupo_id + '_' + r.fecha; const d = (m[k] ||= { id: k, grupoId: r.grupo_id, fecha: r.fecha, marcas: {}, por: r.por }); d.marcas[r.alumno_id] = r.marca; d.por = r.por || d.por; });
+    const rows = await fetchAll('asistencia', 'grupo_id,fecha,turno,alumno_id,marca,por', q => q.order('fecha').order('grupo_id').order('turno').order('alumno_id'));
+    const m = {}; rows.forEach(r => { const t = r.turno || 'Mañana'; const k = asisKey(r.grupo_id, r.fecha, t); const d = (m[k] ||= { id: k, grupoId: r.grupo_id, fecha: r.fecha, turno: t, marcas: {}, por: r.por }); d.marcas[r.alumno_id] = r.marca; d.por = r.por || d.por; });
     S.asis = m; rebuild('asis');
   },
   exams: async () => {
@@ -572,13 +776,45 @@ const LOADERS = {
   perfiles: async () => { S.perfiles = idx(await fetchAll('perfiles', '*', q => q.order('id'))); },
   pg: async () => { S.profeGrupos = await fetchAll('profe_grupos', '*', q => q.order('profe_id').order('grupo_id')); },
   links: async () => { S.links = idx(await fetchAll('links_inscripcion', '*', q => q.order('creado'))); },
-  resultados: async () => { const { data } = await S.sb.rpc('mis_resultados'); S.resultados = Object.fromEntries((data || []).map(r => [r.examen_id, r])); }
+  resultados: async () => { const { data } = await S.sb.rpc('mis_resultados'); S.resultados = Object.fromEntries((data || []).map(r => [r.examen_id, r])); },
+  // --- horario
+  prof: async () => { S.prof = idx(await fetchAll('profesores', '*', q => q.order('nombre'))); S.miProf = Object.values(S.prof).find(p => p.user_id && p.user_id === S.session?.user?.id && p.activo) || null; },
+  punt: async () => { S.punt = Object.fromEntries((await fetchAll('profesores_puntajes', '*', q => q.order('profesor_id'))).map(r => [r.profesor_id, r])); },
+  clases: async () => {
+    if (!S.clRango) S.clRango = [addMonths(hoy().slice(0, 7) + '-01', -1), addDays(hoy(), 35)];
+    const [d, h] = S.clRango; S.clases = idx(await fetchAll('clases', '*', q => q.gte('fecha', d).lte('fecha', h).order('fecha').order('grupo_id').order('turno')));
+  },
+  semana: async () => {
+    // dirección: la semana que se está armando · profe: la semana siguiente (disponibilidad)
+    if (isAdmin()) {
+      if (!S.ui.armLunes) S.ui.armLunes = lunesSig();
+      const { data: w, error } = await S.sb.rpc('abrir_semana', { l: S.ui.armLunes }); if (error) throw error; S.sem = w;
+      const [dr, pr, hr] = await Promise.all([
+        S.sb.from('disponibilidad').select('*').eq('semana_id', w.id),
+        S.sb.from('materias_semana').select('*').eq('semana_id', w.id),
+        S.sb.from('horarios').select('*').eq('semana_id', w.id).order('generado', { ascending: false }).limit(1)]);
+      for (const r of [dr, pr, hr]) if (r.error) throw r.error;
+      S.dispRows = dr.data || []; S.pool = Object.fromEntries((pr.data || []).map(r => [r.grupo_id, Array.isArray(r.items) ? r.items : []]));
+      S.borr = hr.data && hr.data[0] ? { data: hr.data[0].data || {}, generado: hr.data[0].generado } : null;
+      if (S.ui.armLunes === lunesSig()) { S.semProf = w; S.miDisp = S.miProf ? (S.dispRows.find(r => r.profesor_id === S.miProf.id) || null) : null; }
+      else if (S.miProf) { const { data: w2 } = await S.sb.rpc('abrir_semana', { l: lunesSig() }); S.semProf = w2; const { data: md } = await S.sb.from('disponibilidad').select('*').eq('semana_id', w2.id).eq('profesor_id', S.miProf.id).maybeSingle(); S.miDisp = md || null; }
+    } else if (S.miProf) {
+      const { data: w, error } = await S.sb.rpc('abrir_semana', { l: lunesSig() }); if (error) throw error; S.semProf = w;
+      const { data: md } = await S.sb.from('disponibilidad').select('*').eq('semana_id', w.id).eq('profesor_id', S.miProf.id).maybeSingle(); S.miDisp = md || null;
+    }
+  },
+  miHor: async () => { const l = lunesDe(hoy()); const { data, error } = await S.sb.rpc('mi_horario', { desde: l, hasta: addDays(l, 13) }); if (error) throw error; S.miHor = data || []; }
 };
-const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'pg', 'links'], profe: ['cfg', 'pg', 'grupos', 'alumnos', 'asis', 'exams'], alumno: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'resultados'] };
-KEYS.oficina = KEYS.admin;
+const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'pg', 'links', 'prof', 'punt', 'clases', 'semana'],
+  oficina: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'pg', 'links', 'prof', 'clases'],
+  profe: ['cfg', 'pg', 'grupos', 'alumnos', 'asis', 'exams', 'prof', 'clases', 'semana'], alumno: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'resultados', 'miHor'] };
 async function load(keys) {
   keys = keys || KEYS[rol()] || [];
-  try { await Promise.all(keys.map(async k => { await LOADERS[k](); S.loaded[k] = true; })); S.lastLoad = Date.now(); S.loadErr = null; }
+  try {
+    // el plantel va primero: la semana del profe depende de saber quién es
+    if (keys.includes('prof') && keys.includes('semana')) { await LOADERS.prof(); S.loaded.prof = true; keys = keys.filter(k => k !== 'prof'); }
+    await Promise.all(keys.map(async k => { await LOADERS[k](); S.loaded[k] = true; })); S.lastLoad = Date.now(); S.loadErr = null;
+  }
   catch (e) { S.loadErr = errText(e); }
   syncDrafts(); render();
 }
@@ -618,7 +854,8 @@ async function entrar() {
     if (S.perfil && S.perfil.activo) await load();
   } finally { entrando = false; }
 }
-function limpiar() { Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null }); }
+function limpiar() { Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
+  prof: {}, punt: {}, clases: {}, clRango: null, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !hasDraft()) load(); });
 
 /* ---------- UI base ---------- */
@@ -676,6 +913,7 @@ const NAV = [
   { id: 'equipo', l: 'Equipo', i: 'team', r: ['admin'] },
   { id: 'ajustes', l: 'Ajustes', i: 'gear', r: ['admin', 'oficina'] },
   { id: 'mi-inicio', l: 'Inicio', i: 'home', r: ['alumno'] },
+  { id: 'mi-horario', l: 'Horario', i: 'clock', r: ['alumno'] },
   { id: 'mis-cuotas', l: 'Cuotas', i: 'wallet', r: ['alumno'] },
   { id: 'mis-notas', l: 'Notas', i: 'award', r: ['alumno'] },
   { id: 'mi-asistencia', l: 'Asistencia', i: 'check', r: ['alumno'] },
@@ -684,7 +922,7 @@ const NAV = [
 ];
 const allowed = v => { const n = NAV.find(x => x.id === v); return !!n && n.r.includes(rol()); };
 const startView = () => isAlumno() ? 'mi-inicio' : 'inicio';
-const TABS = { admin: ['inicio', 'alumnos', 'asistencia', 'cobros'], oficina: ['inicio', 'alumnos', 'asistencia', 'cobros'], profe: ['inicio', 'asistencia', 'examenes', 'alumnos', 'horario'], alumno: ['mi-inicio', 'mis-cuotas', 'mis-notas', 'mi-asistencia', 'mis-datos'] };
+const TABS = { admin: ['inicio', 'alumnos', 'asistencia', 'cobros'], oficina: ['inicio', 'alumnos', 'asistencia', 'cobros'], profe: ['inicio', 'horario', 'asistencia', 'examenes', 'alumnos'], alumno: ['mi-inicio', 'mi-horario', 'mis-cuotas', 'mis-notas', 'mi-asistencia'] };
 function hasDraft() { return (S.draftAsis && S.draftAsis.dirty) || (S.draftExam && S.draftExam.dirty); }
 function go(v, after) {
   const doIt = () => { if (!allowed(v)) v = startView(); S.view = v; S.selAlumno = null; S.selGrupo = null; if (after) after(); if (location.hash.slice(1) !== v) location.hash = v; render(); window.scrollTo(0, 0); };
@@ -812,7 +1050,9 @@ const VIEWS = {};
 VIEWS['mi-inicio'] = () => {
   const a = yo(); const g = S.grupos[a.grupoId]; const c = cuenta(a); const as = asisAlumno(a);
   const exs = Object.values(S.exams).filter(e => e.notas[a.id] !== undefined).sort((x, y) => (y.fecha || '').localeCompare(x.fecha || ''));
-  let h = ph(`Hola, ${a.nombre.split(' ')[0] || ''}`, fechaLarga(hoy()));
+  let h = ph(`Hola, ${a.nombre.split(' ')[0] || ''}`, fechaLarga(hoy()), `<button class="btn" data-act="nav" data-v="mis-datos">${ic('user')}Mis datos</button>`);
+  const prox = (S.miHor || []).filter(c => c.fecha >= hoy()).slice(0, 3);
+  if (prox.length) h += `<div class="card"><div class="card-h"><h2>Próximas clases</h2><button class="btn sm ghost" data-act="nav" data-v="mi-horario">Ver horario</button></div><div class="rows">${prox.map(c => `<div class="row"><div class="t">${c.fecha === hoy() ? '<b>Hoy</b>' : cap(DIAS[new Date(c.fecha + 'T12:00:00').getDay()]) + ' ' + dm(c.fecha)} · ${esc(c.turno)}<small>${esc(c.tema || (c.materia === 'examen' ? 'Examen' : ''))}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></div>`;
   if (a.estado === 'pendiente' || !a.grupoId) h += `<div class="banner">Tu ficha está completa. La oficina te va a asignar a tu grupo; cuando lo haga vas a ver acá tus cuotas, notas y asistencia.</div>`;
   if (a.estado === 'baja') h += `<div class="banner">Figurás de baja en el cursillo. Si es un error, hablá con la oficina.</div>`;
   h += `<div class="kpis">${kpi('Mi grupo', esc(g ? g.nombre : '—'), g?.horario ? esc(g.horario) : '')}
@@ -898,14 +1138,24 @@ VIEWS.inicio = () => {
     </tbody></table></div></div>`;
   return h;
 };
+// listas que tocan hoy: por grupo y turno (el profe ve las suyas)
+function listasHoy() {
+  const t = hoy(), out = [], ya = (g, tt) => out.some(x => x.g.id === g && x.t === tt);
+  if (isProfe() && S.miProf) Object.values(S.clases).filter(c => c.fecha === t && (c.profesor_id === S.miProf.id || c.dictada_por === S.miProf.id) && S.grupos[c.grupo_id]).forEach(c => { if (!ya(c.grupo_id, c.turno)) out.push({ g: S.grupos[c.grupo_id], t: c.turno }); });
+  const base = isProfe() ? gruposActivos().filter(g => S.profeGrupos.some(x => x.grupo_id === g.id && x.profe_id === S.session?.user?.id)) : gruposActivos();
+  base.forEach(g => { const tp = turnosProg(g, t); const lista = tp.length ? tp : (Object.values(g.dias || {}).some(c => c && c !== '-') ? [] : ['Mañana']); lista.forEach(tt => { if (!ya(g.id, tt)) out.push({ g, t: tt }); }); });
+  return out.sort((a, b) => a.t.localeCompare(b.t) || num(a.g.orden) - num(b.g.orden) || a.g.nombre.localeCompare(b.g.nombre, 'es'));
+}
 function cardListasHoy() {
-  const t = hoy(); const gs = gruposActivos();
-  return `<div class="card"><div class="card-h"><h2>Listas de hoy</h2><small>${fmtF(t)}</small></div><div class="rows">${gs.map(g => {
-    const d = S.asis[g.id + '_' + t]; const n = alumnosDe(g.id).length;
+  const t = hoy(); const L = listasHoy();
+  return `<div class="card"><div class="card-h"><h2>Listas de hoy</h2><small>${fmtF(t)}</small></div><div class="rows">${L.map(({ g, t: tt }) => {
+    const d = S.asis[asisKey(g.id, t, tt)]; const n = alumnosDe(g.id).length; const c = claseDe(g.id, t, tt);
+    const nom = esc(g.nombre) + (turnosDe(g.dias?.[dkDe(t)] || '-').length > 1 || tt === 'Tarde' ? ' · ' + tt : '');
+    const sub = c?.materia ? ` · ${esc(matL(c.materia))}${!isProfe() && c.profesor_id ? ' con ' + esc(primerN(c.profesor_id)) : ''}` : '';
     if (d) { const v = Object.values(d.marcas || {}); const p = v.filter(m => m === 'P' || m === 'T').length;
-      return `<div class="row click" data-act="tomar" data-g="${esc(g.id)}"><div class="t">${esc(g.nombre)}<small>Tomada por ${esc(who(d.por))}</small></div><div class="r">${pill(p + '/' + n + ' presentes', 'ok')}</div></div>`; }
-    return `<div class="row"><div class="t">${esc(g.nombre)}<small>${n} alumno${n === 1 ? '' : 's'}${g.horario ? ' · ' + esc(g.horario) : ''}</small></div><div class="r"><button class="btn sm" data-act="tomar" data-g="${esc(g.id)}">${ic('check')}Tomar lista</button></div></div>`;
-  }).join('') || '<div class="empty">No hay grupos activos.</div>'}</div></div>`;
+      return `<div class="row click" data-act="tomar" data-g="${esc(g.id)}" data-t="${tt}"><div class="t">${nom}<small>Tomada por ${esc(who(d.por))}${sub}</small></div><div class="r">${pill(p + '/' + n + ' presentes', 'ok')}</div></div>`; }
+    return `<div class="row"><div class="t">${nom}<small>${n} alumno${n === 1 ? '' : 's'}${sub}</small></div><div class="r"><button class="btn sm" data-act="tomar" data-g="${esc(g.id)}" data-t="${tt}">${ic('check')}${isProfe() ? 'Llamar lista' : 'Tomar lista'}</button></div></div>`;
+  }).join('') || `<div class="empty">${isProfe() ? 'Hoy no tenés clases.' : 'Hoy no hay clases.'}</div>`}</div></div>`;
 }
 function cardExamenesRecientes() {
   const ex = Object.values(S.exams).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')).slice(0, 6);
@@ -1044,16 +1294,24 @@ VIEWS.asistencia = () => {
   h += `<div class="tabsbar"><button data-act="asistab" data-v="tomar" aria-pressed="${u.asisTab === 'tomar'}">Tomar lista</button><button data-act="asistab" data-v="hist" aria-pressed="${u.asisTab === 'hist'}">Historial</button></div>`;
   if (!gs.length) return h + `<div class="card"><div class="empty">${isProfe() ? 'Todavía no tenés grupos asignados.' : 'No hay grupos activos.'}</div></div>`;
   if (u.asisTab === 'hist') return h + vHistorial();
-  const g = S.grupos[u.asisGrupo]; const key = g.id + '_' + u.asisFecha; const saved = S.asis[key];
+  const g = S.grupos[u.asisGrupo]; const tl = turnosDia(g, u.asisFecha);
+  if (!tl.includes(u.asisTurno)) u.asisTurno = tl[0];
+  const key = asisKey(g.id, u.asisFecha, u.asisTurno); const saved = S.asis[key];
   if (!S.draftAsis || S.draftAsis.key !== key) S.draftAsis = { key, marcas: { ...(saved?.marcas || {}) }, orig: { ...(saved?.marcas || {}) }, dirty: false };
   const D = S.draftAsis; const al = alumnosDe(g.id);
+  const soloVer = isProfe() && u.asisFecha !== hoy(); const dis = soloVer ? 'disabled' : '';
+  const cl = claseDe(g.id, u.asisFecha, u.asisTurno);
   const cnt = { P: 0, A: 0, T: 0, J: 0, '': 0 }; al.forEach(a => cnt[D.marcas[a.id] || '']++);
   h += `<div class="filters"><div class="chips">${gs.map(x => `<button class="chip" data-act="asis-grupo" data-v="${esc(x.id)}" aria-pressed="${x.id === g.id}">${esc(x.nombre)}</button>`).join('')}</div>
-    <input type="date" class="inp" id="asisFecha" data-ch="asisFecha" value="${esc(u.asisFecha)}" style="width:auto" aria-label="Fecha"></div>`;
-  h += `<div class="card"><div class="card-h"><div><h2>${esc(g.nombre)}</h2><small>${fechaLarga(u.asisFecha)}${saved ? ' · guardada por ' + esc(who(saved.por)) : ' · sin guardar'}</small></div><button class="btn sm" data-act="asis-todos">Marcar todos presentes</button></div>
-    ${al.length ? `<div class="rows">${al.map(a => { const m = D.marcas[a.id] || ''; return `<div class="row"><div class="t">${esc(nombreA(a))}</div><div class="att" role="group" aria-label="Asistencia de ${esc(nombreA(a))}">${['P', 'A', 'T', 'J'].map(v => `<button data-act="marca" data-id="${esc(a.id)}" data-v="${v}" aria-pressed="${m === v}" title="${{ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[v]}">${v}</button>`).join('')}</div></div>`; }).join('')}</div>` : '<div class="empty">Este grupo no tiene alumnos activos.</div>'}
+    <input type="date" class="inp" id="asisFecha" data-ch="asisFecha" value="${esc(u.asisFecha)}" style="width:auto" aria-label="Fecha">
+    ${tl.length > 1 ? `<div class="chips">${tl.map(t => `<button class="chip" data-act="asis-turno" data-v="${t}" aria-pressed="${t === u.asisTurno}">${t}</button>`).join('')}</div>` : ''}</div>`;
+  if (soloVer) h += `<div class="banner">Solo podés llamar lista el día de la clase: así queda registrada como tu firma. Si hay que corregir una lista vieja, avisá a la oficina.</div>`;
+  let info = '';
+  if (cl) { const dic = cl.dictada_por; info = `<div class="card-b" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:0">${mchip(cl.materia)}${cl.tema ? `<span>${esc(cl.tema)}</span>` : ''}${!isProfe() && cl.profesor_id ? `<small class="muted">· le toca a ${esc(profN(cl.profesor_id))}</small>` : ''}${dic ? pill(`Clase registrada${S.miProf && dic === S.miProf.id ? '' : ' a ' + primerN(dic)} · ${horaDe(cl.dictada_en)}`, 'ok') : ''}</div>`; }
+  h += `<div class="card"><div class="card-h"><div><h2>${esc(g.nombre)}${tl.length > 1 || u.asisTurno === 'Tarde' ? ' · ' + esc(u.asisTurno) : ''}</h2><small>${fechaLarga(u.asisFecha)}${saved ? ' · guardada por ' + esc(who(saved.por)) : ' · sin guardar'}</small></div>${soloVer ? '' : `<button class="btn sm" data-act="asis-todos">Marcar todos presentes</button>`}</div>${info}
+    ${al.length ? `<div class="rows">${al.map(a => { const m = D.marcas[a.id] || ''; return `<div class="row"><div class="t">${esc(nombreA(a))}</div><div class="att" role="group" aria-label="Asistencia de ${esc(nombreA(a))}">${['P', 'A', 'T', 'J'].map(v => `<button data-act="marca" data-id="${esc(a.id)}" data-v="${v}" aria-pressed="${m === v}" title="${{ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[v]}" ${dis}>${v}</button>`).join('')}</div></div>`; }).join('')}</div>` : '<div class="empty">Este grupo no tiene alumnos activos.</div>'}
     <div class="savebar"><div class="cnt"><span><i class="dot d-P"></i>${cnt.P}</span><span><i class="dot d-A"></i>${cnt.A}</span><span><i class="dot d-T"></i>${cnt.T}</span><span><i class="dot d-J"></i>${cnt.J}</span>${cnt[''] ? `<span class="muted"><i class="dot d-0"></i>${cnt['']} sin marcar</span>` : ''}</div>
-    <div class="actions">${saved ? `<button class="btn sm ghost danger" data-act="asis-borrar">Borrar lista</button>` : ''}<button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="asis-guardar">${D.dirty ? 'Guardar lista' : saved ? 'Guardada' : 'Guardar lista'}</button></div></div></div>`;
+    ${soloVer ? '' : `<div class="actions">${saved && isStaff() ? `<button class="btn sm ghost danger" data-act="asis-borrar">Borrar lista</button>` : ''}<button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="asis-guardar">${D.dirty ? 'Guardar lista' : saved ? 'Guardada' : 'Guardar lista'}</button></div>`}</div></div>`;
   return h;
 };
 function vHistorial() {
@@ -1061,7 +1319,8 @@ function vHistorial() {
   const docs = (S.idx.asisByGrupo[g.id] || []).slice().reverse(); const al = alumnosDe(g.id);
   let h = `<div class="filters"><select class="inp" id="histGrupo" data-ch="histGrupo" aria-label="Grupo">${optGrupos(g.id)}</select><small>${docs.length} clase${docs.length === 1 ? '' : 's'} registrada${docs.length === 1 ? '' : 's'} · tocá una fecha para editarla</small></div>`;
   if (!docs.length) return h + `<div class="card"><div class="empty">Todavía no se tomó lista en este grupo.</div></div>`;
-  h += `<div class="card"><div class="tw"><table class="mx"><thead><tr><th>Alumno</th><th>%</th>${docs.map(d => `<th><button data-act="asis-abrir" data-g="${esc(g.id)}" data-f="${esc(d.fecha)}">${fmtCorta(d.fecha)}</button></th>`).join('')}</tr></thead><tbody>
+  const multi = docs.some(d => d.turno === 'Tarde');
+  h += `<div class="card"><div class="tw"><table class="mx"><thead><tr><th>Alumno</th><th>%</th>${docs.map(d => `<th><button data-act="asis-abrir" data-g="${esc(g.id)}" data-f="${esc(d.fecha)}" data-t="${esc(d.turno)}" title="${esc(d.turno)}">${fmtCorta(d.fecha)}${multi ? `<br><small>${d.turno === 'Tarde' ? 'tarde' : 'mañana'}</small>` : ''}</button></th>`).join('')}</tr></thead><tbody>
     ${al.map(a => { const as = asisAlumno(a); return `<tr><td><b>${esc(nombreA(a))}</b></td><td class="${as.pct != null && as.pct < 70 ? 'bad-t' : ''}"><b>${as.pct == null ? '—' : as.pct + '%'}</b></td>${docs.map(d => { const m = d.marcas?.[a.id]; return `<td>${m ? `<span class="c d-${m}">${m}</span>` : '<span class="c e">·</span>'}</td>`; }).join('')}</tr>`; }).join('')}
     </tbody></table></div></div>`;
   return h;
@@ -1136,10 +1395,315 @@ function vExamen(e) {
 }
 
 /* --- horario --- */
+/* --- horario: semana, armado, disponibilidad, plantel y pago a profes --- */
+const profsActivos = () => Object.values(S.prof).filter(p => p.activo).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+const scB = sc => `<span class="sc-b ${typeof sc !== 'number' ? 'sc-no' : sc >= 8 ? 'sc-hi' : sc >= 6 ? 'sc-md' : 'sc-lo'}">${typeof sc !== 'number' ? 'no da' : sc}</span>`;
+// trae las clases de un rango si todavía no están cargadas
+function asegurarClases(d, h) {
+  if (!S.clRango) return false;
+  const [a, b] = S.clRango; if (d >= a && h <= b) return true;
+  if (!S.clPend) { S.clRango = [d < a ? d : a, h > b ? h : b]; S.clPend = true; LOADERS.clases().then(() => { S.clPend = false; render(); }).catch(e => { S.clPend = false; toast(errText(e), 'error'); }); }
+  return false;
+}
 VIEWS.horario = () => {
-  const url = S.cfg.horarioUrl;
-  let h = ph('Horario', isProfe() ? 'Tus clases de la semana' : 'Horario semanal de profes');
-  h += `<div class="card"><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">${url ? `<p style="margin:0">El horario de la semana está en la app de horarios de VIBE.</p><a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${ic('ext')}Abrir horario</a>` : `<p style="margin:0" class="muted">${isStaff() ? 'Cargá el link de la app de horarios en Ajustes y les aparece a los profes acá.' : 'La dirección todavía no cargó el horario.'}</p>${isStaff() ? `<button class="btn" data-act="nav" data-v="ajustes">Ir a Ajustes</button>` : ''}`}</div></div>`;
+  if (isProfe()) return vHorProfe();
+  if (!ready('grupos', 'prof', 'clases')) return loadingView();
+  const tabs = isAdmin() ? [['semana', 'Semana'], ['armar', 'Armar horario'], ['disp', 'Disponibilidad'], ['plantel', 'Plantel'], ['pago', 'Pago a profes']] : [['semana', 'Semana']];
+  if (!tabs.some(t => t[0] === S.ui.horTab)) S.ui.horTab = 'semana';
+  let h = ph('Horario', isAdmin() ? 'Armá la semana, mirá quién dio cada clase y cuánto se le paga a cada profe' : 'Clases de la semana y quién da cada una');
+  if (tabs.length > 1) h += `<div class="tabsbar">${tabs.map(([v, l]) => `<button data-act="hortab" data-v="${v}" aria-pressed="${S.ui.horTab === v}">${l}</button>`).join('')}</div>`;
+  const t = S.ui.horTab;
+  if (t === 'armar') return h + (ready('punt', 'semana') && S.sem ? vHorArmar() : loadingView());
+  if (t === 'disp') return h + (ready('semana') && S.sem ? vHorDisp() : loadingView());
+  if (t === 'plantel') return h + (ready('punt') ? vHorPlantel() : loadingView());
+  if (t === 'pago') return h + (ready('punt') ? vHorPago() : loadingView());
+  return h + vHorSemana();
+};
+
+/* semana publicada (dirección y oficina) */
+function vHorSemana() {
+  if (!S.ui.horLunes) S.ui.horLunes = lunesDe(hoy());
+  const l = S.ui.horLunes;
+  let h = `<div class="filters wkh"><button class="btn sm" data-act="hor-sem" data-d="-7" aria-label="Semana anterior">‹</button><span class="lbl">${rangoSem(l)}</span><button class="btn sm" data-act="hor-sem" data-d="7" aria-label="Semana siguiente">›</button>${l !== lunesDe(hoy()) ? `<button class="btn sm ghost" data-act="hor-sem" data-d="0">Esta semana</button>` : ''}</div>`;
+  if (!asegurarClases(l, addDays(l, 6))) return h + loadingView();
+  const cls = clasesSem(l);
+  if (isAdmin() && S.sem && S.sem.lunes === l && S.borr && (!S.sem.publicada || S.borr.generado > S.sem.publicada))
+    h += `<div class="banner click" data-act="hortab" data-v="armar"><span>${S.sem.publicada ? 'Cambiaste el armado de esta semana y todavía no lo volviste a publicar.' : 'El horario de esta semana está armado pero sin publicar: profes y alumnos todavía no lo ven.'}</span><span class="btn sm primary">Ir a publicar</span></div>`;
+  if (!cls.length) return h + `<div class="card"><div class="empty"><b>No hay clases publicadas en esta semana</b>${isAdmin() ? 'Armá el horario en “Armar horario” y publicalo.' : 'Cuando la dirección publique el horario, aparece acá.'}</div></div>`;
+  const pasadas = cls.filter(c => c.materia && c.materia !== 'examen' && c.fecha < hoy());
+  const sinL = pasadas.filter(c => !c.dictada_por).length;
+  h += `<div class="kpis">${kpi('Clases', cls.filter(c => c.materia && c.materia !== 'examen').length, 'en la semana')}${kpi('Con lista', pasadas.length - sinL, 'de las que ya pasaron')}${kpi('Sin lista', sinL, 'pasaron y nadie llamó lista', sinL ? 'bad' : '')}${kpi('Sin cobertura', cls.filter(c => c.materia && c.materia !== 'examen' && !c.profesor_id).length, 'clases sin profe')}</div>`;
+  const ids = [...new Set(cls.map(c => c.grupo_id))].map(id => S.grupos[id]).filter(Boolean).sort((a, b) => num(a.orden) - num(b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
+  ids.forEach(g => {
+    const cg = cls.filter(c => c.grupo_id === g.id).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
+    h += `<div class="card"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}</h3><div class="wk">${cg.map(celdaClase).join('')}</div></div></div>`;
+  });
+  if (isAdmin()) h += `<small class="muted">Tocá una clase para cambiar el profe o marcar quién la dio (si alguien firmó en papel).</small>`;
+  return h;
+}
+function celdaClase(c) {
+  const t = hoy(); const dict = c.dictada_por; const reemp = dict && c.profesor_id && dict !== c.profesor_id;
+  let est = '';
+  if (dict) est = `<span class="ok">✓ Lista${c.dictada_en ? ' ' + horaDe(c.dictada_en) : ''}${reemp || !c.profesor_id ? ' · ' + esc(primerN(dict)) : ''}</span>`;
+  else if (c.materia && c.materia !== 'examen' && c.fecha < t) est = `<span class="no">Sin lista</span>`;
+  else if (c.fecha === t && c.materia !== 'examen') est = `<span class="t">Hoy · sin lista todavía</span>`;
+  const prof = c.materia === 'examen' ? `<span class="t">sin profe</span>` : c.profesor_id ? `<span class="p">${esc(primerN(c.profesor_id))}</span>${reemp ? '<span class="t">la dio otro profe</span>' : ''}` : c.materia ? `<span class="sc">SIN COBERTURA</span>` : `<span class="t">fuera del horario</span>`;
+  return `<div class="wc ${isAdmin() ? 'click' : ''} ${c.fecha === t ? 'hoy' : ''}" ${isAdmin() ? `data-act="clase-editar" data-id="${esc(c.id)}"` : ''}><span class="d">${dkDe(c.fecha)} ${dm(c.fecha)}</span><span class="t">${esc(c.turno)}</span>${mchip(c.materia)}${c.tema ? `<span class="tema">${esc(c.tema)}</span>` : ''}${prof}${est}</div>`;
+}
+function openClaseForm(id) {
+  const c = S.clases[id]; if (!c) return; const ps = profsActivos();
+  const opt = (sel, vacio) => `<option value="">${vacio}</option>` + ps.concat(sel && !S.prof[sel]?.activo && S.prof[sel] ? [S.prof[sel]] : []).map(p => `<option value="${esc(p.id)}" ${p.id === sel ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
+  openModal('Clase', `<p class="muted" style="margin:0 0 12px">${esc(gName(c.grupo_id))} · ${fechaLarga(c.fecha)} · ${esc(c.turno)}</p><div class="form">
+    <div class="fld"><label for="cl-mat">Materia</label><select class="inp" id="cl-mat"><option value="">—</option>${Object.keys(MATS).map(k => `<option value="${k}" ${c.materia === k ? 'selected' : ''}>${MATS[k].l}</option>`).join('')}</select></div>
+    <div class="fld"><label for="cl-tema">Tema</label><input class="inp" id="cl-tema" value="${esc(c.tema || '')}"></div>
+    <div class="fld"><label for="cl-prof">Profe del horario</label><select class="inp" id="cl-prof">${opt(c.profesor_id, 'Sin profe')}</select></div>
+    <div class="fld"><label for="cl-dict">Dio la clase (cuenta para el pago)</label><select class="inp" id="cl-dict">${opt(c.dictada_por, 'Nadie todavía')}</select>${c.dictada_en ? `<span class="hint">Lista llamada a las ${horaDe(c.dictada_en)}</span>` : ''}</div>
+    <div class="fld full"><label for="cl-obs">Observación</label><input class="inp" id="cl-obs" value="${esc(c.obs || '')}" placeholder="Ej: firmó en papel, se cambió con otro profe"></div></div>`,
+    `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="clase-guardar" data-id="${esc(id)}">Guardar</button>`);
+}
+
+/* armado (dirección) */
+function semWkh(act) {
+  const l = S.sem.lunes;
+  return `<div class="filters wkh"><button class="btn sm" data-act="${act}" data-d="-7" aria-label="Semana anterior">‹</button><span class="lbl">${rangoSem(l)}</span><button class="btn sm" data-act="${act}" data-d="7" aria-label="Semana siguiente">›</button>${l !== lunesSig() ? `<button class="btn sm ghost" data-act="${act}" data-d="0">Próxima semana</button>` : ''}<small class="muted">${S.sem.publicada ? 'Publicado el ' + fmtF(S.sem.publicada.slice(0, 10)) + ' a las ' + horaDe(S.sem.publicada) : 'Sin publicar'}</small></div>`;
+}
+function vHorArmar() {
+  const w = S.sem, l = w.lunes, fer = w.feriados || [], gs = gruposActivos();
+  let h = semWkh('arm-sem');
+  const env = S.dispRows.filter(r => r.enviado).length, act = profsActivos().length;
+  h += `<div class="banner"><span><b>${env} de ${act}</b> profes enviaron su disponibilidad para esta semana.</span>${env < act ? `<button class="btn sm" data-act="hortab" data-v="disp">Ver quién falta</button>` : ''}</div>`;
+  h += `<div class="card"><div class="card-h"><h2>Días sin clases (feriados)</h2></div><div class="card-b chips">${DK.map(k => `<button class="chip" data-act="arm-fer" data-v="${k}" aria-pressed="${fer.includes(k)}">${k} ${dm(fDia(l, k))}</button>`).join('')}</div></div>`;
+  if (!gs.length) return h + `<div class="card"><div class="empty">No hay grupos activos. Creá los grupos y cargá el turno de cada día.</div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Materias de la semana</h2><small>Cargá qué se da en cada grupo; el día lo elige el armado según los profes libres</small></div></div>`;
+  gs.forEach(g => {
+    const lista = S.pool[g.id] || []; const nb = DK.filter(d => !fer.includes(d)).reduce((a, d) => a + turnosDe(g.dias?.[d] || '-').length, 0);
+    h += `<div class="card"><div class="card-h"><h2>${esc(g.nombre)} ${g.prioridad ? pill('mejores profes', 'acc') : ''}</h2><small class="${lista.length > nb ? 'bad-t' : ''}">${lista.length} materia${lista.length === 1 ? '' : 's'} · ${nb} bloque${nb === 1 ? '' : 's'}${lista.length > nb ? ' — sobran materias' : ''}${!nb ? ' — cargá los turnos del grupo' : ''}</small></div><div class="card-b pool">
+      ${lista.map((it, i) => `<div class="it">${i > 0 ? `<button class="tg" data-act="pool-seg" data-g="${esc(g.id)}" data-i="${i}" aria-pressed="${!!it.seguida}" title="Va el día siguiente a la de arriba">⛓</button>` : ''}${mchip(it.mat)}<input class="inp" id="pt-${esc(g.id)}-${i}" data-ch="pool-tema" data-g="${esc(g.id)}" data-i="${i}" value="${esc(it.tema || '')}" placeholder="tema (opcional)" aria-label="Tema"><select class="inp" data-ch="pool-dia" data-g="${esc(g.id)}" data-i="${i}" aria-label="Fijar día"><option value="">Día: libre</option>${DK.map(k => `<option ${it.dia === k ? 'selected' : ''}>${k}</option>`).join('')}</select>${it.mat !== 'examen' ? `<select class="inp" data-ch="pool-nivel" data-g="${esc(g.id)}" data-i="${i}" aria-label="Nivel mínimo del profe"><option value="">Nivel: libre</option><option value="medio" ${it.nivel === 'medio' ? 'selected' : ''}>Medio (≥6)</option><option value="alto" ${it.nivel === 'alto' ? 'selected' : ''}>Alto (≥8)</option></select>` : ''}<button class="x" data-act="pool-del" data-g="${esc(g.id)}" data-i="${i}" aria-label="Quitar">${ic('trash')}</button></div>`).join('') || '<span class="muted">Sin materias cargadas.</span>'}
+      <div class="chips" style="margin-top:4px">${Object.keys(MATS).map(k => `<button class="tg" data-act="pool-add" data-g="${esc(g.id)}" data-v="${k}">+ ${MATS[k].l}</button>`).join('')}</div></div></div>`;
+  });
+  h += `<div class="actions"><button class="btn primary" data-act="armar">${S.borr ? 'Volver a armar' : 'Armar horario de la semana'}</button>${S.borr ? `<small class="muted">Volver a armar reemplaza los cambios hechos a mano.</small>` : ''}</div>`;
+  if (S.borr) h += vBorrador();
+  return h;
+}
+function celdasBorr(g) {
+  const fer = S.sem.feriados || [], res = S.borr?.data?.[g.id] || [], cells = [];
+  DK.forEach(day => { const code = g.dias?.[day] || '-'; if (code === '-') return; if (fer.includes(day)) { cells.push({ day, feriado: true }); return; }
+    turnosDe(code).forEach(turno => { const s = res.find(r => r.day === day && r.turno === turno) || {}; cells.push({ day, turno, materia: s.materia || null, tema: s.tema || '', profe: s.profe || null }); }); });
+  return cells;
+}
+function conteoBorr() {
+  const fer = S.sem.feriados || [], H = S.borr?.data || {}, c = {};
+  gruposActivos().forEach(g => (H[g.id] || []).forEach(s => { if (!s.profe || !s.materia || s.materia === 'examen' || fer.includes(s.day) || !turnosDe(g.dias?.[s.day] || '-').includes(s.turno)) return; c[s.profe] = (c[s.profe] || 0) + 1; }));
+  return c;
+}
+function vBorrador() {
+  const w = S.sem, l = w.lunes, gs = gruposActivos(), conteo = conteoBorr();
+  const env = id => !!S.dispRows.find(r => r.profesor_id === id)?.enviado;
+  const lista = profsActivos().sort((a, b) => (conteo[b.id] || 0) - (conteo[a.id] || 0) || a.nombre.localeCompare(b.nombre, 'es'));
+  let h = `<div class="card"><div class="card-h"><h2>Clases por profe</h2><small>En rojo: envió disponibilidad y quedó sin clases</small></div><div class="card-b cnts">${lista.map(p => { const n = conteo[p.id] || 0; return `<span class="${n ? '' : env(p.id) ? 'cero' : 'nada'}" title="${esc(p.nombre)}">${esc(p.nombre.split(' ')[0])} ${n || env(p.id) ? `<b>${n}</b>` : '<small>no envió</small>'}</span>`; }).join('')}</div></div>`;
+  gs.forEach(g => {
+    const cells = celdasBorr(g);
+    const at = s => `data-g="${esc(g.id)}" data-d="${s.day}" data-t="${s.turno}"`;
+    h += `<div class="card"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}</h3>${cells.length ? `<div class="wk">${cells.map(s => s.feriado ? `<div class="wc fer"><span class="d">${s.day} ${dm(fDia(l, s.day))}</span><span class="sc">FERIADO</span></div>`
+      : `<div class="wc"><span class="d">${s.day} ${dm(fDia(l, s.day))}</span><span class="t">${s.turno}</span>${s.materia ? `<button class="mchip" style="background:${MATS[s.materia]?.bg};color:${MATS[s.materia]?.fg}" data-act="bmat" ${at(s)} title="Cambiar materia o moverla de día">${esc(matL(s.materia))}</button>${s.tema ? `<span class="tema">${esc(s.tema)}</span>` : ''}${s.materia === 'examen' ? '<span class="t">sin profe</span>' : s.profe ? `<button class="lnk p" data-act="bprof" ${at(s)} title="Cambiar profe">${esc(primerN(s.profe))}</button>` : `<button class="lnk sc" data-act="bprof" ${at(s)}>SIN COBERTURA</button>`}` : `<button class="lnk t" data-act="bmat" ${at(s)} title="Poner una materia">— vacío</button>`}</div>`).join('')}</div>` : '<span class="muted">Este grupo no tiene turnos cargados.</span>'}</div></div>`;
+  });
+  const pend = !w.publicada || S.borr.generado > w.publicada;
+  h += `<div class="card"><div class="card-h"><h2>Publicar y mandar al grupo</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+    <p style="margin:0">${pend ? 'Al publicar, cada profe ve sus clases y los alumnos ven la materia y el tema de cada día (sin el nombre del profe).' : 'Publicado. Si cambiás algo, volvé a publicar.'}</p>
+    <div class="actions"><button class="btn primary ${pend ? '' : 'disabled'}" data-act="publicar">${ic('check')}${w.publicada ? 'Publicar cambios' : 'Publicar horario'}</button><button class="btn" data-act="hor-png">${ic('download')}Imagen para el grupo</button><button class="btn" data-act="hor-msg">${ic('wa')}Mensaje a cada profe</button></div></div></div>`;
+  return h;
+}
+let BK = null; // bloque del borrador en edición
+const estaLibre = (pid, day, turno) => { const r = S.dispRows.find(x => x.profesor_id === pid); return !!(r?.enviado && r.dias?.[day]?.[turno]); };
+function ocupadoEn(pid, day, turno, gid) { for (const g of gruposActivos()) { if (g.id === gid) continue; const s = (S.borr?.data?.[g.id] || []).find(x => x.day === day && x.turno === turno); if (s?.profe === pid) return g.nombre; } return null; }
+function openBProf(g, d, t) {
+  BK = { g, d, t }; const slot = (S.borr.data[g] || []).find(s => s.day === d && s.turno === t) || {}; const actual = slot.profe || null, mat = slot.materia;
+  const scDe = p => S.punt[p.id]?.scores?.[mat];
+  const cands = profsActivos().filter(p => estaLibre(p.id, d, t)).map(p => ({ p, sc: typeof scDe(p) === 'number' ? scDe(p) : null, oc: ocupadoEn(p.id, d, t, g) })).sort((a, b) => (b.sc ?? -1) - (a.sc ?? -1));
+  const otros = profsActivos().filter(p => !estaLibre(p.id, d, t));
+  openModal('Cambiar profe', `<p class="muted" style="margin:0 0 10px">${esc(matL(mat))} · ${d} ${dm(fDia(S.sem.lunes, d))} · ${t}. Marcaron libre ese turno:</p>
+    <div class="pick">${cands.map(({ p, sc, oc }) => `<button data-act="bprof-set" data-v="${esc(p.id)}" ${oc || p.id === actual ? 'disabled' : ''} class="${p.id === actual ? 'act' : ''}"><span>${esc(p.nombre)}${p.id === actual ? ' <small>(actual)</small>' : ''}${oc ? ` <small>da clase en ${esc(oc)}</small>` : ''}</span>${scB(sc)}</button>`).join('') || '<p class="muted" style="margin:0">Nadie marcó libre ese turno.</p>'}</div>
+    ${otros.length ? `<details style="margin-top:12px"><summary class="muted" style="cursor:pointer">Poner a alguien que no marcó libre</summary><div class="pick" style="margin-top:8px">${otros.map(p => `<button data-act="bprof-set" data-v="${esc(p.id)}" ${p.id === actual ? 'disabled' : ''}><span>${esc(p.nombre)} <small>no marcó libre</small></span>${scB(scDe(p))}</button>`).join('')}</div></details>` : ''}`,
+    `${actual ? `<button class="btn ghost danger" data-act="bprof-set" data-v="" style="margin-right:auto">Dejar sin profe</button>` : ''}<button class="btn" data-act="close">Cancelar</button>`);
+}
+function openBMat(g, d, t) {
+  BK = { g, d, t }; const gr = S.grupos[g], lista = S.borr?.data?.[g] || [], fer = S.sem.feriados || [];
+  const a = lista.find(s => s.day === d && s.turno === t); const dest = [];
+  DK.forEach(day => { const code = gr?.dias?.[day] || '-'; if (code === '-' || fer.includes(day)) return; turnosDe(code).forEach(turno => { if (day === d && turno === t) return; dest.push({ day, turno, s: lista.find(x => x.day === day && x.turno === turno) }); }); });
+  openModal('Cambiar materia o día', `<p class="muted" style="margin:0 0 10px">${esc(gr?.nombre)} · ${d} ${t} — ${a?.materia ? esc(matL(a.materia)) : 'bloque vacío'}</p>
+    <b style="font-size:13px">Mover a otro día (intercambia con lo que haya)</b>
+    <div class="pick" style="margin:6px 0 4px">${dest.map(x => `<button data-act="bmat-mover" data-d="${x.day}" data-t="${x.turno}" ${!a?.materia && !x.s?.materia ? 'disabled' : ''}><span>${x.day} ${dm(fDia(S.sem.lunes, x.day))} · ${x.turno}</span>${x.s?.materia ? mchip(x.s.materia) : '<small class="muted">vacío</small>'}</button>`).join('') || '<p class="muted" style="margin:0">No hay otros bloques en la semana.</p>'}</div>
+    <small class="muted">Cada profe queda en su día; revisalos después del cambio.</small>
+    <div style="margin-top:14px"><b style="font-size:13px">O cambiar por otra materia (mismo día)</b><div class="chips" style="margin-top:6px">${Object.keys(MATS).map(k => `<button class="tg" data-act="bmat-set" data-v="${k}" ${a?.materia === k ? 'disabled' : ''}>${MATS[k].l}</button>`).join('')}</div></div>`,
+    `${a?.materia ? `<button class="btn ghost danger" data-act="bmat-set" data-v="" style="margin-right:auto">Dejar vacío</button>` : ''}<button class="btn" data-act="close">Cancelar</button>`);
+}
+async function guardarBorr(data, msg) {
+  const r = await run(S.sb.from('horarios').insert({ semana_id: S.sem.id, data }).select('generado').single());
+  if (!r) return false; S.borr = { data, generado: r.generado }; if (msg) toast(msg); render(); return true;
+}
+async function guardarPool(gid) { await run(S.sb.from('materias_semana').upsert({ semana_id: S.sem.id, grupo_id: gid, items: S.pool[gid] || [] }, { onConflict: 'semana_id,grupo_id' })); }
+
+/* imagen del horario para el grupo de profes */
+async function horarioPNG() {
+  const w = S.sem, l = w.lunes, gs = gruposActivos().map(g => [g, celdasBorr(g)]).filter(([, c]) => c.length);
+  const cellW = 150, cellH = 124, gap = 10, padX = 26; let maxCols = 1; gs.forEach(([, c]) => (maxCols = Math.max(maxCols, c.length)));
+  const W = maxCols * cellW + (maxCols - 1) * gap + padX * 2; let H = 96; gs.forEach(() => (H += 28 + cellH + 22)); H += 26;
+  const cv = document.createElement('canvas'); cv.width = W * 2; cv.height = H * 2; const ctx = cv.getContext('2d'); ctx.scale(2, 2);
+  const rr = (x, y, ww, hh, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + ww, y, x + ww, y + hh, r); ctx.arcTo(x + ww, y + hh, x, y + hh, r); ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + ww, y, r); ctx.closePath(); };
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.textBaseline = 'top';
+  try { const im = new Image(); im.src = 'img/logo-vibe.png'; await im.decode(); const lh = 34, lw = im.width * lh / im.height; ctx.drawImage(im, W - padX - lw, 20, lw, lh); } catch (e) { }
+  ctx.fillStyle = '#FB8500'; ctx.fillRect(padX, 66, W - padX * 2, 3);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 22px Montserrat, sans-serif'; ctx.fillText('Horario de la semana', padX, 20);
+  ctx.fillStyle = '#68625A'; ctx.font = '13px Figtree, sans-serif'; ctx.fillText(`Semana del ${rangoSem(l)} · Coronel Oviedo`, padX, 46);
+  let y = 84;
+  gs.forEach(([g, cells]) => {
+    ctx.textAlign = 'left'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 15px Montserrat, sans-serif'; ctx.fillText(g.nombre, padX, y); y += 26;
+    cells.forEach((s, i) => {
+      const x = padX + i * (cellW + gap); rr(x, y, cellW, cellH, 8); ctx.fillStyle = s.feriado ? '#fef2f2' : '#f8f7f4'; ctx.fill(); ctx.strokeStyle = '#E4E0D9'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.textAlign = 'center'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 12px Figtree, sans-serif'; ctx.fillText(`${s.day} ${dm(fDia(l, s.day))}`, x + cellW / 2, y + 10);
+      if (s.feriado) { ctx.fillStyle = '#BF3328'; ctx.fillText('FERIADO', x + cellW / 2, y + 56); return; }
+      ctx.fillStyle = '#94a3b8'; ctx.font = '10px Figtree, sans-serif'; ctx.fillText(s.turno === 'Mañana' ? 'Mañana · 8–12' : 'Tarde · 13:30–17:30', x + cellW / 2, y + 26);
+      if (!s.materia) { ctx.fillStyle = '#cbd5e1'; ctx.font = '13px sans-serif'; ctx.fillText('—', x + cellW / 2, y + 60); return; }
+      const col = MATS[s.materia] || { bg: '#eee', fg: '#333' }; rr(x + 12, y + 42, cellW - 24, 24, 6); ctx.fillStyle = col.bg; ctx.fill();
+      ctx.fillStyle = col.fg; ctx.font = 'bold 12px Figtree, sans-serif'; ctx.fillText(matL(s.materia), x + cellW / 2, y + 48);
+      if (s.tema) { ctx.fillStyle = '#68625A'; ctx.font = '10px Figtree, sans-serif'; const maxW = cellW - 16, lines = []; let cur = '';
+        String(s.tema).split(/\s+/).forEach(wd => { const tt = cur ? cur + ' ' + wd : wd; if (ctx.measureText(tt).width <= maxW) { cur = tt; return; } if (cur) lines.push(cur); cur = wd; }); if (cur) lines.push(cur);
+        if (lines.length > 2) { lines.length = 2; lines[1] += '…'; }
+        lines.forEach((ln, li) => { let tx = ln; while (ctx.measureText(tx).width > maxW && tx.length > 1) tx = tx.slice(0, -2) + '…'; ctx.fillText(tx, x + cellW / 2, y + 71 + li * 12); }); }
+      if (s.profe) { ctx.fillStyle = '#17140F'; ctx.font = '13px Figtree, sans-serif'; ctx.fillText(primerN(s.profe), x + cellW / 2, y + 96); }
+      else if (s.materia !== 'examen') { ctx.fillStyle = '#BF3328'; ctx.font = 'bold 11px Figtree, sans-serif'; ctx.fillText('SIN COBERTURA', x + cellW / 2, y + 98); }
+    });
+    y += cellH + 22;
+  });
+  ctx.textAlign = 'left'; ctx.fillStyle = '#b8b2a8'; ctx.font = '11px Figtree, sans-serif'; ctx.fillText((S.cfg.nombre || 'Cursillo VIBE') + ' · ' + (S.cfg.tel || ''), padX, y);
+  return await new Promise(res => cv.toBlob(res, 'image/png'));
+}
+// texto por profe con sus clases del borrador
+function mensajesProfes() {
+  const w = S.sem, l = w.lunes, out = {};
+  gruposActivos().forEach(g => celdasBorr(g).forEach(s => { if (!s.profe || !s.materia || s.feriado) return; (out[s.profe] ||= []).push({ g, s }); }));
+  return Object.entries(out).map(([pid, items]) => {
+    items.sort((a, b) => DK.indexOf(a.s.day) - DK.indexOf(b.s.day) || a.s.turno.localeCompare(b.s.turno));
+    const p = S.prof[pid] || {};
+    const txt = `Hola ${(p.nombre || '').split(' ')[0]}, ¿cómo estás? Estas son tus clases de la semana del ${rangoSem(l)}:\n` + items.map(({ g, s }) => `• ${DK_FULL[DK.indexOf(s.day)]} ${dm(fDia(l, s.day))} · ${s.turno} (${TURNO_H[s.turno]}) · ${g.nombre} · ${matL(s.materia)}${s.tema ? ' — ' + s.tema : ''}`).join('\n') + `\n\nAcordate de llamar lista desde la app en cada clase: así queda registrada. ¡Gracias!`;
+    return { pid, p, txt, n: items.length };
+  }).sort((a, b) => (a.p.nombre || '').localeCompare(b.p.nombre || '', 'es'));
+}
+
+/* disponibilidad */
+function vHorDisp() {
+  const w = S.sem, est = estadoCarga(w), reab = cargaReabierta(w), ps = profsActivos();
+  const envi = new Set(S.dispRows.filter(r => r.enviado).map(r => r.profesor_id)); const pend = ps.filter(p => !envi.has(p.id));
+  let h = semWkh('arm-sem');
+  if (S.miProf && w.lunes === lunesSig()) h += cardMiDisp();
+  h += `<div class="card"><div class="card-h"><div><h2>${ps.length - pend.length} de ${ps.length} profes cargaron</h2><small>${est === 'abierta' ? (reab ? 'Carga reabierta hasta el domingo a la noche' : 'Carga abierta · cierra el sábado a las 17:00') : est === 'antes' ? 'La carga abre el miércoles' : 'Carga cerrada'}</small></div>
+    <div class="actions">${est === 'cerrada' ? `<button class="btn sm" data-act="carga-reabrir">Reabrir hasta el domingo</button>` : ''}${reab ? `<button class="btn sm ghost danger" data-act="carga-cerrar">Cerrar ahora</button>` : ''}<button class="btn sm wa ${pend.length ? '' : 'disabled'}" data-act="carga-wa">${ic('wa')}Avisar a los que faltan</button></div></div>
+    <div class="tw"><table class="dispg"><thead><tr><th>Profe</th><th>Estado</th>${DK.map(k => `<th>${k}<br><small>${dm(fDia(w.lunes, k))}</small></th>`).join('')}</tr></thead><tbody>${ps.map(p => { const r = S.dispRows.find(x => x.profesor_id === p.id); const d = r?.dias || {};
+      return `<tr><td><b>${esc(p.nombre)}</b>${p.user_id ? '' : '<br><small class="muted">todavía no entró a la app</small>'}</td><td>${r?.enviado ? pill('Cargó', 'ok') : pill('Pendiente', 'pend')}</td>${DK.map(k => `<td><span class="dots" title="Mañana / Tarde"><i class="${d[k]?.['Mañana'] ? 'm' : ''}"></i><i class="${d[k]?.['Tarde'] ? 't' : ''}"></i></span></td>`).join('')}</tr>`; }).join('') || '<tr><td colspan="9" class="muted">Todavía no hay profes en el plantel.</td></tr>'}</tbody></table></div>
+    <div class="card-b"><small class="muted">Cada día tiene dos puntos: arriba mañana, abajo tarde. Pintado = libre.</small></div></div>`;
+  return h;
+}
+function cardMiDisp() {
+  const w = S.semProf; if (!w) return '';
+  const est = estadoCarga(w); if (!S.dispDraft || S.dispDraft.sem !== w.id) S.dispDraft = { sem: w.id, dias: JSON.parse(JSON.stringify(S.miDisp?.dias || {})) };
+  const D = S.dispDraft.dias;
+  let h = `<div class="card"><div class="card-h"><div><h2>Tu disponibilidad</h2><small>Semana del ${rangoSem(w.lunes)}</small></div>${S.miDisp?.enviado ? pill('Enviada', 'ok') : pill('Sin enviar', 'pend')}</div><div class="card-b">`;
+  if (est === 'antes') h += `<p class="muted" style="margin:0 0 10px">La carga abre el miércoles. Desde el miércoles marcás tus turnos libres.</p>`;
+  else if (est === 'cerrada') h += `<p class="muted" style="margin:0 0 10px">La carga de esta semana ya cerró (sábado 17:00). Si todavía necesitás cargar, avisale a la dirección.</p>`;
+  else h += `<p style="margin:0 0 10px">Marcá con una <b>X</b> los turnos en los que <b>sí</b> podés dar clase esa semana.</p>`;
+  h += `<table class="dispg"><thead><tr><th>Día</th><th>Mañana<br><small>8 a 12</small></th><th>Tarde<br><small>13:30 a 17:30</small></th></tr></thead><tbody>${DK.map((k, i) => `<tr><td><b>${DK_FULL[i]}</b> <small class="muted">${dm(fDia(w.lunes, k))}</small></td>${TURNOS.map(t => `<td><button class="xb" data-act="disp-x" data-d="${k}" data-t="${t}" aria-pressed="${!!D[k]?.[t]}" ${est !== 'abierta' ? 'disabled' : ''} aria-label="${DK_FULL[i]} ${t}">X</button></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  if (est === 'abierta') h += `<div class="savebar"><small>${S.miDisp?.enviado ? 'Ya la enviaste. Podés cambiarla y volver a enviar hasta el sábado 17:00.' : 'Todavía no la enviaste.'}</small><button class="btn primary" data-act="disp-enviar">Enviar disponibilidad</button></div>`;
+  return h + `</div>`;
+}
+
+/* plantel (dirección) */
+function vHorPlantel() {
+  const ps = Object.values(S.prof).sort((a, b) => (b.activo - a.activo) || (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+  let h = `<div class="filters" style="justify-content:space-between"><small class="muted" style="max-width:640px">Total = Conocimiento 50% · Manejo de grupo 25% · Antigüedad 15% · Puntualidad 10%. Los puntajes y el pago por clase solo los ves vos.</small><button class="btn primary" data-act="prof-nuevo">${ic('plus')}Agregar profe</button></div>`;
+  h += `<div class="card"><div class="tw"><table><thead><tr><th>Profe</th>${MAT_KEYS.map(k => `<th class="n">${MATS[k].l.slice(0, 4)}</th>`).join('')}<th class="n">Manejo</th><th class="n">Punt.</th><th class="n">Años</th><th class="n">Total</th><th class="n">Por clase</th><th>App</th></tr></thead><tbody>${ps.map(p => { const s = S.punt[p.id] || {}; const sc = s.scores || {};
+    return `<tr class="click" data-act="prof-editar" data-id="${esc(p.id)}" ${p.activo ? '' : 'style="opacity:.55"'}><td><b>${esc(p.nombre)}</b><br><small>${esc(p.email || 'sin correo')}</small></td>${MAT_KEYS.map(k => `<td class="n">${typeof sc[k] === 'number' ? sc[k] : '<span class="muted">—</span>'}</td>`).join('')}<td class="n">${num(s.manejo)}</td><td class="n">${num(s.punt)}</td><td class="n">${num(s.anios)}</td><td class="n"><b>${totalPuntaje({ scores: sc, manejo: s.manejo, punt: s.punt, anios: s.anios }).toFixed(2)}</b></td><td class="n num">${num(s.monto_clase) ? money(s.monto_clase) : '<span class="bad-t">sin cargar</span>'}</td><td>${!p.activo ? pill('Inactivo') : p.user_id ? pill('Activo', 'ok') : p.email ? pill('Sin entrar', 'pend') : pill('Sin correo')}</td></tr>`; }).join('') || '<tr><td colspan="13" class="muted">Todavía no hay profes en el plantel.</td></tr>'}</tbody></table></div></div>`;
+  return h;
+}
+function openProfForm(id) {
+  const p = id ? S.prof[id] : { nombre: '', email: '', telefono: '', activo: true }; const s = (id && S.punt[id]) || { scores: {}, manejo: 0, punt: 0, anios: 0, monto_clase: 0 };
+  openModal(id ? 'Editar profe' : 'Agregar profe', `<div class="form">
+    <div class="fld full"><label for="pf-nom">Nombre y apellido *</label><input class="inp" id="pf-nom" value="${esc(p.nombre)}"></div>
+    <div class="fld"><label for="pf-mail">Correo para entrar a la app</label><input class="inp" id="pf-mail" type="email" value="${esc(p.email || '')}" ${p.user_id ? 'disabled' : ''}>${p.user_id ? '<span class="hint">Ya entra a la app con este correo.</span>' : ''}</div>
+    <div class="fld"><label for="pf-tel">Celular</label><input class="inp" id="pf-tel" value="${esc(p.telefono || '')}" placeholder="0981 123 456"></div>
+    <div class="fld"><label for="pf-monto">Pago por clase (Gs.)</label><input class="inp money" id="pf-monto" inputmode="numeric" value="${num(s.monto_clase) ? fmtN(s.monto_clase) : ''}"></div>
+    <div class="fld"><label for="pf-anios">Años en VIBE</label><input class="inp" id="pf-anios" type="number" min="0" step="0.5" value="${num(s.anios)}"></div>
+    <div class="fsec">Puntajes de 0 a 10 (vacío = no da esa materia)</div>
+    <div class="full sgrid">${MAT_KEYS.map(k => `<div class="fld"><label for="pf-s-${k}">${MATS[k].l}</label><input class="inp" id="pf-s-${k}" type="number" min="0" max="10" step="0.5" value="${typeof s.scores?.[k] === 'number' ? s.scores[k] : ''}"></div>`).join('')}
+      <div class="fld"><label for="pf-man">Manejo de grupo</label><input class="inp" id="pf-man" type="number" min="0" max="10" step="0.5" value="${num(s.manejo)}"></div>
+      <div class="fld"><label for="pf-pun">Puntualidad</label><input class="inp" id="pf-pun" type="number" min="0" max="10" step="0.5" value="${num(s.punt)}"></div></div>
+    <label class="chk full"><input type="checkbox" id="pf-act" ${p.activo !== false ? 'checked' : ''}>Activo en el plantel (desmarcá si ya no da clases)</label>
+    ${!id ? `<label class="chk full"><input type="checkbox" id="pf-inv" checked>Mandarle ahora el correo para entrar a la app</label>` : ''}
+    <div class="full err" id="pf-err"></div></div>`,
+    `${id && p.email && !p.user_id ? `<button class="btn" data-act="prof-invitar" data-id="${esc(id)}" style="margin-right:auto">${ic('mail')}Mandar acceso a la app</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="prof-guardar" data-id="${esc(id || '')}">Guardar</button>`, 'wide');
+}
+async function invitarProfe(pid) {
+  const p = S.prof[pid]; if (!p?.email) return false;
+  const { data, error } = await S.sb.functions.invoke('invitar', { body: { email: p.email, tipo: 'profe', nombre: p.nombre } });
+  let msg = error ? errText(error) : data?.error; if (error && error.context?.json) { try { msg = (await error.context.json()).error || msg; } catch (e) { } }
+  if (msg) { toast(msg, 'error'); return false; }
+  toast(data?.ya_tenia_cuenta ? `${p.nombre} ya tenía cuenta: le llegó un correo para entrar.` : `Listo, le llegó a ${p.nombre} el correo para entrar a la app.`); return true;
+}
+
+/* pago a profes (dirección) */
+function pagoDelMes(mes) {
+  const d0 = mes + '-01', d1 = addDays(addMonths(d0, 1), -1);
+  const cls = Object.values(S.clases).filter(c => c.fecha >= d0 && c.fecha <= d1); const by = {};
+  cls.filter(c => c.dictada_por).forEach(c => (by[c.dictada_por] ||= []).push(c));
+  const filas = Object.entries(by).map(([pid, l]) => { const n = l.filter(c => c.materia !== 'examen').length; const m = num(S.punt[pid]?.monto_clase);
+    return { pid, l: l.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno)), n, ex: l.length - n, m, tot: n * m }; })
+    .sort((a, b) => b.tot - a.tot || profN(a.pid).localeCompare(profN(b.pid), 'es'));
+  const sinLista = cls.filter(c => !c.dictada_por && c.materia && c.materia !== 'examen' && c.fecha < hoy()).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  return { d0, d1, filas, sinLista };
+}
+function vHorPago() {
+  const mes = S.ui.pagoMes, d0 = mes + '-01', d1 = addDays(addMonths(d0, 1), -1);
+  let h = `<div class="filters"><input type="month" class="inp" id="pagoMes" data-ch="pagoMes" value="${esc(mes)}" style="width:auto" aria-label="Mes"><small class="muted">Cuenta cada clase en la que el profe llamó lista. Mañana y tarde cuentan por separado.</small></div>`;
+  if (!asegurarClases(d0, d1)) return h + loadingView();
+  const { filas, sinLista } = pagoDelMes(mes);
+  h += `<div class="kpis">${kpi('Total a pagar', money(sum(filas.map(f => f.tot))), cap(MESES[+mes.slice(5) - 1]) + ' ' + mes.slice(0, 4))}${kpi('Clases dadas', fmtN(sum(filas.map(f => f.n))), filas.length + ' profe' + (filas.length === 1 ? '' : 's'))}${kpi('Clases sin lista', sinLista.length, 'ya pasaron y nadie llamó lista', sinLista.length ? 'bad' : '')}</div>`;
+  h += `<div class="card"><div class="card-h"><h2>Por profe</h2><button class="btn sm" data-act="pago-exp">${ic('download')}Exportar detalle</button></div><div class="tw"><table><thead><tr><th>Profe</th><th class="n">Clases</th><th class="n">Exámenes</th><th class="n">Por clase</th><th class="n">Total</th></tr></thead><tbody>${filas.map(f => `<tr class="click" data-act="pago-ver" data-id="${esc(f.pid)}"><td><b>${esc(profN(f.pid))}</b></td><td class="n num">${f.n}</td><td class="n">${f.ex || '—'}</td><td class="n">${f.m ? money(f.m) : '<span class="bad-t">sin cargar</span>'}</td><td class="n num"><b>${money(f.tot)}</b></td></tr>${S.ui.pagoVer === f.pid ? `<tr><td colspan="5" style="padding:0 0 10px"><div class="rows">${f.l.map(c => `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>Lista a las ${horaDe(c.dictada_en) || '—'}${c.profesor_id && c.profesor_id !== c.dictada_por ? ' · reemplazo de ' + esc(primerN(c.profesor_id)) : ''}${!c.materia ? ' · fuera del horario' : ''}${c.materia === 'examen' ? ' · examen, no suma' : ''}${c.obs ? ' · ' + esc(c.obs) : ''}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></td></tr>` : ''}`).join('') || '<tr><td colspan="5" class="muted">Ningún profe llamó lista en este mes.</td></tr>'}</tbody></table></div><div class="card-b"><small class="muted">Tocá un profe para ver sus clases. Los exámenes que cuidó se ven, pero no suman al pago.</small></div></div>`;
+  if (sinLista.length) h += `<div class="card"><div class="card-h"><h2>Clases sin lista</h2><small>Si el profe vino y firmó en papel, tocá la clase y marcá quién la dio</small></div><div class="rows">${sinLista.map(c => `<div class="row click" data-act="clase-editar" data-id="${esc(c.id)}"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${esc(matL(c.materia))}${c.profesor_id ? ' · le tocaba a ' + esc(profN(c.profesor_id)) : ' · sin cobertura'}</small></div><div class="r">${pill('Sin lista', 'bad')}</div></div>`).join('')}</div></div>`;
+  return h;
+}
+
+/* vista del profe */
+function vHorProfe() {
+  if (!ready('grupos', 'prof', 'clases', 'semana')) return loadingView();
+  if (!S.miProf) return ph('Horario', '') + `<div class="card"><div class="empty"><b>Todavía no estás en el plantel de profes</b>Pedile a la dirección que te sume con este correo: ${esc(S.perfil.email)}</div></div>`;
+  const me = S.miProf.id, l = lunesDe(hoy());
+  let h = ph('Horario', 'Tus clases y tu disponibilidad');
+  const mias = Object.values(S.clases).filter(c => (c.profesor_id === me || c.dictada_por === me) && c.fecha >= l && c.fecha <= addDays(l, 13)).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
+  h += `<div class="card"><div class="card-h"><h2>Tus clases</h2><small>Esta semana y la que viene</small></div><div class="rows">${mias.map(rowClaseProfe).join('') || '<div class="empty">No tenés clases publicadas en estas dos semanas.</div>'}</div></div>`;
+  h += cardMiDisp();
+  const mes = hoy().slice(0, 7); const dadas = Object.values(S.clases).filter(c => c.dictada_por === me && c.fecha.startsWith(mes)).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.turno.localeCompare(a.turno));
+  h += `<div class="card"><div class="card-h"><h2>Clases que diste en ${MESES[+mes.slice(5) - 1]}</h2>${pill(dadas.filter(c => c.materia !== 'examen').length + ' clase' + (dadas.filter(c => c.materia !== 'examen').length === 1 ? '' : 's'), 'acc')}</div><div class="rows">${dadas.map(c => `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>Lista a las ${horaDe(c.dictada_en)}${c.materia === 'examen' ? ' · examen' : ''}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('') || '<div class="empty">Todavía no llamaste lista este mes. Cada vez que llamás lista, la clase queda registrada acá.</div>'}</div></div>`;
+  return h;
+}
+function rowClaseProfe(c) {
+  const me = S.miProf.id, t = hoy(); let r = '';
+  if (c.dictada_por === me) r = pill('✓ Lista ' + horaDe(c.dictada_en), 'ok');
+  else if (c.dictada_por) r = pill('La dio ' + primerN(c.dictada_por));
+  else if (c.materia === 'examen') r = pill('Examen');
+  else if (c.fecha === t) r = `<button class="btn sm primary" data-act="tomar" data-g="${esc(c.grupo_id)}" data-t="${esc(c.turno)}">${ic('check')}Llamar lista</button>`;
+  else if (c.fecha < t) r = pill('Sin lista', 'bad');
+  return `<div class="row"><div class="t">${c.fecha === t ? '<b>Hoy</b>' : dkDe(c.fecha) + ' ' + dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${esc(matL(c.materia))}${c.tema ? ' — ' + esc(c.tema) : ''}${c.dictada_por === me && c.profesor_id && c.profesor_id !== me ? ' · reemplazo' : ''}</small></div><div class="r">${r}</div></div>`;
+}
+
+/* horario del alumno: materia y tema, sin el profe */
+VIEWS['mi-horario'] = () => {
+  const a = yo(); let h = ph('Mi horario', a.grupoId ? esc(gName(a.grupoId)) : '');
+  if (!S.loaded.miHor) return h + loadingView();
+  if (!a.grupoId || a.estado !== 'activo') return h + `<div class="card"><div class="empty">Cuando la oficina te asigne a tu grupo, vas a ver acá qué materia y qué tema se da cada día.</div></div>`;
+  const l = lunesDe(hoy());
+  [[l, 'Esta semana'], [addDays(l, 7), 'La semana que viene']].forEach(([ls, tit]) => {
+    const cl = S.miHor.filter(c => c.fecha >= ls && c.fecha <= addDays(ls, 6));
+    h += `<div class="card"><div class="card-h"><h2>${tit}</h2><small>${rangoSem(ls)}</small></div><div class="rows">${cl.map(c => `<div class="row" ${c.fecha === hoy() ? 'style="background:var(--accent-soft)"' : ''}><div class="t">${c.fecha === hoy() ? '<b>Hoy</b> · ' : ''}${DK_FULL[DK.indexOf(dkDe(c.fecha))]} ${dm(c.fecha)} · ${esc(c.turno)}<small>${c.materia === 'examen' ? '<b>Examen</b>' + (c.tema ? ' — ' + esc(c.tema) : '') : esc(c.tema || 'Tema a confirmar')}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('') || `<div class="empty">${ls > l ? 'Todavía no se publicó el horario de la semana que viene.' : 'No hay clases publicadas esta semana.'}</div>`}</div></div>`;
+  });
   return h;
 };
 
@@ -1150,20 +1714,19 @@ VIEWS.equipo = () => {
   let h = ph('Equipo', 'Dirección, oficina y profes con acceso a la app', `<button class="btn primary" data-act="invitar-equipo">${ic('mail')}Sumar profe u oficina</button>`);
   h += `<div class="card"><div class="tw"><table><thead><tr><th>Persona</th><th>Rol</th><th>Grupos</th><th>Estado</th><th></th></tr></thead><tbody>${staff.map(p => { const gs = S.profeGrupos.filter(x => x.profe_id === p.id).map(x => gName(x.grupo_id));
     return `<tr><td><b>${esc(p.nombre || '—')}</b><br><small>${esc(p.email)}</small></td><td>${pill(ROLE_LBL[p.rol], p.rol === 'admin' ? 'acc' : '')}</td><td><small>${p.rol === 'profe' ? esc(gs.join(', ') || 'Sin grupos') : '—'}</small></td><td>${p.activo ? pill('Activo', 'ok') : pill('Desactivado')}</td><td class="n" style="white-space:nowrap"><button class="btn sm" data-act="equipo-editar" data-id="${esc(p.id)}">${ic('edit')}Editar</button></td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">Todavía no sumaste a nadie.</td></tr>'}</tbody></table></div></div>`;
-  h += `<div class="banner">Cada persona recibe un correo para crear su contraseña. Los profes solo ven los grupos que les asignes: toman lista, cargan notas y ven contactos. La oficina ve todo y cobra, pero no puede borrar pagos ni cambiar roles.</div>`;
+  h += `<div class="banner">Cada persona recibe un correo para crear su contraseña. Los profes ven los grupos donde tienen clase en el horario (y los que les asignes acá): llaman lista, cargan notas y ven contactos. Los profes se suman desde Horario → Plantel. La oficina ve todo y cobra, pero no puede borrar pagos ni cambiar roles.</div>`;
   return h;
 };
 
 /* --- ajustes --- */
 VIEWS.ajustes = () => {
   const c = S.cfg;
-  let h = ph('Ajustes', 'Datos del cursillo, recibos, mensajes y horario');
+  let h = ph('Ajustes', 'Datos del cursillo, recibos y mensajes');
   h += `<div class="grid2"><div class="card"><div class="card-h"><h2>Datos del cursillo</h2></div><div class="card-b"><div class="form">
     <div class="fld full"><label for="c-nombre">Nombre (sale en recibos y mensajes)</label><input class="inp" id="c-nombre" value="${esc(c.nombre || 'Cursillo VIBE')}"></div>
     <div class="fld"><label for="c-tel">Teléfono</label><input class="inp" id="c-tel" value="${esc(c.tel || '')}"></div>
     <div class="fld"><label for="c-dir">Dirección</label><input class="inp" id="c-dir" value="${esc(c.dir || '')}" placeholder="Coronel Oviedo"></div>
     <div class="fld full"><label for="c-transf">Datos para transferencia</label><textarea class="inp" id="c-transf" placeholder="Banco, titular, CI, número de cuenta o alias">${esc(c.transf || '')}</textarea><span class="hint">Los alumnos lo ven en sus cuotas y se agrega a los recordatorios.</span></div>
-    <div class="fld full"><label for="c-hor">Link del horario de profes</label><input class="inp" id="c-hor" value="${esc(c.horarioUrl || '')}" placeholder="https://…"></div>
     <div class="full"><button class="btn primary" data-act="cfg-guardar">Guardar datos</button></div></div></div></div>
     <div class="card"><div class="card-h"><h2>Logo de los recibos</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
     <img src="${esc(c.logo || 'img/logo-vibe.png')}" alt="Logo actual" style="max-height:70px;max-width:240px;background:#fff;padding:8px;border-radius:8px;border:1px solid var(--line)"><small class="muted">${c.logo ? 'Logo propio cargado.' : 'Se usa el logo oficial de VIBE. Podés subir otro si querés.'}</small>
@@ -1192,6 +1755,12 @@ function openGrupoForm(gid) {
     <div class="fld"><label for="g-ini">Inicio</label><input type="date" class="inp" id="g-ini" value="${esc(g.inicio || '')}"></div>
     <div class="fld"><label for="g-fin">Fin</label><input type="date" class="inp" id="g-fin" value="${esc(g.fin || '')}"></div>
     <label class="chk full"><input type="checkbox" id="g-act" ${g.activo !== false ? 'checked' : ''}>Grupo activo (desmarcá para archivarlo)</label>
+    <div class="fsec">Horario de clases</div>
+    <div class="full" style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px">${DK.map(k => `<div class="fld"><label for="g-d-${k}" style="text-align:center">${k}</label><select class="inp" id="g-d-${k}" style="padding:7px 4px">${['-', 'M', 'T', 'MT'].map(c => `<option value="${c}" ${(g.dias?.[k] || '-') === c ? 'selected' : ''}>${CODE_LBL[c]}</option>`).join('')}</select></div>`).join('')}</div>
+    <span class="full hint muted" style="font-size:13px">Mañana 8:00–12:00 · Tarde 13:30–17:30 · Doble = los dos turnos (cada uno cuenta como una clase).</span>
+    <label class="chk full"><input type="checkbox" id="g-prio" ${g.prioridad ? 'checked' : ''}>Recibe primero a los mejores profes (alumnos nuevos)</label>
+    <div class="fld full"><label for="g-desc">Descripción para armar el horario</label><input class="inp" id="g-desc" value="${esc(g.descripcion || '')}" placeholder="Ej: alumnos nuevos, sin base"></div>
+    <div class="fld"><label for="g-ord">Orden en el horario</label><input class="inp" id="g-ord" type="number" min="0" value="${num(g.orden)}"></div>
     <div class="fsec">Plan de pagos</div>
     <div class="full gen">
       <div class="fld"><label for="g-mat">Matrícula (Gs.)</label><input class="inp money" id="g-mat" inputmode="numeric" value="${mat ? fmtN(mat.monto) : ''}"></div>
@@ -1540,7 +2109,9 @@ const A = {
   'pf-del': el => { PF.items.splice(+el.dataset.i, 1); $('#plan-tbl').innerHTML = planTbl(); },
   'grupo-guardar': async el => {
     const nombre = $('#g-nombre').value.trim(); if (!nombre) { $('#g-nombre').focus(); toast('Poné un nombre al grupo.', 'error'); return; }
+    const dias = {}; DK.forEach(k => { dias[k] = $('#g-d-' + k).value || '-'; });
     const row = { nombre, programa: $('#g-prog').value, horario: $('#g-hor').value.trim(), inicio: $('#g-ini').value || null, fin: $('#g-fin').value || null, activo: $('#g-act').checked,
+      dias, prioridad: $('#g-prio').checked, descripcion: $('#g-desc').value.trim() || null, orden: Math.max(0, Math.round(num($('#g-ord').value))),
       plan: PF.items.filter(i => i.concepto || i.monto).map(i => ({ id: i.id, concepto: (i.concepto || '').trim() || 'Pago', monto: num(i.monto), venc: i.venc || '' })) };
     el.classList.add('disabled');
     const q = PF.gid ? S.sb.from('grupos').update(row).eq('id', PF.gid).select().single() : S.sb.from('grupos').insert(row).select().single();
@@ -1639,25 +2210,123 @@ const A = {
   wa: el => openWA(el.dataset.id),
   'wa-dest': el => { WA.dest = el.dataset.v; $('#wa-body').innerHTML = waBody(); $('#wa-btn').innerHTML = waBtn(); },
   'wa-copiar': async () => { try { await navigator.clipboard.writeText($('#wa-msg').value); toast('Mensaje copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
-  tomar: el => go('asistencia', () => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = el.dataset.g; S.ui.asisFecha = hoy(); }),
+  tomar: el => go('asistencia', () => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = el.dataset.g; S.ui.asisFecha = hoy(); S.ui.asisTurno = el.dataset.t || ''; }),
+  'asis-turno': el => { const v = el.dataset.v; if (S.draftAsis?.dirty) { confirmDlg('La lista tiene cambios sin guardar. ¿Descartarlos?', 'Descartar', () => { S.draftAsis = null; S.ui.asisTurno = v; render(); }); return; } S.ui.asisTurno = v; render(); },
   asistab: el => { S.ui.asisTab = el.dataset.v; if (el.dataset.v === 'hist') S.ui.histGrupo = S.ui.asisGrupo; render(); },
   'asis-grupo': el => { const v = el.dataset.v; if (S.draftAsis?.dirty) { confirmDlg('La lista tiene cambios sin guardar. ¿Descartarlos?', 'Descartar', () => { S.draftAsis = null; S.ui.asisGrupo = v; render(); }); return; } S.ui.asisGrupo = v; render(); },
-  'asis-abrir': el => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = el.dataset.g; S.ui.asisFecha = el.dataset.f; S.draftAsis = null; render(); },
-  marca: el => { const D = S.draftAsis; if (!D) return; const id = el.dataset.id, v = el.dataset.v; if (D.marcas[id] === v) delete D.marcas[id]; else D.marcas[id] = v; D.dirty = true; render(); },
+  'asis-abrir': el => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = el.dataset.g; S.ui.asisFecha = el.dataset.f; S.ui.asisTurno = el.dataset.t || ''; S.draftAsis = null; render(); },
+  marca: el => { const D = S.draftAsis; if (!D || (isProfe() && S.ui.asisFecha !== hoy())) return; const id = el.dataset.id, v = el.dataset.v; if (D.marcas[id] === v) delete D.marcas[id]; else D.marcas[id] = v; D.dirty = true; render(); },
   'asis-todos': () => { const D = S.draftAsis; if (!D) return; alumnosDe(S.ui.asisGrupo).forEach(a => { if (!D.marcas[a.id]) D.marcas[a.id] = 'P'; }); D.dirty = true; render(); },
   'asis-guardar': async el => {
-    const D = S.draftAsis; if (!D || !D.dirty) return; const g = S.ui.asisGrupo, f = S.ui.asisFecha;
+    const D = S.draftAsis; if (!D || !D.dirty) return; const g = S.ui.asisGrupo, f = S.ui.asisFecha, t = S.ui.asisTurno || 'Mañana';
     const saved = S.asis[D.key]?.marcas || {};
-    const filas = Object.entries(D.marcas).filter(([k, v]) => v && S.alumnos[k]).map(([k, v]) => ({ grupo_id: g, fecha: f, alumno_id: k, marca: v, act: new Date().toISOString() }));
+    const filas = Object.entries(D.marcas).filter(([k, v]) => v && S.alumnos[k]).map(([k, v]) => ({ grupo_id: g, fecha: f, turno: t, alumno_id: k, marca: v, act: new Date().toISOString() }));
     const quitar = Object.keys(saved).filter(k => !D.marcas[k]);
     el.classList.add('disabled');
     let ok = true;
-    if (filas.length) ok = !!(await run(S.sb.from('asistencia').upsert(filas, { onConflict: 'grupo_id,fecha,alumno_id' })));
-    if (ok && quitar.length) ok = !!(await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f).in('alumno_id', quitar)));
+    if (filas.length) ok = !!(await run(S.sb.from('asistencia').upsert(filas, { onConflict: 'grupo_id,fecha,turno,alumno_id' })));
+    if (ok && quitar.length) ok = !!(await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f).eq('turno', t).in('alumno_id', quitar)));
     if (!ok) { el.classList.remove('disabled'); return; }
-    D.dirty = false; toast('Lista guardada'); await load(['asis']);
+    D.dirty = false; toast(S.miProf && filas.length ? 'Lista guardada. Tu clase quedó registrada.' : 'Lista guardada'); await load(['asis', 'clases']);
   },
-  'asis-borrar': () => { const g = S.ui.asisGrupo, f = S.ui.asisFecha; confirmDlg('¿Borrar la lista de esta fecha?', 'Borrar lista', async () => { if (await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f), 'Lista borrada')) { S.draftAsis = null; await load(['asis']); } }); },
+  'asis-borrar': () => { const g = S.ui.asisGrupo, f = S.ui.asisFecha, t = S.ui.asisTurno || 'Mañana'; confirmDlg('¿Borrar la lista de este día y turno?', 'Borrar lista', async () => { if (await run(S.sb.from('asistencia').delete().eq('grupo_id', g).eq('fecha', f).eq('turno', t), 'Lista borrada')) { S.draftAsis = null; await load(['asis']); } }); },
+  // --- horario
+  hortab: el => { S.ui.horTab = el.dataset.v; if (S.view !== 'horario') go('horario'); else render(); },
+  'hor-sem': el => { const d = +el.dataset.d; S.ui.horLunes = d ? addDays(S.ui.horLunes || lunesDe(hoy()), d) : lunesDe(hoy()); render(); },
+  'arm-sem': async el => { const d = +el.dataset.d; S.ui.armLunes = d ? addDays(S.ui.armLunes || lunesSig(), d) : lunesSig(); S.loaded.semana = false; S.sem = null; render(); await load(['semana']); },
+  'clase-editar': el => openClaseForm(el.dataset.id),
+  'clase-guardar': async el => {
+    const id = el.dataset.id, c = S.clases[id]; const dict = $('#cl-dict').value || null;
+    const row = { materia: $('#cl-mat').value || null, tema: $('#cl-tema').value.trim() || null, profesor_id: $('#cl-prof').value || null, dictada_por: dict, obs: $('#cl-obs').value.trim() || null,
+      dictada_en: dict ? (c.dictada_por === dict && c.dictada_en ? c.dictada_en : (c.dictada_en || new Date().toISOString())) : null };
+    if (row.materia === 'examen') row.profesor_id = null;
+    el.classList.add('disabled'); const r = await run(S.sb.from('clases').update(row).eq('id', id).select().single(), 'Clase actualizada');
+    if (!r) { el.classList.remove('disabled'); return; } S.clases[id] = r; closeModal(); render();
+  },
+  'arm-fer': async el => { const k = el.dataset.v; const f = S.sem.feriados || []; const nuevo = f.includes(k) ? f.filter(x => x !== k) : [...f, k];
+    const r = await run(S.sb.from('semanas').update({ feriados: nuevo }).eq('id', S.sem.id).select().single()); if (r) { S.sem = r; render(); } },
+  'pool-add': async el => { const g = el.dataset.g; (S.pool[g] ||= []).push({ mat: el.dataset.v, tema: '' }); render(); await guardarPool(g); },
+  'pool-del': async el => { const g = el.dataset.g; S.pool[g] = (S.pool[g] || []).filter((_, i) => i !== +el.dataset.i); render(); await guardarPool(g); },
+  'pool-seg': async el => { const g = el.dataset.g, it = (S.pool[g] || [])[+el.dataset.i]; if (!it) return; it.seguida = !it.seguida; render(); await guardarPool(g); },
+  armar: async el => {
+    const fer = S.sem.feriados || []; const disponibilidad = {}; S.dispRows.forEach(r => (disponibilidad[r.profesor_id] = { enviado: r.enviado, dias: r.dias }));
+    const profesores = profsActivos().map(p => { const s = S.punt[p.id] || {}; return { id: p.id, nombre: p.nombre, anios: num(s.anios), manejo: num(s.manejo), punt: num(s.punt), scores: s.scores || {} }; });
+    const grupos = gruposActivos().map(g => ({ id: g.id, nombre: g.nombre, prioridad: !!g.prioridad, dias: g.dias || {} }));
+    const doIt = async () => { el.classList.add('disabled'); const res = armarHorario({ profesores, grupos, pool: S.pool, feriados: fer, disponibilidad }); await guardarBorr(res, 'Horario armado. Revisalo y publicalo.'); el.classList.remove('disabled'); };
+    if (S.borr) confirmDlg('Volver a armar reemplaza los cambios que hiciste a mano en el borrador. ¿Seguimos?', 'Volver a armar', doIt, false); else doIt();
+  },
+  bprof: el => openBProf(el.dataset.g, el.dataset.d, el.dataset.t),
+  bmat: el => openBMat(el.dataset.g, el.dataset.d, el.dataset.t),
+  'bprof-set': async el => {
+    const { g, d, t } = BK; const pid = el.dataset.v || null; const H = { ...S.borr.data };
+    H[g] = (H[g] || []).map(s => s.day === d && s.turno === t ? { ...s, profe: pid } : s); closeModal(); await guardarBorr(H, pid ? 'Profe cambiado' : 'Bloque sin profe');
+  },
+  'bmat-set': async el => {
+    const { g, d, t } = BK; const mat = el.dataset.v || null; let lista = [...(S.borr.data[g] || [])]; const i = lista.findIndex(s => s.day === d && s.turno === t);
+    if (!mat) { if (i >= 0) lista = lista.filter((_, x) => x !== i); }
+    else if (i >= 0) lista[i] = { ...lista[i], materia: mat, tema: '', profe: mat === 'examen' ? null : lista[i].profe || null };
+    else lista.push({ day: d, turno: t, materia: mat, tema: '', profe: null });
+    closeModal(); await guardarBorr({ ...S.borr.data, [g]: lista }, mat ? 'Materia cambiada' : 'Bloque vacío');
+  },
+  'bmat-mover': async el => {
+    const { g, d, t } = BK; const dd = el.dataset.d, dt = el.dataset.t; let lista = [...(S.borr.data[g] || [])];
+    const iA = lista.findIndex(s => s.day === d && s.turno === t), iB = lista.findIndex(s => s.day === dd && s.turno === dt);
+    const a = iA >= 0 ? lista[iA] : null, b = iB >= 0 ? lista[iB] : null;
+    const viaja = (s, day, turno) => s.materia !== 'examen' && s.profe && estaLibre(s.profe, day, turno) && !ocupadoEn(s.profe, day, turno, g) ? s.profe : null;
+    if (a && b) { lista[iA] = { ...a, materia: b.materia, tema: b.tema || '', profe: b.materia === 'examen' ? null : a.profe || null }; lista[iB] = { ...b, materia: a.materia, tema: a.tema || '', profe: a.materia === 'examen' ? null : b.profe || null }; }
+    else if (a && !b) { lista = lista.filter((_, x) => x !== iA); lista.push({ day: dd, turno: dt, materia: a.materia, tema: a.tema || '', profe: viaja(a, dd, dt) }); }
+    else if (!a && b) { lista = lista.filter((_, x) => x !== iB); lista.push({ day: d, turno: t, materia: b.materia, tema: b.tema || '', profe: viaja(b, d, t) }); }
+    else { closeModal(); return; }
+    closeModal(); await guardarBorr({ ...S.borr.data, [g]: lista }, a && b ? 'Materias intercambiadas' : 'Clase movida de día');
+  },
+  publicar: async el => {
+    el.classList.add('disabled'); const { data, error } = await S.sb.rpc('publicar_horario', { sem: S.sem.id });
+    if (error) { toast(errText(error), 'error'); el.classList.remove('disabled'); return; }
+    toast(`Horario publicado: ${data} clase${data === 1 ? '' : 's'}. Ya lo ven profes y alumnos.`); await load(['semana', 'clases']);
+  },
+  'hor-png': async () => { toast('Generando imagen…'); const b = await horarioPNG(); if (!b) { toast('No se pudo generar la imagen.', 'error'); return; }
+    const url = URL.createObjectURL(b); openModal('Imagen del horario', `<img src="${url}" alt="Horario de la semana" style="width:100%;border:1px solid var(--line);border-radius:10px"><p class="muted" style="margin:10px 0 0">Descargala y mandala al grupo de profes por WhatsApp.</p>`, `<button class="btn" data-act="close">Cerrar</button><button class="btn primary" data-act="hor-png-bajar">${ic('download')}Descargar</button>`, 'wide'); S.pngBlob = b; },
+  'hor-png-bajar': () => { if (S.pngBlob) guardarArchivo(`Horario VIBE ${S.sem.lunes}.png`, S.pngBlob); },
+  'hor-msg': () => { const ms = mensajesProfes(); S.msgs = ms;
+    openModal('Mensaje a cada profe', ms.length ? `<p class="muted" style="margin:0 0 10px">Cada mensaje tiene las clases de ese profe en el horario armado.</p><div class="rows">${ms.map((m, i) => { const tel = waNum(m.p.telefono);
+      return `<div class="row"><div class="t">${esc(m.p.nombre)}<small>${m.n} clase${m.n === 1 ? '' : 's'}${tel ? '' : ' · sin celular cargado'}</small></div><div class="r"><button class="btn sm" data-act="msg-copiar" data-i="${i}">${ic('copy')}Copiar</button><a class="btn sm wa" href="https://wa.me/${tel}?text=${encodeURIComponent(m.txt)}" target="_blank" rel="noopener">${ic('wa')}WhatsApp</a></div></div>`; }).join('')}</div>` : '<div class="empty">Todavía no hay profes asignados en el borrador.</div>', `<button class="btn" data-act="close">Cerrar</button>`, 'wide'); },
+  'msg-copiar': async el => { try { await navigator.clipboard.writeText(S.msgs[+el.dataset.i].txt); toast('Mensaje copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
+  'carga-reabrir': async () => { const r = await run(S.sb.from('semanas').update({ carga_abierta_hasta: S.sem.lunes + 'T03:00:00Z' }).eq('id', S.sem.id).select().single(), 'Carga reabierta hasta el domingo a la noche'); if (r) { S.sem = r; if (S.semProf?.id === r.id) S.semProf = r; render(); } },
+  'carga-cerrar': async () => { const r = await run(S.sb.from('semanas').update({ carga_abierta_hasta: null }).eq('id', S.sem.id).select().single(), 'Carga cerrada'); if (r) { S.sem = r; if (S.semProf?.id === r.id) S.semProf = r; render(); } },
+  'carga-wa': () => { const envi = new Set(S.dispRows.filter(r => r.enviado).map(r => r.profesor_id)); const pend = profsActivos().filter(p => !envi.has(p.id)); if (!pend.length) return;
+    const txt = `⏰ *${S.cfg.nombre || 'Cursillo VIBE'} · Horario*\nFalta cargar la disponibilidad de la semana del ${rangoSem(S.sem.lunes)}.\nPendientes: ${pend.map(p => p.nombre.split(' ')[0]).join(', ')}\nSe carga en la app, en Horario 👉 ${APP_URL}`;
+    window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); },
+  'disp-x': el => { const d = el.dataset.d, t = el.dataset.t; const D = S.dispDraft?.dias; if (!D) return; D[d] = { 'Mañana': !!D[d]?.['Mañana'], 'Tarde': !!D[d]?.['Tarde'] }; D[d][t] = !D[d][t]; render(); },
+  'disp-enviar': async el => {
+    const w = S.semProf; if (!w || !S.miProf) return; const D = S.dispDraft?.dias || {}; const dias = {}; DK.forEach(k => (dias[k] = { 'Mañana': !!D[k]?.['Mañana'], 'Tarde': !!D[k]?.['Tarde'] }));
+    el.classList.add('disabled');
+    const r = await run(S.sb.from('disponibilidad').upsert({ semana_id: w.id, profesor_id: S.miProf.id, dias, enviado: true, act: new Date().toISOString() }, { onConflict: 'semana_id,profesor_id' }), 'Disponibilidad enviada');
+    el.classList.remove('disabled'); if (r) await load(['semana']);
+  },
+  'prof-nuevo': () => openProfForm(null),
+  'prof-editar': el => openProfForm(el.dataset.id),
+  'prof-guardar': async el => {
+    const id = el.dataset.id || null; const nombre = $('#pf-nom').value.trim(); const email = ($('#pf-mail').value || '').trim().toLowerCase(); const err = $('#pf-err'); const inv = !id && !!$('#pf-inv')?.checked;
+    if (!nombre) { err.textContent = 'Poné el nombre.'; return; } if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = 'El correo no es válido.'; return; }
+    const nv = v => { const s = String(v ?? '').trim().replace(',', '.'); if (s === '') return null; const n = Math.max(0, Math.min(10, Number(s))); return isFinite(n) ? n : null; };
+    const scores = {}; MAT_KEYS.forEach(k => { scores[k] = nv($('#pf-s-' + k).value); });
+    const prow = { nombre, telefono: $('#pf-tel').value.trim() || null, activo: $('#pf-act').checked }; if (!S.prof[id]?.user_id) prow.email = email || null;
+    el.classList.add('disabled');
+    const p = await run(id ? S.sb.from('profesores').update(prow).eq('id', id).select().single() : S.sb.from('profesores').insert(prow).select().single());
+    if (!p) { el.classList.remove('disabled'); return; }
+    const s = await run(S.sb.from('profesores_puntajes').upsert({ profesor_id: p.id, scores, manejo: nv($('#pf-man').value) || 0, punt: nv($('#pf-pun').value) || 0, anios: Math.max(0, num($('#pf-anios').value)), monto_clase: parseMoney($('#pf-monto').value) }, { onConflict: 'profesor_id' }).select().single());
+    if (!s) { el.classList.remove('disabled'); return; }
+    S.prof[p.id] = p; S.punt[p.id] = s; closeModal(); toast(id ? 'Profe actualizado' : 'Profe agregado al plantel'); render();
+    if (inv && p.email && await invitarProfe(p.id)) await load(['prof']);
+  },
+  'prof-invitar': async el => { el.classList.add('disabled'); if (await invitarProfe(el.dataset.id)) { closeModal(); await load(['prof']); } else el.classList.remove('disabled'); },
+  'pago-ver': el => { S.ui.pagoVer = S.ui.pagoVer === el.dataset.id ? '' : el.dataset.id; render(); },
+  'pago-exp': () => { const mes = S.ui.pagoMes; const { filas, sinLista } = pagoDelMes(mes);
+    const rows = [['Fecha', 'Día', 'Turno', 'Grupo', 'Materia', 'Tema', 'Dio la clase', 'Le tocaba a', 'Hora de lista', 'Cuenta para el pago', 'Pago por clase', 'Observación']];
+    filas.forEach(f => f.l.forEach(c => rows.push([fmtF(c.fecha), DK_FULL[DK.indexOf(dkDe(c.fecha))], c.turno, gName(c.grupo_id), matL(c.materia) || 'fuera del horario', c.tema || '', profN(c.dictada_por), c.profesor_id ? profN(c.profesor_id) : '', horaDe(c.dictada_en), c.materia === 'examen' ? 'No (examen)' : 'Sí', f.m, c.obs || ''])));
+    sinLista.forEach(c => rows.push([fmtF(c.fecha), DK_FULL[DK.indexOf(dkDe(c.fecha))], c.turno, gName(c.grupo_id), matL(c.materia), c.tema || '', 'SIN LISTA', c.profesor_id ? profN(c.profesor_id) : '', '', 'No', '', c.obs || '']));
+    rows.push([]); rows.push(['Resumen']); rows.push(['Profe', 'Clases', 'Exámenes', 'Pago por clase', 'Total']); filas.forEach(f => rows.push([profN(f.pid), f.n, f.ex, f.m, f.tot]));
+    guardarArchivo(`Pago a profes ${mes}.csv`, csv(rows)); },
   cobtab: el => { S.ui.cobTab = el.dataset.v; render(); },
   cobvenc: el => { S.ui.cobSoloVenc = el.dataset.v === '1'; render(); },
   mes: el => { const [y, m] = S.ui.cobMes.split('-').map(Number); const d = new Date(y, m - 1 + (+el.dataset.v), 1); S.ui.cobMes = ymd(d).slice(0, 7); render(); },
@@ -1716,7 +2385,7 @@ const A = {
     const r = await invocar('invitar', { tipo: p.rol === 'profe' ? 'profe' : 'oficina', email: p.email, reenviar: true });
     el.classList.remove('disabled'); if (r.error) toast(r.error, 'error'); else toast('Correo enviado a ' + p.email);
   },
-  'cfg-guardar': () => guardarCfg({ nombre: $('#c-nombre').value.trim(), tel: $('#c-tel').value.trim(), dir: $('#c-dir').value.trim(), transf: $('#c-transf').value.trim(), horarioUrl: $('#c-hor').value.trim() }, 'Datos guardados'),
+  'cfg-guardar': () => guardarCfg({ nombre: $('#c-nombre').value.trim(), tel: $('#c-tel').value.trim(), dir: $('#c-dir').value.trim(), transf: $('#c-transf').value.trim() }, 'Datos guardados'),
   'msg-guardar': () => guardarCfg({ msg: $('#c-msg').value }, 'Mensaje guardado'),
   'msg-reset': () => { $('#c-msg').value = DEFAULT_MSG; },
   'logo-quitar': () => guardarCfg({ logo: null }, 'Logo quitado'),
@@ -1743,8 +2412,8 @@ const A = {
     guardarArchivo('Alumnos VIBE ' + hoy() + '.csv', csv(rows));
   },
   'exp-asis': () => {
-    const rows = [['Fecha', 'Grupo', 'Alumno', 'Marca']]; const L = { P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' };
-    Object.values(S.asis).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')).forEach(d => Object.entries(d.marcas || {}).forEach(([aid, m]) => { const a = S.alumnos[aid]; if (a) rows.push([fmtF(d.fecha), gName(d.grupoId), nombreA(a), L[m] || m]); }));
+    const rows = [['Fecha', 'Turno', 'Grupo', 'Alumno', 'Marca']]; const L = { P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' };
+    Object.values(S.asis).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.turno || '').localeCompare(b.turno || '')).forEach(d => Object.entries(d.marcas || {}).forEach(([aid, m]) => { const a = S.alumnos[aid]; if (a) rows.push([fmtF(d.fecha), d.turno || 'Mañana', gName(d.grupoId), nombreA(a), L[m] || m]); }));
     guardarArchivo('Asistencia VIBE ' + hoy() + '.csv', csv(rows));
   },
   'ficha-guardar': async el => {
@@ -1775,6 +2444,10 @@ const CH = {
   fDeuda: el => { S.ui.fDeuda = el.checked; render(); },
   asisFecha: el => { const v = el.value || hoy(); if (S.draftAsis?.dirty) { el.value = S.ui.asisFecha; confirmDlg('La lista tiene cambios sin guardar. ¿Descartarlos?', 'Descartar', () => { S.draftAsis = null; S.ui.asisFecha = v; render(); }); return; } S.ui.asisFecha = v; render(); },
   histGrupo: el => { S.ui.histGrupo = el.value; render(); },
+  'pool-tema': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; it.tema = el.value.trim(); guardarPool(el.dataset.g); },
+  'pool-dia': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; if (el.value) it.dia = el.value; else delete it.dia; render(); guardarPool(el.dataset.g); },
+  'pool-nivel': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; if (el.value) it.nivel = el.value; else delete it.nivel; render(); guardarPool(el.dataset.g); },
+  pagoMes: el => { S.ui.pagoMes = el.value || hoy().slice(0, 7); S.ui.pagoVer = ''; render(); },
   cobGrupo: el => { S.ui.cobGrupo = el.value; render(); },
   'pg-al': el => { PG.aid = el.value; PG.itemId = ''; $('#pg-body').innerHTML = pagoBody(); },
   'pg-item': el => { PG.itemId = el.value; $('#pg-body').innerHTML = pagoBody(); },

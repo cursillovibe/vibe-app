@@ -51,6 +51,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Profe: queda en el plantel (para el horario y el pago por clase) antes de crear su usuario
+    if (tipo === 'profe' && !soloReenviar) {
+      const { data: pr } = await admin.from('profesores').select('id').eq('email', email).maybeSingle();
+      if (!pr) {
+        const { error } = await admin.from('profesores').insert({ email, nombre: [nombre, apellido].filter(Boolean).join(' ') || email });
+        if (error) return json({ error: 'No se pudo sumar al plantel: ' + error.message }, 400);
+      }
+    }
+
     const { data: inv, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo: appUrl || undefined,
       data: { nombre: [nombre, apellido].filter(Boolean).join(' ') },
@@ -76,6 +85,9 @@ Deno.serve(async (req) => {
     }
     if (uid && tipo === 'alumno') {
       await admin.from('alumnos').update({ user_id: uid }).eq('email', email).is('user_id', null);
+    }
+    if (uid && tipo === 'profe') {
+      await admin.from('profesores').update({ user_id: uid }).eq('email', email).is('user_id', null);
     }
     return json({ ok: true, ya_tenia_cuenta: yaTeniaCuenta });
   } catch (e) {

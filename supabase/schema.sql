@@ -105,12 +105,24 @@ create index if not exists pagos_alumno_idx on public.pagos(alumno_id);
 create table if not exists public.asistencia (
   grupo_id   uuid not null references public.grupos(id) on delete cascade,
   fecha      date not null,
+  turno      text not null default 'Mañana' constraint asistencia_turno_chk check (turno in ('Mañana','Tarde')),
   alumno_id  uuid not null references public.alumnos(id) on delete cascade,
   marca      char(1) not null check (marca in ('P','A','T','J')),
   por        uuid default auth.uid() references auth.users(id) on delete set null,
   act        timestamptz not null default now(),
-  primary key (grupo_id, fecha, alumno_id)
+  primary key (grupo_id, fecha, turno, alumno_id)
 );
+-- bases creadas antes del horario: se agrega el turno (mañana y tarde cuentan por separado)
+alter table public.asistencia add column if not exists turno text not null default 'Mañana';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'asistencia_turno_chk') then
+    alter table public.asistencia add constraint asistencia_turno_chk check (turno in ('Mañana','Tarde'));
+  end if;
+  if (select pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.asistencia'::regclass and contype = 'p') not like '%turno%' then
+    alter table public.asistencia drop constraint asistencia_pkey;
+    alter table public.asistencia add primary key (grupo_id, fecha, turno, alumno_id);
+  end if;
+end $$;
 create index if not exists asistencia_alumno_idx on public.asistencia(alumno_id);
 
 create table if not exists public.examenes (
@@ -137,6 +149,82 @@ create table if not exists public.profe_grupos (
   primary key (profe_id, grupo_id)
 );
 
+-- ---------- horario de profes (antes app vibe-horarios) ----------------
+-- Turno por día de cada grupo: {"Lun":"M","Mar":"T","Sáb":"MT",…}  - nada · M mañana · T tarde · MT doble
+alter table public.grupos add column if not exists dias jsonb not null default '{}'::jsonb;
+alter table public.grupos add column if not exists prioridad boolean not null default false;  -- recibe primero a los mejores profes
+alter table public.grupos add column if not exists orden int not null default 0;
+alter table public.grupos add column if not exists descripcion text;
+
+-- Plantel. El correo vincula al profe con su cuenta de la app.
+create table if not exists public.profesores (
+  id        uuid primary key default gen_random_uuid(),
+  user_id   uuid unique references auth.users(id) on delete set null,
+  email     text unique,
+  nombre    text not null,
+  telefono  text,
+  activo    boolean not null default true,
+  creado    timestamptz not null default now()
+);
+-- Puntajes y pago por clase: solo los ve la dirección
+create table if not exists public.profesores_puntajes (
+  profesor_id  uuid primary key references public.profesores(id) on delete cascade,
+  anios        numeric not null default 0 check (anios >= 0),
+  manejo       numeric not null default 0 check (manejo between 0 and 10),
+  punt         numeric not null default 0 check (punt between 0 and 10),
+  scores       jsonb not null default '{}'::jsonb,   -- {"arit":8,"alg":10,"geo":null,…} null = no da la materia
+  monto_clase  numeric not null default 0 check (monto_clase >= 0)
+);
+-- Una fila por semana (identificada por el lunes)
+create table if not exists public.semanas (
+  id                   uuid primary key default gen_random_uuid(),
+  lunes                date not null unique check (extract(isodow from lunes) = 1),
+  feriados             text[] not null default '{}',
+  carga_abierta_hasta  timestamptz,         -- la dirección reabre la carga de disponibilidad hasta esta hora
+  publicada            timestamptz,         -- última vez que se publicó el horario
+  creado               timestamptz not null default now()
+);
+-- Disponibilidad que marca cada profe: {"Lun":{"Mañana":true,"Tarde":false},…}
+create table if not exists public.disponibilidad (
+  semana_id    uuid not null references public.semanas(id) on delete cascade,
+  profesor_id  uuid not null references public.profesores(id) on delete cascade,
+  dias         jsonb not null default '{}'::jsonb,
+  enviado      boolean not null default false,
+  act          timestamptz not null default now(),
+  primary key (semana_id, profesor_id)
+);
+-- Materias de la semana por grupo, sin día: [{"mat":"alg","tema":"…","nivel":"alto","seguida":true,"dia":"Mié"}]
+create table if not exists public.materias_semana (
+  semana_id  uuid not null references public.semanas(id) on delete cascade,
+  grupo_id   uuid not null references public.grupos(id) on delete cascade,
+  items      jsonb not null default '[]'::jsonb,
+  primary key (semana_id, grupo_id)
+);
+-- Borradores del horario armado: {"<grupo_id>":[{"day","turno","materia","tema","nivel","profe"}]}
+create table if not exists public.horarios (
+  id         uuid primary key default gen_random_uuid(),
+  semana_id  uuid not null references public.semanas(id) on delete cascade,
+  data       jsonb not null,
+  generado   timestamptz not null default now()
+);
+create index if not exists horarios_semana_idx on public.horarios(semana_id, generado desc);
+-- Clases publicadas. Cuando un profe llama lista, la clase queda dictada por él.
+create table if not exists public.clases (
+  id           uuid primary key default gen_random_uuid(),
+  grupo_id     uuid not null references public.grupos(id) on delete cascade,
+  fecha        date not null,
+  turno        text not null default 'Mañana' check (turno in ('Mañana','Tarde')),
+  materia      text,                 -- arit · alg · geo · trig · calc · fis · examen (vacío = lista fuera del horario)
+  tema         text,
+  profesor_id  uuid references public.profesores(id) on delete set null,   -- el del horario
+  semana_id    uuid references public.semanas(id) on delete set null,
+  dictada_por  uuid references public.profesores(id) on delete set null,   -- el que llamó lista
+  dictada_en   timestamptz,
+  obs          text,
+  unique (grupo_id, fecha, turno)
+);
+create index if not exists clases_fecha_idx on public.clases(fecha);
+
 -- ---------- funciones de permisos ------------------------------------
 
 create or replace function public.mi_rol() returns text
@@ -154,11 +242,34 @@ language sql stable security definer set search_path = public as $$
   select coalesce((select rol = 'admin' from perfiles where id = auth.uid() and activo), false)
 $$;
 
+-- Fecha de hoy en Paraguay (UTC-3 todo el año desde 2024)
+create or replace function public.hoy_py() returns date
+language sql stable as $$ select (now() at time zone 'UTC' - interval '3 hours')::date $$;
+
+-- Fila del plantel de quien está usando la app (null si no es profe)
+create or replace function public.mi_profesor() returns uuid
+language sql stable security definer set search_path = public as $$
+  select pr.id from profesores pr join perfiles p on p.id = pr.user_id
+  where pr.user_id = auth.uid() and pr.activo and p.activo
+$$;
+
+-- Un profe ve un grupo si lo tiene asignado o si tiene clases ahí en el horario (último mes y medio / próximas 3 semanas)
 create or replace function public.da_clase(g uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (
-    select 1 from profe_grupos pg join perfiles p on p.id = pg.profe_id
-    where pg.profe_id = auth.uid() and pg.grupo_id = g and p.activo and p.rol = 'profe')
+  select exists (select 1 from perfiles p where p.id = auth.uid() and p.activo and p.rol = 'profe')
+     and (exists (select 1 from profe_grupos pg where pg.profe_id = auth.uid() and pg.grupo_id = g)
+          or exists (select 1 from clases c join profesores pr on pr.id = c.profesor_id
+                     where pr.user_id = auth.uid() and c.grupo_id = g
+                       and c.fecha between public.hoy_py() - 45 and public.hoy_py() + 21))
+$$;
+
+-- La carga de disponibilidad abre el miércoles anterior y cierra el sábado a las 17:00 (hora de Paraguay);
+-- la dirección puede reabrirla con semanas.carga_abierta_hasta.
+create or replace function public.carga_abierta(s uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from semanas w where w.id = s and (
+    (now() at time zone 'UTC' - interval '3 hours') between (w.lunes - 5)::timestamp and (w.lunes - 2)::timestamp + interval '17 hours'
+    or (w.carga_abierta_hasta is not null and now() < w.carga_abierta_hasta)))
 $$;
 
 create or replace function public.mi_alumno() returns uuid
@@ -190,11 +301,14 @@ declare r text := 'alumno'; l links_inscripcion%rowtype;
 begin
   if exists (select 1 from config_privada where clave = 'admins' and valor ? lower(new.email)) then
     r := 'admin';
+  elsif exists (select 1 from profesores where lower(email) = lower(new.email) and activo) then
+    r := 'profe';   -- está en el plantel: entra como profe
   end if;
   insert into perfiles (id, email, nombre, rol)
   values (new.id, lower(new.email), coalesce(new.raw_user_meta_data->>'nombre', ''), r)
   on conflict (id) do nothing;
   update alumnos set user_id = new.id where lower(email) = lower(new.email) and user_id is null;
+  update profesores set user_id = new.id where lower(email) = lower(new.email) and user_id is null;
   -- se registró con un link de inscripción: se crea su ficha con el curso del link
   if r = 'alumno' and coalesce(new.raw_user_meta_data->>'codigo', '') <> '' then
     select * into l from links_inscripcion where codigo = lower(new.raw_user_meta_data->>'codigo') and activo;
@@ -274,8 +388,82 @@ language sql stable security definer set search_path = public as $$
   from mis m
 $$;
 
--- ---------- RPC: siguiente número de recibo (solo vista) ---------------
--- (el número real lo asigna la secuencia al guardar el pago)
+-- ---------- horario: clase dictada, semanas, publicación ---------------
+
+-- Cuando un profe llama lista, la clase de ese grupo, día y turno queda dictada por él
+-- (reemplaza la planilla firmada; sirve para el pago por clase). La primera lista manda.
+create or replace function public.registrar_clase() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_profesor();
+begin
+  if p is not null then
+    insert into clases (grupo_id, fecha, turno, dictada_por, dictada_en)
+    values (new.grupo_id, new.fecha, new.turno, p, now())
+    on conflict (grupo_id, fecha, turno) do update
+      set dictada_por = coalesce(clases.dictada_por, excluded.dictada_por),
+          dictada_en  = coalesce(clases.dictada_en, excluded.dictada_en);
+  end if;
+  return new;
+end $$;
+drop trigger if exists asistencia_registra_clase on public.asistencia;
+create trigger asistencia_registra_clase after insert or update on public.asistencia
+  for each row execute function public.registrar_clase();
+
+-- Devuelve (y si hace falta crea) la semana de ese lunes. La usan la dirección y los profes.
+create or replace function public.abrir_semana(l date) returns public.semanas
+language plpgsql security definer set search_path = public as $$
+declare w semanas;
+begin
+  if not (public.es_staff() or public.mi_profesor() is not null) then raise exception 'Sin permiso'; end if;
+  if extract(isodow from l) <> 1 then raise exception 'La semana tiene que empezar un lunes'; end if;
+  insert into semanas (lunes) values (l) on conflict (lunes) do nothing;
+  select * into w from semanas where lunes = l;
+  return w;
+end $$;
+
+-- Publica el último horario armado de la semana: crea o actualiza las clases.
+-- Las clases que ya tienen lista no se borran (quedan con su profe y su registro).
+create or replace function public.publicar_horario(sem uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare w semanas; h jsonb; g record; s jsonb; f date; code text; n int := 0;
+  dias text[] := array['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+begin
+  if not public.es_admin() then raise exception 'Solo la dirección publica el horario'; end if;
+  select * into w from semanas where id = sem;
+  if not found then raise exception 'No existe la semana'; end if;
+  select data into h from horarios where semana_id = sem order by generado desc limit 1;
+  if h is null then raise exception 'Todavía no se armó el horario de esta semana'; end if;
+  delete from clases c where c.fecha between w.lunes and w.lunes + 6 and c.dictada_por is null
+    and not exists (select 1 from asistencia a where a.grupo_id = c.grupo_id and a.fecha = c.fecha and a.turno = c.turno);
+  for g in select key, value from jsonb_each(h) loop
+    continue when not exists (select 1 from grupos gr where gr.id::text = g.key);
+    for s in select value from jsonb_array_elements(g.value) loop
+      continue when coalesce(s->>'materia', '') = '' or array_position(dias, s->>'day') is null;
+      continue when (s->>'day') = any(w.feriados);
+      select coalesce(gr.dias->>(s->>'day'), '-') into code from grupos gr where gr.id::text = g.key;
+      continue when not ((s->>'turno' = 'Mañana' and code in ('M','MT')) or (s->>'turno' = 'Tarde' and code in ('T','MT')));
+      f := w.lunes + array_position(dias, s->>'day') - 1;
+      insert into clases (grupo_id, fecha, turno, materia, tema, profesor_id, semana_id)
+      values (g.key::uuid, f, s->>'turno', s->>'materia', nullif(s->>'tema', ''),
+              case when s->>'materia' = 'examen' then null
+                   else (select pr.id from profesores pr where pr.id::text = nullif(s->>'profe', '')) end, sem)
+      on conflict (grupo_id, fecha, turno) do update
+        set materia = excluded.materia, tema = excluded.tema, profesor_id = excluded.profesor_id, semana_id = excluded.semana_id;
+      n := n + 1;
+    end loop;
+  end loop;
+  update semanas set publicada = now() where id = sem;
+  return n;
+end $$;
+
+-- Horario del alumno: materia y tema de cada clase de su grupo, sin el profe
+create or replace function public.mi_horario(desde date, hasta date)
+returns table (fecha date, turno text, materia text, tema text)
+language sql stable security definer set search_path = public as $$
+  select c.fecha, c.turno, c.materia, c.tema from clases c
+  where c.grupo_id = public.mi_grupo() and c.fecha between desde and hasta and coalesce(c.materia, '') <> ''
+  order by c.fecha, c.turno
+$$;
 
 -- ---------- seguridad por filas (RLS) ---------------------------------
 alter table public.perfiles       enable row level security;
@@ -341,10 +529,11 @@ create policy pagos_borrar on public.pagos for delete to authenticated using (pu
 drop policy if exists asistencia_ver on public.asistencia;
 create policy asistencia_ver on public.asistencia for select to authenticated
   using (public.es_staff() or public.da_clase(grupo_id) or alumno_id = public.mi_alumno());
+-- El profe solo llama lista el mismo día de la clase (es su firma). La oficina corrige cualquier fecha.
 drop policy if exists asistencia_escribir on public.asistencia;
 create policy asistencia_escribir on public.asistencia for all to authenticated
-  using (public.es_staff() or public.da_clase(grupo_id))
-  with check (public.es_staff() or public.da_clase(grupo_id));
+  using (public.es_staff() or (public.da_clase(grupo_id) and fecha = public.hoy_py()))
+  with check (public.es_staff() or (public.da_clase(grupo_id) and fecha = public.hoy_py()));
 
 -- exámenes
 drop policy if exists examenes_ver on public.examenes;
@@ -377,17 +566,82 @@ drop policy if exists links_staff on public.links_inscripcion;
 create policy links_staff on public.links_inscripcion for all to authenticated
   using (public.es_staff()) with check (public.es_staff());
 
+-- horario
+alter table public.profesores          enable row level security;
+alter table public.profesores_puntajes enable row level security;
+alter table public.semanas             enable row level security;
+alter table public.disponibilidad      enable row level security;
+alter table public.materias_semana     enable row level security;
+alter table public.horarios            enable row level security;
+alter table public.clases              enable row level security;
+
+-- plantel: la oficina ve nombres y teléfonos; cada profe ve su fila; solo la dirección edita
+drop policy if exists profesores_ver on public.profesores;
+create policy profesores_ver on public.profesores for select to authenticated
+  using (public.es_staff() or user_id = auth.uid());
+drop policy if exists profesores_admin on public.profesores;
+create policy profesores_admin on public.profesores for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+-- puntajes y monto por clase: solo la dirección
+drop policy if exists puntajes_admin on public.profesores_puntajes;
+create policy puntajes_admin on public.profesores_puntajes for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+
+drop policy if exists semanas_ver on public.semanas;
+create policy semanas_ver on public.semanas for select to authenticated
+  using (public.es_staff() or public.mi_profesor() is not null);
+drop policy if exists semanas_admin on public.semanas;
+create policy semanas_admin on public.semanas for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+
+-- disponibilidad: cada profe la suya y solo con la carga abierta; la dirección todo
+drop policy if exists disp_ver on public.disponibilidad;
+create policy disp_ver on public.disponibilidad for select to authenticated
+  using (public.es_admin() or profesor_id = public.mi_profesor());
+drop policy if exists disp_admin on public.disponibilidad;
+create policy disp_admin on public.disponibilidad for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+drop policy if exists disp_profe_crear on public.disponibilidad;
+create policy disp_profe_crear on public.disponibilidad for insert to authenticated
+  with check (profesor_id = public.mi_profesor() and public.carga_abierta(semana_id));
+drop policy if exists disp_profe_editar on public.disponibilidad;
+create policy disp_profe_editar on public.disponibilidad for update to authenticated
+  using (profesor_id = public.mi_profesor() and public.carga_abierta(semana_id))
+  with check (profesor_id = public.mi_profesor() and public.carga_abierta(semana_id));
+
+-- materias de la semana y borradores: solo la dirección
+drop policy if exists materias_admin on public.materias_semana;
+create policy materias_admin on public.materias_semana for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+drop policy if exists horarios_admin on public.horarios;
+create policy horarios_admin on public.horarios for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+
+-- clases publicadas: la oficina las ve; el profe ve las suyas; el alumno usa mi_horario (sin el nombre del profe)
+drop policy if exists clases_ver on public.clases;
+create policy clases_ver on public.clases for select to authenticated
+  using (public.es_staff() or (public.mi_profesor() is not null and (profesor_id = public.mi_profesor() or dictada_por = public.mi_profesor())));
+drop policy if exists clases_admin on public.clases;
+create policy clases_admin on public.clases for all to authenticated
+  using (public.es_admin()) with check (public.es_admin());
+
 -- ---------- permisos de tablas para el rol de la API --------------------
 revoke all on all tables in schema public from anon;
 grant select, insert, update, delete on public.perfiles, public.config, public.grupos, public.alumnos,
-  public.pagos, public.asistencia, public.examenes, public.notas, public.profe_grupos, public.links_inscripcion to authenticated;
+  public.pagos, public.asistencia, public.examenes, public.notas, public.profe_grupos, public.links_inscripcion,
+  public.profesores, public.profesores_puntajes, public.semanas, public.disponibilidad, public.materias_semana,
+  public.horarios, public.clases to authenticated;
 revoke all on public.config_privada from authenticated;
 grant usage on sequence public.recibo_seq to authenticated;
 grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(),
   public.mi_rol(), public.es_staff(), public.es_admin(), public.da_clase(uuid), public.mi_alumno(), public.mi_grupo(),
-  public.examen_de_clase(uuid), public.rendi_examen(uuid)
+  public.examen_de_clase(uuid), public.rendi_examen(uuid),
+  public.hoy_py(), public.mi_profesor(), public.carga_abierta(uuid), public.abrir_semana(date),
+  public.publicar_horario(uuid), public.mi_horario(date, date)
   to authenticated;
-revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(), public.usar_link(text) from anon;
+revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(), public.usar_link(text),
+  public.abrir_semana(date), public.publicar_horario(uuid), public.mi_horario(date, date), public.mi_profesor(),
+  public.carga_abierta(uuid) from anon;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 
@@ -400,3 +654,9 @@ on conflict (clave) do nothing;
 insert into public.config (clave, valor)
 values ('general', '{"nombre":"Cursillo VIBE","dir":"Coronel Oviedo - Paraguay","tel":"+595 994 214 571"}'::jsonb)
 on conflict (clave) do nothing;
+
+-- Profes del plantel que ya tenían cuenta: se vinculan por correo y pasan a rol profe
+update public.profesores pr set user_id = u.id
+  from auth.users u where lower(u.email) = lower(pr.email) and pr.user_id is null;
+update public.perfiles p set rol = 'profe'
+  from public.profesores pr where pr.user_id = p.id and pr.activo and p.rol = 'alumno';
