@@ -4,10 +4,10 @@ App web del Cursillo VIBE para dirección, oficina, profes y alumnos. Se instala
 
 | Rol | Qué hace |
 |---|---|
-| **Dirección** (informacion@vibe.com.py) | Todo: grupos, alumnos, cobros, asistencia, notas, equipo y ajustes. Es la única que puede anular pagos, borrar y cambiar roles. |
-| **Oficina** | Invita alumnos, asigna grupos, cobra y emite recibos, toma lista y carga notas. |
-| **Profe** | Solo sus grupos: toma lista, carga notas, ve contactos, historial y su horario. No ve cuotas. |
-| **Alumno** | Completa su ficha, ve sus cuotas y recibos, sus notas (con promedio del grupo y puesto), su asistencia y edita sus datos. |
+| **Dirección** (informacion@vibe.com.py) | Todo: grupos, alumnos, cobros, asistencia, notas, horario, plantel, pago a profes, equipo y ajustes. Es la única que puede anular pagos, borrar, cambiar roles y ver puntajes y pagos de profes. |
+| **Oficina** | Invita alumnos, asigna grupos, cobra y emite recibos, toma lista, carga notas y ve el horario de la semana. |
+| **Profe** | Ve sus clases, carga su disponibilidad, llama lista (solo el día de la clase: queda como su firma), carga notas y ve contactos. No ve cuotas ni puntajes. |
+| **Alumno** | Completa su ficha, ve su horario (materia y tema de cada día, sin el nombre del profe), sus cuotas y recibos, sus notas, su asistencia y edita sus datos. |
 
 **Cómo entra un alumno (dos caminos):**
 - **Link de inscripción** (el principal): la oficina crea en **Inscripciones** un link por curso o por grupo y se lo pasa por WhatsApp al alumno que pagó la matrícula → el alumno crea su cuenta con su correo → completa la ficha.
@@ -20,6 +20,18 @@ En los dos casos, cuando completa la ficha le llega un correo a informacion@ y l
 - Código: https://github.com/cursillovibe/vibe-app
 - Base de datos: Supabase, proyecto **VIBE App** (São Paulo), organización Cursillo VIBE.
 
+## Horario y pago a profes
+
+Reemplaza a la app vibe-horarios (sus datos se importaron con `supabase/importar-horarios.sql`). Todo está en **Horario**:
+
+- **Disponibilidad**: cada profe marca sus turnos libres de la semana siguiente desde el miércoles hasta el sábado 17:00. La dirección puede reabrir la carga y avisar por WhatsApp a los que faltan.
+- **Armar horario**: se cargan las materias de la semana por grupo (sin día) y el armado elige el día según los profes libres, con las mismas reglas de siempre (los grupos con prioridad reciben a los mejores profes, Geometría en dos días seguidos con profes distintos, nivel mínimo, clases encadenadas, día fijo, examen sin profe, equidad mínima). Se puede cambiar cualquier bloque a mano y después **publicar**.
+- **Semana**: las clases publicadas, con quién llamó lista en cada una.
+- **Plantel**: profes, puntajes y pago por clase (solo la dirección).
+- **Pago a profes**: por mes, cuenta cada clase en la que el profe llamó lista. Mañana y tarde cuentan por separado. Los exámenes que cuidó se ven pero no suman. Las clases sin lista se pueden marcar a mano (si firmó en papel).
+
+Cuando un profe llama lista, la clase queda registrada a su nombre con la hora (si no era el del horario, queda como reemplazo). Solo puede llamar lista el mismo día; la oficina corrige listas viejas.
+
 ## Archivos
 
 ```
@@ -28,7 +40,8 @@ config.js               URL y anon key de Supabase (lo único que se edita)
 manifest.webmanifest    para instalarla en el celular
 img/                    logo oficial (y versión para modo oscuro)
 icons/                  íconos de la app con el √iβε
-supabase/schema.sql     base de datos y permisos (se corre una vez)
+supabase/schema.sql     base de datos y permisos (se puede volver a correr)
+supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
 supabase/functions/     invitar (manda invitaciones) y notificar (avisa fichas nuevas)
 supabase/plantillas/    correos en español: invitación y recuperar contraseña
 ```
