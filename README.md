@@ -55,7 +55,9 @@ img/                    logo oficial (y versión para modo oscuro)
 icons/                  íconos de la app con el √iβε
 supabase/schema.sql     base de datos y permisos (se puede volver a correr)
 supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
-supabase/functions/     invitar (manda invitaciones) y notificar (avisa fichas nuevas)
+supabase/functions/     invitar (manda invitaciones), notificar (avisa fichas nuevas) y push (avisos al celular)
+supabase/cron-push.sql  avisos programados: llama a la función push cada 15 minutos
+sw.js                   service worker: muestra los avisos en el celular
 supabase/plantillas/    correos en español: invitación y recuperar contraseña
 ```
 
@@ -72,6 +74,7 @@ supabase/plantillas/    correos en español: invitación y recuperar contraseña
 8. **Edge Functions** → crear `invitar` y `notificar` con el código de `supabase/functions/`.
 9. **Edge Functions → Secrets**: `APP_URL` (dirección de la app), `SMTP_USER` (informacion@vibe.com.py), `SMTP_PASS` (la contraseña de aplicación), `NOTIF_TO` (a quién avisar de fichas nuevas).
 10. **Project Settings → API**: copiar la URL y la `anon public` key a `config.js`. La `service_role` no va nunca en la app.
+11. **Avisos al celular**: Edge Functions → crear `push` con `supabase/functions/push/index.ts` y **apagar "Verify JWT"** (el código valida quién llama). Después, SQL Editor → correr `supabase/cron-push.sql`. No hay que cargar claves: la función genera sola sus claves VAPID la primera vez y las guarda en `config_privada`.
 
 ### 2. Publicar la app (GitHub Pages)
 1. Repo nuevo `vibe-app` con estos archivos.
@@ -106,3 +109,14 @@ Las respuestas viejas de los formularios de Google se pueden importar: en **Impo
 ## Actualización en vivo
 
 La app se actualiza sola: cuando alguien guarda algo (lista, cobro, pedido de cambio, turno, horario), los demás lo ven en uno o dos segundos sin recargar (Supabase Realtime, que respeta los permisos de cada uno). Si alguien está escribiendo o tiene algo sin guardar, espera a que termine. De respaldo, cada 2 minutos refresca. Las evaluaciones anónimas no se publican en vivo.
+
+## Avisos al celular (notificaciones)
+
+Les llegan a quienes **instalaron la app y tocaron "Activar avisos"** (en Inicio o en Mi cuenta) en su celular. En Android funciona desde Chrome; en iPhone primero hay que agregar la app a la pantalla de inicio desde Safari (Compartir → Agregar a inicio) y abrirla desde el ícono. Es gratis (web push).
+
+- **Al publicar el horario** (casilla al lado de Publicar): a cada profe "Salió el horario: tenés N clases" y a los alumnos de los grupos con clases "Ya está tu horario". Si se vuelve a publicar, dice "Se actualizó".
+- **A la noche** (20:00 por defecto) las clases de mañana y **a la mañana** (6:30) las de hoy. Alumnos: materia, tema y hora, y que preparen sus cosas (si es examen, otro texto). Profes: materia, tema, grupo y hora, y que llamen lista.
+- **Disponibilidad** a los profes que todavía no cargaron: miércoles 17:00, jueves y viernes 13:00, sábado 11:00 (último aviso).
+- Horas y qué se manda a quién: **Ajustes → Avisos al celular** (también muestra quiénes ya los activaron y arma un mensaje de WhatsApp para pedirles que los activen).
+- Cómo funciona: el cron llama a la función `push` cada 15 minutos; la función mira la hora de Paraguay y lo que dice Ajustes, y cada aviso sale una sola vez por día (`push_log`). Los textos se arman en la base (`push_mensajes`). Si un celular desinstaló la app, se borra solo.
+

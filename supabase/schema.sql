@@ -847,6 +847,157 @@ language sql stable security definer set search_path = public as $$
   order by c.fecha, c.turno
 $$;
 
+-- ---------- avisos por notificación (push) ----------------------------
+-- Cada celular que activa los avisos queda anotado acá (una fila por celular).
+create table if not exists public.push_subs (
+  id        uuid primary key default gen_random_uuid(),
+  user_id   uuid not null references auth.users(id) on delete cascade,
+  endpoint  text not null unique,
+  keys      jsonb not null,
+  creado    timestamptz not null default now()
+);
+create index if not exists push_subs_user_idx on public.push_subs(user_id);
+-- Cada aviso programado se manda una sola vez (clave "tipo|fecha").
+create table if not exists public.push_log (
+  clave    text primary key,
+  enviado  timestamptz not null default now()
+);
+alter table public.push_subs enable row level security;
+alter table public.push_log  enable row level security;
+-- (sin políticas: se usan solo desde las funciones de abajo y desde la función "push" con la clave de servicio)
+
+create or replace function public.mat_nombre(m text) returns text
+language sql immutable as $$
+  select case m when 'arit' then 'Aritmética' when 'alg' then 'Álgebra' when 'geo' then 'Geometría' when 'trig' then 'Trigonometría'
+    when 'calc' then 'Cálculo' when 'fis' then 'Física' when 'examen' then 'Examen' else coalesce(m, '') end
+$$;
+
+-- el celular de la persona se anota para recibir avisos (si el celular era de otra cuenta, pasa a esta)
+create or replace function public.guardar_push(ep text, k jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Tenés que iniciar sesión'; end if;
+  if coalesce(ep, '') !~ '^https://' or coalesce(k->>'p256dh', '') = '' or coalesce(k->>'auth', '') = '' then raise exception 'Suscripción no válida'; end if;
+  insert into push_subs (user_id, endpoint, keys) values (auth.uid(), ep, jsonb_build_object('p256dh', k->>'p256dh', 'auth', k->>'auth'))
+  on conflict (endpoint) do update set user_id = excluded.user_id, keys = excluded.keys;
+end $$;
+
+create or replace function public.quitar_push(ep text) returns void
+language sql security definer set search_path = public as $$
+  delete from push_subs where endpoint = ep and user_id = auth.uid()
+$$;
+
+-- quiénes tienen los avisos activados (solo dirección)
+create or replace function public.push_resumen() returns json
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.es_admin() then raise exception 'Solo la dirección ve esto'; end if;
+  return json_build_object(
+    'profes', (select count(*) from profesores p where p.activo),
+    'profes_con', (select count(*) from profesores p where p.activo and exists (select 1 from push_subs s where s.user_id = p.user_id)),
+    'profes_sin', coalesce((select json_agg(json_build_object('nombre', p.nombre, 'tel', p.telefono, 'cuenta', p.user_id is not null) order by p.nombre)
+                            from profesores p where p.activo and not exists (select 1 from push_subs s where s.user_id = p.user_id)), '[]'::json),
+    'alumnos', (select count(*) from alumnos a where a.estado = 'activo' and a.user_id is not null),
+    'alumnos_con', (select count(*) from alumnos a where a.estado = 'activo' and exists (select 1 from push_subs s where s.user_id = a.user_id)));
+end $$;
+
+-- marca un aviso programado como enviado; devuelve false si ya se había mandado
+create or replace function public.push_tomar(k text) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into push_log (clave) values (k) on conflict do nothing;
+  return found;
+end $$;
+
+-- Arma los avisos a mandar (uno por celular). Lo usa la función "push" con la clave de servicio.
+--   noche: clases de f (la llama la noche anterior) · manana: clases de f (ese mismo día)
+--   publicado: horario de la semana sem · disp: disponibilidad pendiente de la semana siguiente a f
+-- Qué se manda se configura en Ajustes (config.general.push).
+create or replace function public.push_mensajes(tipo text, f date, sem uuid default null, actualizado boolean default false)
+returns table (endpoint text, keys jsonb, titulo text, cuerpo text)
+language plpgsql stable security definer set search_path = public as $$
+declare cfg jsonb; w semanas; l date;
+  dia text := (array['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'])[extract(dow from f)::int + 1] || ' ' || to_char(f, 'FMDD/FMMM');
+begin
+  select coalesce(c.valor->'push', '{}'::jsonb) into cfg from config c where c.clave = 'general';
+  cfg := coalesce(cfg, '{}'::jsonb);
+  if tipo in ('noche', 'manana') then
+    -- profes: sus clases de ese día (los exámenes no tienen profe)
+    if coalesce((cfg->>(case when tipo = 'noche' then 'prNoche' else 'prManana' end))::boolean, true) then
+      return query
+      with cl as (
+        select p.user_id,
+          string_agg(public.mat_nombre(c.materia) || coalesce(' (' || nullif(btrim(c.tema), '') || ')', '') || ' en ' || g.nombre || ', '
+                     || case when c.turno = 'Mañana' then '8:00' else '13:30' end, ' · ' order by c.turno = 'Tarde', g.orden, g.nombre) as txt
+        from clases c
+        join grupos g on g.id = c.grupo_id and g.activo
+        join profesores p on p.id = c.profesor_id and p.activo and p.user_id is not null
+        where c.fecha = f and coalesce(c.materia, '') not in ('', 'examen')
+        group by p.user_id)
+      select s.endpoint, s.keys,
+        case when tipo = 'noche' then 'Mañana das clase 📚' else 'Hoy das clase ☀️' end,
+        case when tipo = 'noche' then dia || ': ' || cl.txt || '. Acordate de llamar lista desde la app.'
+             else cl.txt || '. ¡Buena clase! No te olvides de llamar lista.' end
+      from cl join push_subs s on s.user_id = cl.user_id;
+    end if;
+    -- alumnos: las clases de su grupo (sin el nombre del profe)
+    if coalesce((cfg->>(case when tipo = 'noche' then 'alNoche' else 'alManana' end))::boolean, true) then
+      return query
+      with cl as (
+        select a.user_id, bool_or(c.materia = 'examen') as ex,
+          string_agg(case when c.materia = 'examen' then 'Examen' else public.mat_nombre(c.materia) end
+                     || coalesce(' (' || nullif(btrim(c.tema), '') || ')', '') || ' a las ' || case when c.turno = 'Mañana' then '8:00' else '13:30' end,
+                     ' · ' order by c.turno = 'Tarde') as txt
+        from alumnos a
+        join grupos g on g.id = a.grupo_id and g.activo
+        join clases c on c.grupo_id = a.grupo_id and c.fecha = f and coalesce(c.materia, '') <> ''
+        where a.estado = 'activo' and a.user_id is not null
+        group by a.user_id)
+      select s.endpoint, s.keys,
+        case when tipo = 'noche' then (case when cl.ex then 'Mañana tenés examen 📝' else 'Mañana tenés clase 🎒' end)
+             else (case when cl.ex then 'Hoy tenés examen 📝' else 'Hoy tenés clase ☀️' end) end,
+        case when tipo = 'noche' then cl.txt || (case when cl.ex then '. Repasá, prepará tus materiales y descansá bien. ¡Vos podés!'
+                                                     else '. Prepará tus cosas para mañana: cuaderno, calculadora y materiales.' end)
+             else cl.txt || (case when cl.ex then '. ¡Éxitos! No te olvides tus materiales.' else '. No te olvides tus materiales. ¡Te esperamos!' end) end
+      from cl join push_subs s on s.user_id = cl.user_id;
+    end if;
+  elsif tipo = 'publicado' then
+    select * into w from semanas where id = sem;
+    if not found then return; end if;
+    return query
+      select s.endpoint, s.keys,
+        case when actualizado then 'Se actualizó el horario 📅' else 'Salió el horario de la semana 📅' end,
+        'Semana del ' || to_char(w.lunes, 'FMDD/FMMM') || ' al ' || to_char(w.lunes + 6, 'FMDD/FMMM') || ': '
+          || case when x.n = 0 then 'esta semana no tenés clases asignadas.' when x.n = 1 then 'tenés 1 clase. Mirala en la app.'
+                  else 'tenés ' || x.n || ' clases. Miralas en la app.' end
+      from (select p.user_id, (select count(*) from clases c join grupos g on g.id = c.grupo_id and g.activo
+                               where c.profesor_id = p.id and c.fecha between w.lunes and w.lunes + 6 and coalesce(c.materia, '') not in ('', 'examen')) as n
+            from profesores p where p.activo and p.user_id is not null) x
+      join push_subs s on s.user_id = x.user_id;
+    return query
+      select s.endpoint, s.keys,
+        case when actualizado then 'Se actualizó tu horario 📅' else 'Ya está tu horario de la semana 📅' end,
+        'Semana del ' || to_char(w.lunes, 'FMDD/FMMM') || ' al ' || to_char(w.lunes + 6, 'FMDD/FMMM') || ': mirá en la app qué materia y qué tema tenés cada día.'
+      from alumnos a
+      join grupos g on g.id = a.grupo_id and g.activo
+      join push_subs s on s.user_id = a.user_id
+      where a.estado = 'activo'
+        and exists (select 1 from clases c where c.grupo_id = a.grupo_id and c.fecha between w.lunes and w.lunes + 6 and coalesce(c.materia, '') <> '');
+  elsif tipo = 'disp' then
+    if not coalesce((cfg->>'disp')::boolean, true) then return; end if;
+    l := f - (extract(isodow from f)::int - 1) + 7;
+    return query
+      select s.endpoint, s.keys, 'Tu disponibilidad 🗓️',
+        case extract(isodow from f)::int
+          when 3 then 'Ya podés cargar tu disponibilidad para la semana del ' || to_char(l, 'FMDD/FMMM') || '. Tenés tiempo hasta el sábado a las 17:00.'
+          when 6 then '¡Último aviso! Hoy a las 17:00 cierra la carga de disponibilidad para la semana del ' || to_char(l, 'FMDD/FMMM') || '.'
+          else 'Te falta cargar tu disponibilidad para la semana del ' || to_char(l, 'FMDD/FMMM') || '. Cierra el sábado a las 17:00.' end
+      from profesores p join push_subs s on s.user_id = p.user_id
+      where p.activo
+        and not exists (select 1 from disponibilidad d join semanas sm on sm.id = d.semana_id where sm.lunes = l and d.profesor_id = p.id and d.enviado);
+  end if;
+end $$;
+
 -- ---------- seguridad por filas (RLS) ---------------------------------
 alter table public.perfiles       enable row level security;
 alter table public.config         enable row level security;
@@ -1103,7 +1254,7 @@ grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
   public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.link_evaluacion(uuid, date), public.clases_hoy(),
-  public.despublicar_horario(uuid)
+  public.despublicar_horario(uuid), public.guardar_push(text, jsonb), public.quitar_push(text), public.push_resumen()
   to authenticated;
 -- la evaluación se responde sin cuenta (link público)
 grant execute on function public.eval_info(text), public.evaluar(text, uuid, int, int, text, text, text, text) to anon, authenticated;
@@ -1115,7 +1266,11 @@ revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
   public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.vincular_cuenta_profe(),
   public.link_evaluacion(uuid, date), public.eval_abierta(date, text), public.clases_hoy(),
-  public.despublicar_horario(uuid) from public, anon;
+  public.despublicar_horario(uuid), public.guardar_push(text, jsonb), public.quitar_push(text), public.push_resumen() from public, anon;
+-- los avisos programados los arma solo la función "push" (clave de servicio)
+revoke execute on function public.push_tomar(text), public.push_mensajes(text, date, uuid, boolean) from public, anon, authenticated;
+grant execute on function public.push_tomar(text), public.push_mensajes(text, date, uuid, boolean) to service_role;
+revoke all on public.push_subs, public.push_log from anon, authenticated;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 
