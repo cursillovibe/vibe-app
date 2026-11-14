@@ -650,6 +650,26 @@ begin
   return r;
 end $$;
 
+-- La dirección borra un profe del plantel (ej. filas viejas de la app anterior). No deja borrar a quien ya dio
+-- clases registradas (se perdería lo que hay que pagarle): a esos se los desactiva. Se borran sus puntajes,
+-- disponibilidades y pedidos; las clases que tenía asignadas quedan sin profe; si tenía cuenta, pierde el acceso.
+create or replace function public.borrar_profe(pid uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare p profesores; n int;
+begin
+  if not public.es_admin() then raise exception 'Solo la dirección borra profes'; end if;
+  select * into p from profesores where id = pid;
+  if not found then raise exception 'Ese profe ya no está en el plantel'; end if;
+  if p.user_id = auth.uid() then raise exception 'No podés borrar tu propia fila'; end if;
+  select count(*) into n from clases where dictada_por = pid;
+  if n > 0 then
+    raise exception 'Ya tiene % clase(s) dada(s) registrada(s). Desactivalo en vez de borrarlo, así no se pierde lo que hay que pagarle.', n;
+  end if;
+  if p.user_id is not null then update perfiles set activo = false where id = p.user_id and rol = 'profe'; end if;
+  delete from profesores where id = pid;
+  return case when p.user_id is not null then 'sin_acceso' else 'ok' end;
+end $$;
+
 -- La dirección aprueba o rechaza un turno pedido
 create or replace function public.resolver_turno(tid uuid, aprobar boolean) returns void
 language plpgsql security definer set search_path = public as $$
@@ -898,14 +918,16 @@ grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(
   public.publicar_horario(uuid), public.mi_horario(date, date), public.anotar_clase(uuid, date, text, text, jsonb),
   public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
-  public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean)
+  public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
+  public.borrar_profe(uuid)
   to authenticated;
 revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(), public.usar_link(text),
   public.abrir_semana(date), public.publicar_horario(uuid), public.mi_horario(date, date), public.mi_profesor(),
   public.carga_abierta(uuid), public.anotar_clase(uuid, date, text, text, jsonb),
   public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
-  public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean) from public, anon;
+  public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
+  public.borrar_profe(uuid) from public, anon;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 

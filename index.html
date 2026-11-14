@@ -1891,8 +1891,8 @@ async function infoCambio() {
 function vHorPlantel() {
   const ps = Object.values(S.prof).sort((a, b) => (b.activo - a.activo) || (a.nombre || '').localeCompare(b.nombre || '', 'es'));
   let h = `<div class="filters" style="justify-content:space-between"><small class="muted" style="max-width:640px">Total = Conocimiento 50% · Manejo de grupo 25% · Antigüedad 15% · Puntualidad 10%. Los puntajes y el pago por clase solo los ves vos.</small><button class="btn primary" data-act="prof-nuevo">${ic('plus')}Agregar profe</button></div>`;
-  h += `<div class="card"><div class="tw"><table><thead><tr><th>Profe</th>${MAT_KEYS.map(k => `<th class="n">${MATS[k].l.slice(0, 4)}</th>`).join('')}<th class="n">Manejo</th><th class="n">Punt.</th><th class="n">Años</th><th class="n">Total</th><th class="n">Por clase</th><th>App</th></tr></thead><tbody>${ps.map(p => { const s = S.punt[p.id] || {}; const sc = s.scores || {};
-    return `<tr class="click" data-act="prof-editar" data-id="${esc(p.id)}" ${p.activo ? '' : 'style="opacity:.55"'}><td><b>${esc(p.nombre)}</b><br><small>${esc(p.email || 'sin correo')}</small></td>${MAT_KEYS.map(k => `<td class="n">${typeof sc[k] === 'number' ? sc[k] : '<span class="muted">—</span>'}</td>`).join('')}<td class="n">${num(s.manejo)}</td><td class="n">${num(s.punt)}</td><td class="n">${num(s.anios)}</td><td class="n"><b>${totalPuntaje({ scores: sc, manejo: s.manejo, punt: s.punt, anios: s.anios }).toFixed(2)}</b></td><td class="n num">${num(s.monto_clase) ? money(s.monto_clase) : '<span class="bad-t">sin cargar</span>'}</td><td>${!p.activo ? pill('Inactivo') : p.user_id ? pill('Activo', 'ok') : p.email ? pill('Sin entrar', 'pend') : pill('Sin correo')}</td></tr>`; }).join('') || '<tr><td colspan="13" class="muted">Todavía no hay profes en el plantel.</td></tr>'}</tbody></table></div></div>`;
+  h += `<div class="card"><div class="tw"><table><thead><tr><th>Profe</th>${MAT_KEYS.map(k => `<th class="n">${MATS[k].l.slice(0, 4)}</th>`).join('')}<th class="n">Manejo</th><th class="n">Punt.</th><th class="n">Años</th><th class="n">Total</th><th class="n">Por clase</th><th>App</th><th></th></tr></thead><tbody>${ps.map(p => { const s = S.punt[p.id] || {}; const sc = s.scores || {};
+    return `<tr class="click" data-act="prof-editar" data-id="${esc(p.id)}" ${p.activo ? '' : 'style="opacity:.55"'}><td><b>${esc(p.nombre)}</b><br><small>${esc(p.email || 'sin correo')}</small></td>${MAT_KEYS.map(k => `<td class="n">${typeof sc[k] === 'number' ? sc[k] : '<span class="muted">—</span>'}</td>`).join('')}<td class="n">${num(s.manejo)}</td><td class="n">${num(s.punt)}</td><td class="n">${num(s.anios)}</td><td class="n"><b>${totalPuntaje({ scores: sc, manejo: s.manejo, punt: s.punt, anios: s.anios }).toFixed(2)}</b></td><td class="n num">${num(s.monto_clase) ? money(s.monto_clase) : '<span class="bad-t">sin cargar</span>'}</td><td>${!p.activo ? pill('Inactivo') : p.user_id ? pill('Activo', 'ok') : p.email ? pill('Sin entrar', 'pend') : pill('Sin correo')}</td><td class="n">${p.user_id === S.session.user.id ? '' : `<button class="btn sm ghost danger" data-act="prof-borrar" data-id="${esc(p.id)}" title="Borrar del plantel" aria-label="Borrar a ${esc(p.nombre)} del plantel">${ic('trash')}</button>`}</td></tr>`; }).join('') || '<tr><td colspan="14" class="muted">Todavía no hay profes en el plantel.</td></tr>'}</tbody></table></div></div>`;
   return h;
 }
 function openProfForm(id) {
@@ -1910,7 +1910,7 @@ function openProfForm(id) {
     <label class="chk full"><input type="checkbox" id="pf-act" ${p.activo !== false ? 'checked' : ''}>Activo en el plantel (desmarcá si ya no da clases)</label>
     ${!id ? `<label class="chk full"><input type="checkbox" id="pf-inv" checked>Mandarle ahora el correo para entrar a la app</label>` : ''}
     <div class="full err" id="pf-err"></div></div>`,
-    `${id && p.email && !p.user_id ? `<button class="btn" data-act="prof-invitar" data-id="${esc(id)}" style="margin-right:auto">${ic('mail')}Mandar acceso a la app</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="prof-guardar" data-id="${esc(id || '')}">Guardar</button>`, 'wide');
+    `${id && p.user_id !== S.session.user.id ? `<button class="btn ghost danger" data-act="prof-borrar" data-id="${esc(id)}">${ic('trash')}Borrar</button>` : ''}${id && p.email && !p.user_id ? `<button class="btn" data-act="prof-invitar" data-id="${esc(id)}" style="margin-right:auto">${ic('mail')}Mandar acceso a la app</button>` : '<span style="margin-right:auto"></span>'}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="prof-guardar" data-id="${esc(id || '')}">Guardar</button>`, 'wide');
 }
 async function invitarProfe(pid) {
   const p = S.prof[pid]; if (!p?.email) return false;
@@ -2653,6 +2653,16 @@ const A = {
   },
   'prof-nuevo': () => openProfForm(null),
   'prof-editar': el => openProfForm(el.dataset.id),
+  'prof-borrar': el => {
+    const p = S.prof[el.dataset.id]; if (!p) return;
+    const dadas = Object.values(S.clases || {}).filter(c => c.dictada_por === p.id).length;
+    if (dadas) { toast(`${p.nombre} ya tiene clases dadas registradas: desactivalo (Editar → Activo) en vez de borrarlo, así no se pierde lo que hay que pagarle.`, 'error'); return; }
+    const asign = Object.values(S.clases || {}).filter(c => c.profesor_id === p.id && c.fecha >= hoy()).length;
+    confirmDlg(`¿Borrar a ${p.nombre} del plantel? Se borran sus puntajes, disponibilidades y pedidos de cambio.${asign ? ` Sus ${asign} clase${asign === 1 ? '' : 's'} del horario quedan sin profe.` : ''}${p.user_id ? ' Tiene cuenta en la app: también pierde el acceso.' : ''} No se puede deshacer.`, 'Borrar', async () => {
+      const r = await run(S.sb.rpc('borrar_profe', { pid: p.id }), p.nombre + ' se borró del plantel');
+      if (r) { closeModal(); await load(['prof', 'punt', 'clases', 'cambios', ...(p.user_id ? ['perfiles'] : [])]); }
+    });
+  },
   'prof-guardar': async el => {
     const id = el.dataset.id || null; const nombre = $('#pf-nom').value.trim(); const email = ($('#pf-mail').value || '').trim().toLowerCase(); const err = $('#pf-err'); const inv = !id && !!$('#pf-inv')?.checked;
     if (!nombre) { err.textContent = 'Poné el nombre.'; return; } if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = 'El correo no es válido.'; return; }
