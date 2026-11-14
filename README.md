@@ -38,7 +38,7 @@ Cuando un profe llama lista, la clase queda registrada a su nombre con la hora. 
 En **Turnos oficina** (solo la dirección): turnos Mañana, Tarde y Noche.
 
 - Cada persona de oficina carga su disponibilidad de la semana siguiente (mismo plazo que los profes) desde **Mis turnos**.
-- La dirección arma la semana tocando nombres (en verde, los que pueden) o con "Completar con disponibles", y manda el mensaje al grupo por WhatsApp. En "Horario de la oficina" se eligen los turnos que abre cada día.
+- La dirección arma la semana tocando nombres (en verde, los que pueden) o con "Completar con disponibles", y manda el mensaje al grupo por WhatsApp. En "Horario de la oficina" se eligen los turnos que abre cada día (por defecto lunes a viernes mañana, tarde y noche; sábado y domingo mañana y tarde).
 - Cada persona **marca su turno** el día que trabaja (desde Inicio o Mis turnos). Si trabaja un turno que no tenía, lo pide y la dirección lo aprueba.
 - **Pago por turno**: por mes, cuenta cada turno asignado (o pedido y aprobado) que la persona marcó el mismo día. El monto por turno solo lo ve la dirección.
 

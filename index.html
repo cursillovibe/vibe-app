@@ -650,7 +650,8 @@ const cuentaPago = c => !!c.dictada_por && c.dictada_por === c.profesor_id && c.
 const ESTADO_CAMBIO = { pendiente: ['Falta aprobar', 'pend'], aprobado: ['Aprobado', 'ok'], rechazado: ['Rechazado', 'bad'] };
 // turnos de la oficina
 const OTURNOS = ['Mañana', 'Tarde', 'Noche'];
-const OFI_DEF = { Lun: ['Mañana', 'Tarde'], Mar: ['Mañana', 'Tarde'], Mié: ['Mañana', 'Tarde'], Jue: ['Mañana', 'Tarde'], Vie: ['Mañana', 'Tarde'], Sáb: ['Mañana'], Dom: [] };
+// horario de la oficina por defecto (pedido de Guido 14/11): lun–vie mañana, tarde y noche; sábado y domingo mañana y tarde
+const OFI_DEF = { Lun: ['Mañana', 'Tarde', 'Noche'], Mar: ['Mañana', 'Tarde', 'Noche'], Mié: ['Mañana', 'Tarde', 'Noche'], Jue: ['Mañana', 'Tarde', 'Noche'], Vie: ['Mañana', 'Tarde', 'Noche'], Sáb: ['Mañana', 'Tarde'], Dom: ['Mañana', 'Tarde'] };
 const ofiAbre = k => (S.cfg.ofiTurnos || OFI_DEF)[k] || [];
 const ofiPersonas = () => Object.values(S.perfiles || {}).filter(p => p.rol === 'oficina' && p.activo).sort((a, b) => (a.nombre || a.email).localeCompare(b.nombre || b.email, 'es'));
 const nomP = id => S.perfiles?.[id]?.nombre || S.perfiles?.[id]?.email || 'Alguien';
@@ -1934,7 +1935,7 @@ function vOfiSemana() {
   }).join('');
   h += `</div>`;
   const C = S.cfg.ofiTurnos || OFI_DEF;
-  h += `<details class="card"><summary class="card-h" style="cursor:pointer"><h2>Horario de la oficina</h2><small>Qué turnos abre cada día</small></summary><div class="card-b" style="display:grid;gap:8px">${DK.map(k => `<div class="ot-fila"><span class="tl">${k}</span><div class="chips">${OTURNOS.map(tt => `<button class="chip" data-act="ofi-abre" data-d="${k}" data-t="${tt}" aria-pressed="${(C[k] || []).includes(tt)}">${tt}</button>`).join('')}</div></div>`).join('')}</div></details>`;
+  h += `<details class="card"><summary class="card-h" style="cursor:pointer"><div><h2>Horario de la oficina</h2><small>Qué turnos abre la oficina cada día. Son los que aparecen para marcar disponibilidad y para armar la semana.</small></div></summary><div class="card-b" style="display:grid;gap:8px">${DK.map(k => `<div class="ot-fila"><span class="tl">${k}</span><div class="chips">${OTURNOS.map(tt => `<button class="chip" data-act="ofi-abre" data-d="${k}" data-t="${tt}" aria-pressed="${(C[k] || []).includes(tt)}">${tt}</button>`).join('')}</div></div>`).join('')}</div></details>`;
   return h;
 }
 function vOfiDisp() {
