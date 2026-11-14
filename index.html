@@ -1196,6 +1196,8 @@ VIEWS.inicio = () => {
     if (isOficina()) h += cardTurnoHoy();
     const op = oPend().length;
     if (isAdmin() && op) h += `<div class="banner click" data-act="nav" data-v="oficina"><span><b>${op} turno${op === 1 ? '' : 's'} de oficina</b> pedido${op === 1 ? '' : 's'} esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
+    const csf = isAdmin() && S.loaded.prof && S.loaded.perfiles ? cuentasSinFila().length : 0;
+    if (csf) h += `<div class="banner click" data-act="hortab" data-v="plantel"><span><b>${csf} cuenta${csf === 1 ? '' : 's'} de profe sin vincular</b> al plantel: no ven su horario hasta que las vincules.</span><span class="btn sm primary">Vincular</span></div>`;
     const cp = cambiosPend().length;
     if (isAdmin() && cp) h += `<div class="banner click" data-act="hortab" data-v="cambios"><span><b>${cp} pedido${cp === 1 ? '' : 's'} de cambio</b> de profes esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
     if (pend.length) h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span><b>${pend.length} alumno${pend.length === 1 ? '' : 's'}</b> completaron su ficha y esperan que les asignes grupo.</span><span class="btn sm primary">Asignar grupo</span></div>`;
@@ -1888,9 +1890,23 @@ async function infoCambio() {
 }
 
 /* plantel (dirección) */
+const normN = t => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-zñ]+/).filter(w => w.length > 2);
+function cuentasSinFila() {
+  const ligadas = new Set(Object.values(S.prof).map(p => p.user_id).filter(Boolean));
+  return Object.values(S.perfiles || {}).filter(u => u.rol === 'profe' && u.activo && !ligadas.has(u.id)).sort((a, b) => (a.nombre || a.email).localeCompare(b.nombre || b.email, 'es'));
+}
+function cardCuentasSinFila() {
+  const cs = cuentasSinFila(); if (!cs.length) return '';
+  const libres = Object.values(S.prof).filter(p => !p.user_id).sort((a, b) => (b.activo - a.activo) || a.nombre.localeCompare(b.nombre, 'es'));
+  const mejor = u => { const w = new Set([...normN(u.nombre), ...normN(u.email.split('@')[0])]); let best = null, bs = 0;
+    libres.forEach(p => { const sc = normN(p.nombre).filter(x => w.has(x) || [...w].some(y => y.includes(x))).length; if (sc > bs) { bs = sc; best = p.id; } }); return best; };
+  return `<div class="card" style="border-color:var(--late)"><div class="card-h"><div><h2>Cuentas de profe sin vincular</h2><small>Entraron con un correo que no está en el plantel, por eso no ven su horario ni su disponibilidad.</small></div>${pill(cs.length, 'pend')}</div><div class="rows">${cs.map(u => { const m = mejor(u);
+    return `<div class="row"><div class="t">${esc(u.nombre || '—')}<small>${esc(u.email)}</small></div><div class="r" style="flex-wrap:wrap"><select class="inp" id="vinc-${esc(u.id)}" style="width:auto;max-width:220px" aria-label="Fila del plantel para ${esc(u.email)}"><option value="">Vincular a…</option>${libres.map(p => `<option value="${esc(p.id)}" ${p.id === m ? 'selected' : ''}>${esc(p.nombre)}${p.activo ? '' : ' (inactivo)'}${p.email ? ' · ' + esc(p.email) : ''}</option>`).join('')}</select><button class="btn sm primary" data-act="vinc-profe" data-u="${esc(u.id)}">Vincular</button></div></div>`; }).join('')}</div><div class="card-b"><small class="muted">Al vincular, la fila conserva sus puntajes y pasa a tener el correo de la cuenta. También se engancha sola si le ponés a la fila el mismo correo de la cuenta.</small></div></div>`;
+}
 function vHorPlantel() {
   const ps = Object.values(S.prof).sort((a, b) => (b.activo - a.activo) || (a.nombre || '').localeCompare(b.nombre || '', 'es'));
   let h = `<div class="filters" style="justify-content:space-between"><small class="muted" style="max-width:640px">Total = Conocimiento 50% · Manejo de grupo 25% · Antigüedad 15% · Puntualidad 10%. Los puntajes y el pago por clase solo los ves vos.</small><button class="btn primary" data-act="prof-nuevo">${ic('plus')}Agregar profe</button></div>`;
+  h += cardCuentasSinFila();
   h += `<div class="card"><div class="tw"><table><thead><tr><th>Profe</th>${MAT_KEYS.map(k => `<th class="n">${MATS[k].l.slice(0, 4)}</th>`).join('')}<th class="n">Manejo</th><th class="n">Punt.</th><th class="n">Años</th><th class="n">Total</th><th class="n">Por clase</th><th>App</th><th></th></tr></thead><tbody>${ps.map(p => { const s = S.punt[p.id] || {}; const sc = s.scores || {};
     return `<tr class="click" data-act="prof-editar" data-id="${esc(p.id)}" ${p.activo ? '' : 'style="opacity:.55"'}><td><b>${esc(p.nombre)}</b><br><small>${esc(p.email || 'sin correo')}</small></td>${MAT_KEYS.map(k => `<td class="n">${typeof sc[k] === 'number' ? sc[k] : '<span class="muted">—</span>'}</td>`).join('')}<td class="n">${num(s.manejo)}</td><td class="n">${num(s.punt)}</td><td class="n">${num(s.anios)}</td><td class="n"><b>${totalPuntaje({ scores: sc, manejo: s.manejo, punt: s.punt, anios: s.anios }).toFixed(2)}</b></td><td class="n num">${num(s.monto_clase) ? money(s.monto_clase) : '<span class="bad-t">sin cargar</span>'}</td><td>${!p.activo ? pill('Inactivo') : p.user_id ? pill('Activo', 'ok') : p.email ? pill('Sin entrar', 'pend') : pill('Sin correo')}</td><td class="n">${p.user_id === S.session.user.id ? '' : `<button class="btn sm ghost danger" data-act="prof-borrar" data-id="${esc(p.id)}" title="Borrar del plantel" aria-label="Borrar a ${esc(p.nombre)} del plantel">${ic('trash')}</button>`}</td></tr>`; }).join('') || '<tr><td colspan="14" class="muted">Todavía no hay profes en el plantel.</td></tr>'}</tbody></table></div></div>`;
   return h;
@@ -1947,7 +1963,7 @@ function vHorPago() {
 /* vista del profe */
 function vHorProfe() {
   if (!ready('grupos', 'prof', 'clases', 'semana')) return loadingView();
-  if (!S.miProf) return ph('Horario', '') + `<div class="card"><div class="empty"><b>Todavía no estás en el plantel de profes</b>Pedile a la dirección que te sume con este correo: ${esc(S.perfil.email)}</div></div>`;
+  if (!S.miProf) return ph('Horario', '') + `<div class="card"><div class="empty"><b>Tu cuenta todavía no está vinculada al plantel de profes</b>Entraste con <b>${esc(S.perfil.email)}</b>. Avisale a la dirección: le aparece tu cuenta en Horario → Plantel para vincularla a tu fila (así conservás tus puntajes).<br><br><button class="btn primary" data-act="recargar-todo">Ya me vincularon: volver a cargar</button></div></div>`;
   const me = S.miProf.id, l = lunesDe(hoy());
   let h = ph('Horario', 'Tus clases y tu disponibilidad', `<button class="btn" data-act="cambio-nuevo">${ic('plus')}Pedir cambio</button>`);
   const mias = Object.values(S.clases).filter(c => (c.profesor_id === me || c.dictada_por === me) && c.fecha >= l && c.fecha <= addDays(l, 13));
@@ -2653,6 +2669,15 @@ const A = {
   },
   'prof-nuevo': () => openProfForm(null),
   'prof-editar': el => openProfForm(el.dataset.id),
+  'recargar-todo': () => location.reload(),
+  'vinc-profe': async el => {
+    const uid = el.dataset.u, pid = $('#vinc-' + uid)?.value; const u = S.perfiles[uid];
+    if (!pid) { toast('Elegí a qué profe del plantel corresponde esa cuenta.', 'error'); return; }
+    const p = S.prof[pid];
+    confirmDlg(`¿Vincular la cuenta ${u?.email} a ${p?.nombre}? La fila conserva sus puntajes y pasa a tener ese correo.`, 'Vincular', async () => {
+      if (await run(S.sb.rpc('vincular_profe', { pid, uid }), `Listo: ${p?.nombre} ya puede entrar con ${u?.email}`)) await load(['prof', 'perfiles']);
+    }, false);
+  },
   'prof-borrar': el => {
     const p = S.prof[el.dataset.id]; if (!p) return;
     const dadas = Object.values(S.clases || {}).filter(c => c.dictada_por === p.id).length;

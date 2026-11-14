@@ -650,6 +650,47 @@ begin
   return r;
 end $$;
 
+-- Cuando un profe cambia de correo: al poner en su fila del plantel el correo con el que ya creó su cuenta,
+-- la cuenta se engancha sola a esa fila (conserva puntajes) y entra como profe.
+create or replace function public.vincular_cuenta_profe() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare u uuid;
+begin
+  if new.user_id is null and new.email is not null then
+    select au.id into u from auth.users au
+     where lower(au.email) = lower(new.email)
+       and not exists (select 1 from profesores p where p.user_id = au.id and p.id is distinct from new.id)
+       and not exists (select 1 from perfiles pf where pf.id = au.id and pf.rol in ('admin', 'oficina'))
+       and not exists (select 1 from alumnos a where a.user_id = au.id);
+    if u is not null then
+      new.user_id := u;
+      update perfiles set rol = 'profe', activo = true where id = u;
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists profesores_vincular on public.profesores;
+create trigger profesores_vincular before insert or update of email on public.profesores
+  for each row execute function public.vincular_cuenta_profe();
+
+-- La dirección engancha a mano una cuenta de profe (que entró con otro correo) a su fila del plantel.
+-- La fila pasa a tener el correo de la cuenta y conserva sus puntajes.
+create or replace function public.vincular_profe(pid uuid, uid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare e text;
+begin
+  if not public.es_admin() then raise exception 'Solo la dirección vincula cuentas'; end if;
+  select lower(email) into e from auth.users where id = uid;
+  if e is null then raise exception 'No existe esa cuenta'; end if;
+  if exists (select 1 from perfiles where id = uid and rol in ('admin', 'oficina')) then raise exception 'Esa cuenta es de la dirección o de la oficina'; end if;
+  if exists (select 1 from alumnos where user_id = uid) then raise exception 'Esa cuenta es de un alumno'; end if;
+  if exists (select 1 from profesores where user_id = uid and id <> pid) then raise exception 'Esa cuenta ya está vinculada a otro profe'; end if;
+  if exists (select 1 from profesores where lower(email) = e and id <> pid) then raise exception 'Otro profe del plantel ya tiene el correo %', e; end if;
+  update profesores set user_id = uid, email = e, activo = true where id = pid;
+  if not found then raise exception 'Ese profe ya no está en el plantel'; end if;
+  update perfiles set rol = 'profe', activo = true where id = uid;
+end $$;
+
 -- La dirección borra un profe del plantel (ej. filas viejas de la app anterior). No deja borrar a quien ya dio
 -- clases registradas (se perdería lo que hay que pagarle): a esos se los desactiva. Se borran sus puntajes,
 -- disponibilidades y pedidos; las clases que tenía asignadas quedan sin profe; si tenía cuenta, pierde el acceso.
@@ -919,7 +960,7 @@ grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(
   public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
-  public.borrar_profe(uuid)
+  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid)
   to authenticated;
 revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(), public.usar_link(text),
   public.abrir_semana(date), public.publicar_horario(uuid), public.mi_horario(date, date), public.mi_profesor(),
@@ -927,7 +968,7 @@ revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados
   public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
-  public.borrar_profe(uuid) from public, anon;
+  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.vincular_cuenta_profe() from public, anon;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 
