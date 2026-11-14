@@ -277,6 +277,26 @@ create table if not exists public.oficina_montos (
   monto_turno integer not null default 0
 );
 
+-- Evaluación ANÓNIMA de las clases: un link por grupo y por día que se manda al grupo de WhatsApp.
+-- La respuesta NO guarda quién respondió: ni cuenta, ni correo, ni celular, ni hora; solo la clase y las respuestas.
+create table if not exists public.eval_links (
+  token    text primary key,
+  grupo_id uuid not null references public.grupos(id) on delete cascade,
+  fecha    date not null,
+  unique (grupo_id, fecha)
+);
+create table if not exists public.evaluaciones (
+  id         uuid primary key default gen_random_uuid(),
+  clase_id   uuid not null references public.clases(id) on delete cascade,
+  general    smallint not null check (general between 1 and 5),     -- Muy mala … Excelente
+  entendio   smallint check (entendio between 1 and 5),             -- Nada … Muy bien
+  puntual    text check (puntual in ('si', 'tarde', 'muy_tarde')),
+  dudas      text check (dudas in ('si', 'a_medias', 'no', 'sin_dudas')),
+  termino    text check (termino in ('completa', 'antes', 'a_medias')),
+  comentario text
+);
+create index if not exists evaluaciones_clase_idx on public.evaluaciones(clase_id);
+
 -- ---------- funciones de permisos ------------------------------------
 
 create or replace function public.mi_rol() returns text
@@ -506,6 +526,7 @@ begin
   if h is null then raise exception 'Todavía no se armó el horario de esta semana'; end if;
   delete from clases c where c.fecha between w.lunes and w.lunes + 6 and c.dictada_por is null
     and c.nota_profe is null and c.notas_alumnos = '{}'::jsonb
+    and not exists (select 1 from evaluaciones e where e.clase_id = c.id)
     and not exists (select 1 from asistencia a where a.grupo_id = c.grupo_id and a.fecha = c.fecha and a.turno = c.turno);
   for g in select key, value from jsonb_each(h) loop
     continue when not exists (select 1 from grupos gr where gr.id::text = g.key);
@@ -709,6 +730,57 @@ begin
   if p.user_id is not null then update perfiles set activo = false where id = p.user_id and rol = 'profe'; end if;
   delete from profesores where id = pid;
   return case when p.user_id is not null then 'sin_acceso' else 'ok' end;
+end $$;
+
+-- Se puede evaluar una clase desde que empieza (mañana 8:00, tarde 13:30) hasta el día siguiente a la noche
+create or replace function public.eval_abierta(f date, t text) returns boolean
+language sql stable as $$
+  select (now() at time zone 'UTC' - interval '3 hours') >= f + (case when t = 'Tarde' then time '13:30' else time '08:00' end)
+     and public.hoy_py() <= f + 1
+$$;
+
+-- Link de evaluación del grupo para un día: lo saca la oficina/dirección o el profe que dio clase ese día
+create or replace function public.link_evaluacion(g uuid, f date) returns text
+language plpgsql security definer set search_path = public as $$
+declare tk text; p uuid := public.mi_profesor();
+begin
+  if not (public.es_staff() or (p is not null and (
+        exists (select 1 from clases c where c.grupo_id = g and c.fecha = f and (c.profesor_id = p or c.dictada_por = p))
+     or exists (select 1 from cambios x where x.grupo_id = g and x.fecha = f and x.profesor_id = p and x.estado <> 'rechazado')))) then
+    raise exception 'Solo la oficina o el profe de ese día sacan el link';
+  end if;
+  if f < public.hoy_py() - 1 or f > public.hoy_py() + 7 then raise exception 'Ese día ya no se puede evaluar'; end if;
+  insert into eval_links (token, grupo_id, fecha) values (left(replace(gen_random_uuid()::text, '-', ''), 14), g, f)
+  on conflict (grupo_id, fecha) do nothing;
+  select token into tk from eval_links where grupo_id = g and fecha = f;
+  return tk;
+end $$;
+
+-- Lo que ve el alumno al abrir el link (sin cuenta): grupo, día y las clases (sin nombre del profe)
+create or replace function public.eval_info(tk text) returns json
+language sql stable security definer set search_path = public as $$
+  select json_build_object('grupo', g.nombre, 'fecha', l.fecha, 'cerrada', public.hoy_py() > l.fecha + 1,
+    'clases', coalesce((select json_agg(json_build_object('id', c.id, 'turno', c.turno, 'materia', c.materia, 'tema', c.tema,
+                          'abierta', public.eval_abierta(c.fecha, c.turno)) order by (c.turno = 'Tarde'))
+                        from clases c where c.grupo_id = l.grupo_id and c.fecha = l.fecha
+                          and ((c.materia is not null and c.materia <> 'examen') or (c.materia is null and c.dictada_por is not null))), '[]'::json))
+  from eval_links l join grupos g on g.id = l.grupo_id where l.token = tk
+$$;
+
+-- Guardar una evaluación: anónima (no se registra quién la manda). Tope de respuestas por clase según los alumnos del grupo.
+create or replace function public.evaluar(tk text, cid uuid, general int, entendio int, puntual text, dudas text, termino text, comentario text)
+returns void language plpgsql security definer set search_path = public as $$
+declare l eval_links; c clases; tope int;
+begin
+  select * into l from eval_links where token = tk;
+  if not found then raise exception 'Este link de evaluación no es válido'; end if;
+  select * into c from clases where id = cid and grupo_id = l.grupo_id and fecha = l.fecha;
+  if not found then raise exception 'Esa clase no corresponde a este link'; end if;
+  if not public.eval_abierta(c.fecha, c.turno) then raise exception 'Esta clase todavía no empezó o ya cerró la evaluación'; end if;
+  select greatest(count(*), 10) + 5 into tope from alumnos where grupo_id = c.grupo_id and estado in ('activo', 'pendiente');
+  if (select count(*) from evaluaciones e where e.clase_id = cid) >= tope then raise exception 'Ya se recibieron todas las respuestas de esta clase'; end if;
+  insert into evaluaciones (clase_id, general, entendio, puntual, dudas, termino, comentario)
+  values (cid, general, entendio, nullif(puntual, ''), nullif(dudas, ''), nullif(termino, ''), nullif(left(btrim(coalesce(comentario, '')), 600), ''));
 end $$;
 
 -- La dirección aprueba o rechaza un turno pedido
@@ -944,12 +1016,21 @@ drop policy if exists omontos_admin on public.oficina_montos;
 create policy omontos_admin on public.oficina_montos for all to authenticated
   using (public.es_admin()) with check (public.es_admin());
 
+-- evaluaciones: solo la dirección ve los resultados; nadie puede escribir directo (solo por evaluar())
+alter table public.eval_links   enable row level security;
+alter table public.evaluaciones enable row level security;
+drop policy if exists elinks_ver on public.eval_links;
+create policy elinks_ver on public.eval_links for select to authenticated using (public.es_staff());
+drop policy if exists eval_ver on public.evaluaciones;
+create policy eval_ver on public.evaluaciones for select to authenticated using (public.es_admin());
+
 -- ---------- permisos de tablas para el rol de la API --------------------
 revoke all on all tables in schema public from anon;
 grant select, insert, update, delete on public.perfiles, public.config, public.grupos, public.alumnos,
   public.pagos, public.asistencia, public.examenes, public.notas, public.profe_grupos, public.links_inscripcion,
   public.profesores, public.profesores_puntajes, public.semanas, public.disponibilidad, public.materias_semana,
   public.horarios, public.clases, public.cambios, public.oficina_disp, public.oficina_turnos, public.oficina_montos to authenticated;
+grant select on public.eval_links, public.evaluaciones to authenticated;
 revoke all on public.config_privada from authenticated;
 grant usage on sequence public.recibo_seq to authenticated;
 grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(),
@@ -960,15 +1041,18 @@ grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(
   public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
-  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid)
+  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.link_evaluacion(uuid, date)
   to authenticated;
+-- la evaluación se responde sin cuenta (link público)
+grant execute on function public.eval_info(text), public.evaluar(text, uuid, int, int, text, text, text, text) to anon, authenticated;
 revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(), public.usar_link(text),
   public.abrir_semana(date), public.publicar_horario(uuid), public.mi_horario(date, date), public.mi_profesor(),
   public.carga_abierta(uuid), public.anotar_clase(uuid, date, text, text, jsonb),
   public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
-  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.vincular_cuenta_profe() from public, anon;
+  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.vincular_cuenta_profe(),
+  public.link_evaluacion(uuid, date), public.eval_abierta(date, text) from public, anon;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 

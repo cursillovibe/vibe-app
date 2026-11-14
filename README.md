@@ -92,3 +92,10 @@ Turno (mañana/tarde) y modalidad (presencial/virtual) no se preguntan: los defi
 Para cambiar preguntas: lista `FICHA` al principio del script de `index.html`. `col: true` = columna propia de `alumnos`; el resto va a `alumnos.ficha`. `solo: [...]` = cursos donde aparece; `reqSi` = obligatoria según otra respuesta.
 
 Las respuestas viejas de los formularios de Google se pueden importar: en **Importar**, subís la planilla de respuestas y la app reconoce cada columna sola.
+
+## Evaluación anónima de clases
+
+- Cada día, desde **Inicio → Evaluación de las clases de hoy** (o desde la lista ya llamada), la oficina, la dirección o el profe de ese día sacan un **link por grupo** y lo mandan al WhatsApp del grupo.
+- El alumno lo abre **sin cuenta** y califica cada clase del día: calificación (Muy mala → Excelente), puntualidad, si se entendió, si le aclararon las dudas, cómo terminó y un comentario. Se puede responder desde que empieza la clase hasta el día siguiente.
+- **Anónimo:** la respuesta no guarda quién la mandó (ni cuenta, ni correo, ni celular, ni hora). La página usa una conexión aparte, sin la sesión del alumno aunque tenga la app abierta. Una respuesta por celular y un tope por clase según los alumnos del grupo.
+- Resultados solo para la dirección en **Horario → Evaluaciones**: por profe, por materia y comentarios.

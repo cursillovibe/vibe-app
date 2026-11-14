@@ -277,6 +277,15 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.45}
 
 /* login */
 .auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.auth-card.ev{max-width:560px}
+.evc{border-top:1px solid var(--line);padding-top:16px;display:grid;gap:12px}
+.evc h2{margin:0;font-size:17px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.evq{display:grid;gap:6px}
+.evq>b{font-size:14px}
+.evq .chips{gap:6px}
+.evq .chip{min-height:38px}
+.ev-ok{color:var(--ok);font-weight:700}
+.stars{color:var(--accent);letter-spacing:1px;white-space:nowrap}
 .auth-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px 24px;display:flex;flex-direction:column;gap:16px;box-shadow:var(--shadow)}
 .auth-card .wm{font-size:40px}
 .auth-card form{display:flex;flex-direction:column;gap:12px}
@@ -434,6 +443,8 @@ const PROGRAMAS = ['Ingeniería', 'Medicina', 'Becas', 'Ingreso a colegios', 'Re
 const progDe = a => a.programa || S.grupos[a.grupoId]?.programa || '';
 const aplica = (f, a, todos) => todos || !f.solo || f.solo.includes(progDe(a));
 const CODIGO = (new URLSearchParams(location.search).get('i') || '').toLowerCase().trim();
+// link de evaluación anónima de clases (?e=token): se responde sin cuenta
+const EVAL = (new URLSearchParams(location.search).get('e') || '').trim();
 const APP_URL = location.origin + location.pathname;
 const linkUrl = l => APP_URL + '?i=' + l.codigo;
 const COL2CAMEL = { nombre: 'nombre', apellido: 'apellido', ci: 'ci', fecha_nac: 'fechaNac', tel: 'tel', ciudad: 'ciudad', colegio: 'colegio', encargado: 'encargado', encargado_tel: 'encargadoTel' };
@@ -897,6 +908,11 @@ async function load(keys) {
 async function iniciar() {
   if (!configurado()) { render(); return; }
   if (!window.supabase) { S.fatal = 'No se pudo cargar la conexión. Revisá internet y recargá la página.'; render(); return; }
+  if (EVAL) {
+    // cliente aparte, SIN la sesión guardada: aunque el alumno tenga la app abierta, la respuesta viaja sin su cuenta
+    S.ev = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'vibe-eval-anon' } });
+    await cargarEval(); return;
+  }
   S.sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' } });
   if (['invite', 'recovery'].includes(HASH0.get('type'))) S.needPassword = true;
   if (CODIGO) { try { const { data } = await S.sb.rpc('info_link', { c: CODIGO }); S.linkInfo = (data && data[0]) || { invalido: true }; } catch (e) { S.linkInfo = { invalido: true }; } }
@@ -1038,6 +1054,7 @@ function render() {
 function pantalla() {
   if (!configurado()) return authCard(`<div class="banner bad">Falta conectar la app con Supabase. Completá <b>config.js</b> con la URL y la anon key del proyecto.</div>`);
   if (S.fatal) return authCard(`<div class="banner bad">${esc(S.fatal)}</div><button class="btn" data-act="recargar">Recargar</button>`);
+  if (EVAL) return vEval();
   if (!S.session) return vAuth();
   if (S.needPassword) return vNuevaClave();
   if (!S.perfil) return authCard(`<div class="loading">Cargando tu cuenta…</div>`);
@@ -1210,11 +1227,13 @@ VIEWS.inicio = () => {
       ${kpi('Vencido sin cobrar', money(tv), `${deud.length} alumno${deud.length === 1 ? '' : 's'} con deuda`, tv > 0 ? 'bad' : '')}
       ${kpi('Asistencia 7 días', a7 == null ? '—' : a7 + '%', 'presentes y tardanzas')}
     </div>`;
+    h += cardEvalHoy();
     h += `<div class="grid2">${cardListasHoy()}
       <div class="card"><div class="card-h"><h2>Cuotas vencidas</h2>${deud.length ? `<button class="btn sm ghost" data-act="nav" data-v="cobros">Ver todas</button>` : ''}</div>
       <div class="rows">${deud.length ? deud.slice(0, 6).map(x => rowDeuda(x.a, x.c)).join('') : `<div class="empty"><b>Nadie con cuotas vencidas</b>Todo al día por ahora.</div>`}</div></div></div>`;
   } else {
     h += `<div class="grid2">${cardListasHoy()}${cardExamenesRecientes()}</div>`;
+    h += cardEvalHoy();
   }
   h += `<div class="card"><div class="card-h"><h2>${isStaff() ? 'Grupos activos' : 'Mis grupos'}</h2>${isStaff() ? `<button class="btn sm ghost" data-act="nav" data-v="grupos">Administrar</button>` : ''}</div><div class="tw"><table>
     <thead><tr><th>Grupo</th><th class="n">Alumnos</th>${isStaff() ? '<th style="min-width:140px">Cobranza</th><th class="n">Vencido</th>' : ''}<th style="min-width:140px">Asistencia</th></tr></thead><tbody>
@@ -1406,7 +1425,7 @@ VIEWS.asistencia = () => {
       <textarea class="inp" id="asis-nota" data-in="asis-nota" maxlength="1000" placeholder="Ej: participó Juan Pérez de CPI1 · se cortó la luz a las 10 · no llegamos a terminar el tema">${esc(D.nota)}</textarea>
       <div class="chips">${NOTA_CLASE.map(x => `<button class="chip" data-act="asis-nota-chip" data-v="${esc(x)}">+ ${esc(x.replace(/:\s*$/, ''))}</button>`).join('')}</div></div>`}
     <div class="savebar"><div class="cnt"><span><i class="dot d-P"></i>${cnt.P}</span><span><i class="dot d-A"></i>${cnt.A}</span><span><i class="dot d-T"></i>${cnt.T}</span><span><i class="dot d-J"></i>${cnt.J}</span>${cnt[''] ? `<span class="muted"><i class="dot d-0"></i>${cnt['']} sin marcar</span>` : ''}</div>
-    ${soloVer ? '' : `<div class="actions">${saved && isAdmin() ? `<button class="btn sm ghost danger" data-act="asis-borrar">Borrar lista</button>` : ''}<button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="asis-guardar">${D.dirty ? 'Guardar lista' : saved ? 'Guardada' : 'Guardar lista'}</button></div>`}</div></div>`;
+    ${soloVer ? '' : `<div class="actions">${saved && isAdmin() ? `<button class="btn sm ghost danger" data-act="asis-borrar">Borrar lista</button>` : ''}${saved && u.asisFecha >= addDays(hoy(), -1) && u.asisFecha <= hoy() ? `<button class="btn sm" data-act="eval-link" data-g="${esc(g.id)}" data-f="${esc(u.asisFecha)}">${ic('wa')}Link de evaluación</button>` : ''}<button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="asis-guardar">${D.dirty ? 'Guardar lista' : saved ? 'Guardada' : 'Guardar lista'}</button></div>`}</div></div>`;
   return h;
 };
 function vHistorial() {
@@ -1506,7 +1525,7 @@ VIEWS.horario = () => {
   if (isProfe()) return vHorProfe();
   if (!ready('grupos', 'prof', 'clases')) return loadingView();
   const ncp = cambiosPend().length;
-  const tabs = isAdmin() ? [['semana', 'Semana'], ['armar', 'Armar horario'], ['cambios', 'Cambios' + (ncp ? ` (${ncp})` : '')], ['disp', 'Disponibilidad'], ['plantel', 'Plantel'], ['pago', 'Pago a profes']] : [['semana', 'Semana']];
+  const tabs = isAdmin() ? [['semana', 'Semana'], ['armar', 'Armar horario'], ['cambios', 'Cambios' + (ncp ? ` (${ncp})` : '')], ['disp', 'Disponibilidad'], ['plantel', 'Plantel'], ['pago', 'Pago a profes'], ['evals', 'Evaluaciones']] : [['semana', 'Semana']];
   if (!tabs.some(t => t[0] === S.ui.horTab)) S.ui.horTab = 'semana';
   let h = ph('Horario', isAdmin() ? 'Armá la semana, mirá quién dio cada clase y cuánto se le paga a cada profe' : 'Clases de la semana y quién da cada una');
   if (tabs.length > 1) h += `<div class="tabsbar">${tabs.map(([v, l]) => `<button data-act="hortab" data-v="${v}" aria-pressed="${S.ui.horTab === v}">${l}</button>`).join('')}</div>`;
@@ -1515,6 +1534,7 @@ VIEWS.horario = () => {
   if (t === 'disp') return h + (ready('semana') && S.sem ? vHorDisp() : loadingView());
   if (t === 'plantel') return h + (ready('punt') ? vHorPlantel() : loadingView());
   if (t === 'cambios') return h + (ready('cambios') ? vHorCambios() : loadingView());
+  if (t === 'evals') return h + vHorEval();
   if (t === 'pago') return h + (ready('punt') ? vHorPago() : loadingView());
   return h + vHorSemana();
 };
@@ -1715,6 +1735,114 @@ function cardMiDisp() {
   h += `<table class="dispg"><thead><tr><th>Día</th><th>Mañana<br><small>8 a 12</small></th><th>Tarde<br><small>13:30 a 17:30</small></th></tr></thead><tbody>${DK.map((k, i) => `<tr><td><b>${DK_FULL[i]}</b> <small class="muted">${dm(fDia(w.lunes, k))}</small></td>${TURNOS.map(t => `<td><button class="xb" data-act="disp-x" data-d="${k}" data-t="${t}" aria-pressed="${!!D[k]?.[t]}" ${est !== 'abierta' ? 'disabled' : ''} aria-label="${DK_FULL[i]} ${t}">X</button></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   if (est === 'abierta') h += `<div class="savebar"><small>${S.miDisp?.enviado ? 'Ya la enviaste. Podés cambiarla y volver a enviar hasta el sábado 17:00.' : 'Todavía no la enviaste.'}</small><button class="btn primary" data-act="disp-enviar">Enviar disponibilidad</button></div>`;
   return h + `</div>`;
+}
+
+/* ---------- evaluación anónima de clases ---------- */
+const EV_GEN = [[1, 'Muy mala'], [2, 'Mala'], [3, 'Buena'], [4, 'Muy buena'], [5, 'Excelente']];
+const EV_ENT = [[1, 'Nada'], [2, 'Poco'], [3, 'Más o menos'], [4, 'Bien'], [5, 'Muy bien']];
+const EV_PUNT = [['si', 'Sí, a horario'], ['tarde', 'Un poco tarde'], ['muy_tarde', 'Muy tarde']];
+const EV_DUD = [['si', 'Sí'], ['a_medias', 'A medias'], ['no', 'No'], ['sin_dudas', 'No tuve dudas']];
+const EV_TERM = [['completa', 'Se dio todo el tema'], ['antes', 'Terminó antes de hora'], ['a_medias', 'Quedó a medias']];
+async function cargarEval() {
+  try { const { data, error } = await S.ev.rpc('eval_info', { tk: EVAL }); if (error) throw error; S.evInfo = data || { invalido: true }; }
+  catch (e) { S.evInfo = { error: errText(e) }; }
+  S.evR = S.evR || {}; S.evDone = S.evDone || {};
+  (S.evInfo.clases || []).forEach(c => { try { if (localStorage.getItem('vibe-ev-' + c.id)) S.evDone[c.id] = true; } catch (e) { } });
+  render();
+}
+function evPregunta(c, k, label, ops, R) {
+  return `<div class="evq"><b>${label}</b><div class="chips">${ops.map(([v, l]) => `<button class="chip" data-act="ev-op" data-c="${esc(c.id)}" data-k="${k}" data-v="${v}" aria-pressed="${R[k] === v}">${l}</button>`).join('')}</div></div>`;
+}
+function vEval() {
+  const I = S.evInfo; const card = x => `<div class="auth"><div class="auth-card ev"><div>${LOGO()}</div>${x}</div></div>`;
+  if (!I) return card('<div class="loading">Cargando…</div>');
+  if (I.error) return card(`<div class="banner bad">No se pudo abrir la evaluación: ${esc(I.error)}</div><button class="btn" data-act="recargar">Reintentar</button>`);
+  if (I.invalido) return card(`<h1 style="margin:0">Link no válido</h1><p class="muted" style="margin:0">Este link de evaluación no existe. Fijate que sea el que se mandó en el grupo.</p>`);
+  let h = `<div><h1 style="margin:0">¿Cómo estuvieron las clases?</h1><p class="muted" style="margin:6px 0 0">${esc(I.grupo)} · ${fmtF(I.fecha)}</p></div>
+    <div class="banner"><span><b>Es anónimo.</b> No pedimos tu nombre ni tu cuenta, y la respuesta no guarda quién la mandó: nadie de VIBE (ni los profes, ni la dirección) puede saber quién respondió qué. Respondé con sinceridad, nos ayuda a mejorar.</span></div>`;
+  if (S.evGracias) h += `<div class="banner ok"><span><b>¡Gracias!</b> Tus respuestas se enviaron de forma anónima.</span></div>`;
+  if (I.cerrada) return card(h + `<p class="muted" style="margin:0">La evaluación de este día ya cerró. Se puede responder hasta el día siguiente a la clase.</p>`);
+  if (!I.clases.length) return card(h + `<p class="muted" style="margin:0">Ese día no hay clases para evaluar.</p>`);
+  let pend = 0;
+  I.clases.forEach(c => {
+    const R = S.evR[c.id] || {}; const tit = `${esc(c.turno)} · ${c.materia ? esc(matL(c.materia)) : 'Clase'}`;
+    h += `<section class="evc"><h2>${tit}</h2>${c.tema ? `<small class="muted" style="margin-top:-8px">${esc(c.tema)}</small>` : ''}`;
+    if (S.evDone[c.id]) h += `<div class="ev-ok">✓ Ya respondiste esta clase. ¡Gracias!</div>`;
+    else if (!c.abierta) h += `<div class="muted">Se puede evaluar desde que empieza la clase (${c.turno === 'Tarde' ? '13:30' : '8:00'}).</div>`;
+    else if (R.skip) h += `<div class="muted">Marcaste que no estuviste en esta clase. <button class="linkbtn" data-act="ev-skip" data-c="${esc(c.id)}">Deshacer</button></div>`;
+    else {
+      if (R.general) pend++;
+      h += evPregunta(c, 'general', '¿Cómo calificarías la clase? *', EV_GEN, R)
+        + evPregunta(c, 'puntual', '¿Empezó puntual?', EV_PUNT, R)
+        + evPregunta(c, 'entendio', '¿Se entendió el tema?', EV_ENT, R)
+        + evPregunta(c, 'dudas', '¿Te aclararon las dudas?', EV_DUD, R)
+        + evPregunta(c, 'termino', '¿Cómo terminó la clase?', EV_TERM, R)
+        + `<div class="evq"><b>¿Qué faltó o qué se puede mejorar? <span class="muted" style="font-weight:400">(opcional)</span></b><textarea class="inp" id="evc-${esc(c.id)}" data-in="ev-com" data-c="${esc(c.id)}" maxlength="600" placeholder="Contanos con tus palabras cómo fue la clase">${esc(R.comentario || '')}</textarea></div>
+        <div><button class="linkbtn" data-act="ev-skip" data-c="${esc(c.id)}">No estuve en esta clase</button></div>`;
+    }
+    h += `</section>`;
+  });
+  const quedan = I.clases.some(c => !S.evDone[c.id] && c.abierta && !(S.evR[c.id] || {}).skip);
+  if (quedan) h += `<div style="display:grid;gap:6px"><button class="btn primary" data-act="ev-enviar" ${pend ? '' : 'disabled'} style="min-height:48px">Enviar respuestas</button><small class="muted">Solo la primera pregunta de cada clase es obligatoria.</small></div>`;
+  return card(h);
+}
+// link para mandar al grupo (oficina, dirección o el profe de ese día)
+async function openEvalLink(g, f) {
+  openModal('Link de evaluación', `<div class="loading">Generando el link…</div>`, '', 'narrow');
+  const { data: tk, error } = await S.sb.rpc('link_evaluacion', { g, f }); if (!modalOpen()) return;
+  if (error) { openModal('Link de evaluación', `<div class="banner bad">${esc(errText(error))}</div>`, `<button class="btn" data-act="close">Cerrar</button>`, 'narrow'); return; }
+  const url = APP_URL + '?e=' + tk;
+  const msg = `📝 *¿Cómo estuvieron las clases ${f === hoy() ? 'de hoy' : 'del ' + dkDe(f) + ' ' + dm(f)}?* (${gName(g)})\nRespondé en 1 minuto. Es *anónimo*: nadie sabe quién responde, ni los profes ni la dirección.\n👉 ${url}`;
+  openModal('Link de evaluación · ' + gName(g), `<p class="muted" style="margin:0 0 10px">Mandalo al grupo de WhatsApp de ${esc(gName(g))}. Sirve para todas las clases de ese día y se puede responder hasta el día siguiente.</p>
+    <textarea class="inp" id="ev-msg" style="min-height:130px">${esc(msg)}</textarea>`,
+    `<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Ver cómo queda</a><button class="btn" data-act="ev-copiar">${ic('copy')}Copiar</button><a class="btn wa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${ic('wa')}WhatsApp</a>`, 'narrow');
+}
+function cardEvalHoy() {
+  if (!S.loaded.clases) return '';
+  const t = hoy(), me = S.miProf?.id;
+  const cls = Object.values(S.clases).filter(c => c.fecha === t && S.grupos[c.grupo_id] && ((c.materia && c.materia !== 'examen') || c.dictada_por) && (isStaff() || (me && (c.profesor_id === me || c.dictada_por === me))));
+  const gs = [...new Set(cls.map(c => c.grupo_id))].sort((a, b) => gName(a).localeCompare(gName(b), 'es'));
+  if (!gs.length) return '';
+  return `<div class="card"><div class="card-h"><div><h2>Evaluación de las clases de hoy</h2><small>Un link anónimo por grupo para mandar al WhatsApp</small></div></div><div class="rows">${gs.map(g => `<div class="row"><div class="t">${esc(gName(g))}<small>${cls.filter(c => c.grupo_id === g).sort((a, b) => a.turno.localeCompare(b.turno)).map(c => esc(c.turno) + (c.materia ? ' · ' + esc(matL(c.materia)) : '')).join(' — ')}</small></div><div class="r"><button class="btn sm" data-act="eval-link" data-g="${esc(g)}" data-f="${t}">${ic('wa')}Link para el grupo</button></div></div>`).join('')}</div></div>`;
+}
+// resultados (dirección)
+async function cargarEvals(mes) {
+  if (S.evCargando === mes) return; S.evCargando = mes;
+  const d0 = mes + '-01', d1 = addDays(addMonths(d0, 1), -1);
+  try { S.evals = await fetchAll('evaluaciones', '*, clases!inner(fecha, grupo_id, turno, materia, tema, profesor_id, dictada_por)', q => q.gte('clases.fecha', d0).lte('clases.fecha', d1)); S.evMes = mes; }
+  catch (e) { toast(errText(e), 'error'); S.evals = []; S.evMes = mes; }
+  S.evCargando = ''; render();
+}
+function evAgg(rows) {
+  const avg = k => { const v = rows.map(r => r[k]).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const pct = (k, ok, excl = []) => { const v = rows.map(r => r[k]).filter(x => x != null && !excl.includes(x)); return v.length ? Math.round(100 * v.filter(x => ok.includes(x)).length / v.length) : null; };
+  return { n: rows.length, gen: avg('general'), ent: avg('entendio'), punt: pct('puntual', ['si']), dud: pct('dudas', ['si'], ['sin_dudas']), term: pct('termino', ['completa']) };
+}
+const evProfe = r => r.clases?.dictada_por || r.clases?.profesor_id || '';
+const fAvg = (x, b = 3) => x == null ? '<span class="muted">—</span>' : `<b class="${x < b ? 'bad-t' : ''}">${x.toFixed(1)}</b>`;
+const fPct = (x, b = 70) => x == null ? '<span class="muted">—</span>' : `<span class="${x < b ? 'bad-t' : ''}">${x}%</span>`;
+const estrellas = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+function filaEvAgg(label, a, act) {
+  return `<tr ${act || ''}><td>${label}</td><td class="n num">${a.n}</td><td class="n">${fAvg(a.gen)}</td><td class="n">${fAvg(a.ent)}</td><td class="n">${fPct(a.punt)}</td><td class="n">${fPct(a.dud)}</td><td class="n">${fPct(a.term)}</td></tr>`;
+}
+function vHorEval() {
+  if (!S.ui.evMes) S.ui.evMes = hoy().slice(0, 7);
+  const mes = S.ui.evMes;
+  if (S.evMes !== mes) { cargarEvals(mes); return loadingView(); }
+  const rows = S.evals || [];
+  let h = `<div class="filters"><input type="month" class="inp" data-ch="evMes" value="${esc(mes)}" style="width:auto" aria-label="Mes"><small class="muted">Las respuestas son anónimas: la app no guarda quién respondió. Para recibirlas, mandá el link desde Inicio → Evaluación de las clases de hoy.</small></div>`;
+  if (!rows.length) return h + `<div class="card"><div class="empty"><b>Todavía no hay evaluaciones en ${MESES[+mes.slice(5) - 1]}</b>Cada día, mandá al grupo de WhatsApp el link de evaluación (Inicio → Evaluación de las clases de hoy). Los alumnos responden sin cuenta y de forma anónima.</div></div>`;
+  const tot = evAgg(rows);
+  h += `<div class="kpis">${kpi('Respuestas', fmtN(tot.n), cap(MESES[+mes.slice(5) - 1]))}${kpi('Calificación promedio', tot.gen == null ? '—' : tot.gen.toFixed(1) + ' / 5', 'de Muy mala (1) a Excelente (5)', tot.gen != null && tot.gen < 3 ? 'bad' : '')}${kpi('Empezó puntual', tot.punt == null ? '—' : tot.punt + '%', 'respondió "Sí, a horario"')}${kpi('Se entendió', tot.ent == null ? '—' : tot.ent.toFixed(1) + ' / 5', 'de Nada (1) a Muy bien (5)')}</div>`;
+  const head = `<thead><tr><th></th><th class="n">Resp.</th><th class="n">Calificación</th><th class="n">Se entendió</th><th class="n">Puntual</th><th class="n">Dudas aclaradas</th><th class="n">Tema completo</th></tr></thead>`;
+  const porP = {}; rows.forEach(r => (porP[evProfe(r)] ||= []).push(r));
+  const ps = Object.entries(porP).map(([pid, rs]) => ({ pid, a: evAgg(rs) })).sort((x, y) => (y.a.gen || 0) - (x.a.gen || 0));
+  h += `<div class="card"><div class="card-h"><div><h2>Por profe</h2><small>Tocá un profe para ver solo sus comentarios</small></div>${S.ui.evProfe ? `<button class="btn sm ghost" data-act="ev-profe" data-v="">Ver todos</button>` : ''}</div><div class="tw"><table>${head.replace('<th></th>', '<th>Profe</th>')}<tbody>${ps.map(x => filaEvAgg(`<b>${esc(x.pid ? profN(x.pid) : 'Sin profe')}</b>`, x.a, `class="click" data-act="ev-profe" data-v="${esc(x.pid)}" ${S.ui.evProfe === x.pid ? 'style="background:var(--accent-soft)"' : ''}`)).join('')}</tbody></table></div></div>`;
+  const porM = {}; rows.forEach(r => (porM[r.clases?.materia || ''] ||= []).push(r));
+  h += `<div class="card"><div class="card-h"><h2>Por materia</h2></div><div class="tw"><table>${head.replace('<th></th>', '<th>Materia</th>')}<tbody>${Object.entries(porM).map(([m, rs]) => ({ m, a: evAgg(rs) })).sort((x, y) => (y.a.gen || 0) - (x.a.gen || 0)).map(x => filaEvAgg(x.m ? mchip(x.m) + ' ' + esc(matL(x.m)) : 'Sin materia', x.a)).join('')}</tbody></table></div></div>`;
+  const com = rows.filter(r => r.comentario && (!S.ui.evProfe || evProfe(r) === S.ui.evProfe)).sort((a, b) => b.clases.fecha.localeCompare(a.clases.fecha) || b.clases.turno.localeCompare(a.clases.turno));
+  h += `<div class="card"><div class="card-h"><h2>Comentarios${S.ui.evProfe ? ' · ' + esc(profN(S.ui.evProfe)) : ''}</h2><small>${com.length}</small></div><div class="rows">${com.map(r => `<div class="row"><div class="t">${dkDe(r.clases.fecha)} ${dm(r.clases.fecha)} · ${esc(r.clases.turno)} · ${esc(gName(r.clases.grupo_id))} · ${r.clases.materia ? esc(matL(r.clases.materia)) : 'Clase'} · ${esc(primerN(evProfe(r)) || 'Sin profe')}<small class="nota-l" style="color:var(--ink)">${esc(r.comentario)}</small></div><div class="r"><span class="stars" title="${r.general} de 5">${estrellas(r.general)}</span></div></div>`).join('') || '<div class="empty">Sin comentarios escritos todavía.</div>'}</div></div>`;
+  return h;
 }
 
 /* ---------- turnos de la oficina ---------- */
@@ -2542,6 +2670,23 @@ const A = {
   'arm-sem': async el => { const d = +el.dataset.d; S.ui.armLunes = d ? addDays(S.ui.armLunes || lunesSig(), d) : lunesSig(); S.loaded.semana = false; S.sem = null; render(); await load(['semana']); },
   'clase-editar': el => openClaseForm(el.dataset.id),
   'cambio-nuevo': el => openCambio(el.dataset.g, el.dataset.f, el.dataset.t),
+  // --- evaluación anónima
+  'eval-link': el => openEvalLink(el.dataset.g, el.dataset.f),
+  'ev-copiar': async () => { try { await navigator.clipboard.writeText($('#ev-msg').value); toast('Mensaje copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
+  'ev-profe': el => { S.ui.evProfe = el.dataset.v || ''; render(); },
+  'ev-op': el => { const c = el.dataset.c, k = el.dataset.k; const R = (S.evR[c] ||= {}); const v = ['general', 'entendio'].includes(k) ? +el.dataset.v : el.dataset.v; R[k] = R[k] === v && k !== 'general' ? undefined : v; render(); },
+  'ev-skip': el => { const R = (S.evR[el.dataset.c] ||= {}); R.skip = !R.skip; render(); },
+  'ev-enviar': async el => {
+    const I = S.evInfo; el.disabled = true; let ok = 0, err = '';
+    for (const c of I.clases) {
+      const R = S.evR[c.id] || {}; if (S.evDone[c.id] || R.skip || !R.general || !c.abierta) continue;
+      const { error } = await S.ev.rpc('evaluar', { tk: EVAL, cid: c.id, general: R.general, entendio: R.entendio ?? null, puntual: R.puntual || '', dudas: R.dudas || '', termino: R.termino || '', comentario: R.comentario || '' });
+      if (error) { err = errText(error); continue; }
+      ok++; S.evDone[c.id] = true; try { localStorage.setItem('vibe-ev-' + c.id, '1'); } catch (e) { }
+    }
+    if (ok) S.evGracias = true; if (err) toast(err, 'error');
+    render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
   // --- turnos de oficina
   ofitab: el => { S.ui.ofiTab = el.dataset.v; render(); },
   'ofi-sem': async el => { const d = el.dataset.d; S.ui.ofiLunes = d === 'hoy' ? lunesDe(hoy()) : +d ? addDays(S.ui.ofiLunes || lunesSig(), +d) : lunesSig();
@@ -2815,7 +2960,8 @@ const IN = {
   pf: el => { const it = PF.items[+el.dataset.i]; if (!it) return; const k = el.dataset.k; it[k] = k === 'monto' ? parseMoney(el.value) : el.value; const t = $('#pf-total'); if (t) t.textContent = 'Total ' + money(sum(PF.items.map(i => i.monto))); },
   nota: el => { const D = S.draftExam; if (!D) return; D.notas[el.dataset.id] = el.value; D.dirty = true; const sb = el.closest('.card').querySelector('.savebar'); if (sb) { sb.querySelector('small').textContent = 'Hay cambios sin guardar'; sb.querySelector('.btn').classList.remove('disabled'); } },
   'wa-msg': () => { $('#wa-btn').innerHTML = waBtn(); },
-  'asis-nota': el => { const D = S.draftAsis; if (!D) return; D.nota = el.value; asisDirty(); }
+  'asis-nota': el => { const D = S.draftAsis; if (!D) return; D.nota = el.value; asisDirty(); },
+  'ev-com': el => { (S.evR[el.dataset.c] ||= {}).comentario = el.value; }
 };
 // marca la lista como modificada sin re-renderizar (para no perder el foco del cuadro de texto)
 function asisDirty() { const D = S.draftAsis; if (!D) return; D.dirty = true; const b = $('[data-act="asis-guardar"]'); if (b) { b.classList.remove('disabled'); b.textContent = 'Guardar lista'; } }
@@ -2831,6 +2977,7 @@ const CH = {
   pagoMes: el => { S.ui.pagoMes = el.value || hoy().slice(0, 7); S.ui.pagoVer = ''; render(); },
   'cb-g': el => { CB.g = el.value; renderCambio(); },
   ofiMes: el => { S.ui.ofiMes = el.value || hoy().slice(0, 7); render(); },
+  evMes: el => { S.ui.evMes = el.value || hoy().slice(0, 7); render(); },
   omonto: async el => { const u = el.dataset.u, v = parseMoney(el.value); if (await run(S.sb.from('oficina_montos').upsert({ user_id: u, monto_turno: v }), 'Pago por turno guardado')) { S.oMontos[u] = v; render(); } },
   'cb-f': el => { CB.f = el.value || hoy(); renderCambio(); },
   'cb-t': el => { CB.t = el.value; infoCambio(); },
