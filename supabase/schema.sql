@@ -208,6 +208,8 @@ create table if not exists public.horarios (
   generado   timestamptz not null default now()
 );
 create index if not exists horarios_semana_idx on public.horarios(semana_id, generado desc);
+-- de dónde salió cada versión del borrador: 'motor' (armado automático) o 'manual' (cambio de la dirección)
+alter table public.horarios add column if not exists origen text check (origen in ('motor', 'manual'));
 -- Clases publicadas. Cuando un profe llama lista, la clase queda dictada por él.
 create table if not exists public.clases (
   id           uuid primary key default gen_random_uuid(),
@@ -552,6 +554,25 @@ begin
      and c.fecha between w.lunes and w.lunes + 6;
   update semanas set publicada = now() where id = sem;
   return n;
+end $$;
+
+-- Retira el horario publicado de la semana (por ejemplo, si se publicó por error): profes y alumnos dejan de verlo
+-- hasta que se vuelva a publicar. Las clases que ya tienen lista, observaciones o evaluaciones quedan (son registros).
+create or replace function public.despublicar_horario(sem uuid) returns json
+language plpgsql security definer set search_path = public as $$
+declare w semanas; nq int; nr int;
+begin
+  if not public.es_admin() then raise exception 'Solo la dirección retira el horario'; end if;
+  select * into w from semanas where id = sem;
+  if not found then raise exception 'No existe la semana'; end if;
+  delete from clases c where c.fecha between w.lunes and w.lunes + 6 and c.dictada_por is null
+    and c.nota_profe is null and c.notas_alumnos = '{}'::jsonb
+    and not exists (select 1 from evaluaciones e where e.clase_id = c.id)
+    and not exists (select 1 from asistencia a where a.grupo_id = c.grupo_id and a.fecha = c.fecha and a.turno = c.turno);
+  get diagnostics nq = row_count;
+  select count(*) into nr from clases c where c.fecha between w.lunes and w.lunes + 6;
+  update semanas set publicada = null where id = sem;
+  return json_build_object('quitadas', nq, 'quedan', nr);
 end $$;
 
 -- Notas de la clase y por alumno. El profe solo en sus grupos y el mismo día; la oficina cualquier día.
@@ -1081,7 +1102,8 @@ grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(
   public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
-  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.link_evaluacion(uuid, date), public.clases_hoy()
+  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.link_evaluacion(uuid, date), public.clases_hoy(),
+  public.despublicar_horario(uuid)
   to authenticated;
 -- la evaluación se responde sin cuenta (link público)
 grant execute on function public.eval_info(text), public.evaluar(text, uuid, int, int, text, text, text, text) to anon, authenticated;
@@ -1092,7 +1114,8 @@ revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
   public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.vincular_cuenta_profe(),
-  public.link_evaluacion(uuid, date), public.eval_abierta(date, text), public.clases_hoy() from public, anon;
+  public.link_evaluacion(uuid, date), public.eval_abierta(date, text), public.clases_hoy(),
+  public.despublicar_horario(uuid) from public, anon;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 
