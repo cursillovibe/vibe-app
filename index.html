@@ -345,6 +345,9 @@ button.mchip{border:0;cursor:pointer;font-family:inherit}
 .wc .ok{font-size:11px;font-weight:700;color:var(--ok)}
 .wc .no{font-size:11px;font-weight:700;color:var(--bad)}
 .wc .nt{font-size:11px;font-weight:700;color:var(--accent-ink)}
+.row.cbrow{grid-template-columns:auto minmax(0,1fr);cursor:pointer}
+.row.cbrow input{width:18px;height:18px;accent-color:var(--accent);margin:0}
+.row.cbrow:has(input:checked){background:var(--accent-soft)}
 /* turnos de oficina */
 .ot-dia{border-top:1px solid var(--line);padding:12px 16px;display:grid;gap:8px}
 .ot-dia:first-child{border-top:0}
@@ -943,12 +946,12 @@ async function entrar() {
     if (['invite', 'recovery', 'signup'].includes(HASH0.get('type')) || HASH0.get('access_token') || CODIGO) history.replaceState(null, '', location.pathname);
     { const v = location.hash.slice(1); if (v && allowed(v)) S.view = v; else S.view = startView(); }
     render();
-    if (S.perfil && S.perfil.activo) await load();
+    if (S.perfil && S.perfil.activo) { await load(); tiempoReal(); }
   } finally { entrando = false; }
 }
-function limpiar() { Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
+function limpiar() { if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) { } } S.rt = null; if (S.rtPend) S.rtPend.clear(); Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
   prof: {}, punt: {}, clases: {}, clRango: null, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !hasDraft()) load(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !ocupado()) load(); else if (document.visibilityState === 'visible') aplicarRemoto(); });
 
 /* ---------- UI base ---------- */
 function toast(msg, kind = 'ok') { const el = document.createElement('div'); el.className = 'toast ' + kind; el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), kind === 'error' ? 6000 : 2800); }
@@ -1018,6 +1021,37 @@ const allowed = v => { const n = NAV.find(x => x.id === v); return !!n && n.r.in
 const startView = () => isAlumno() ? 'mi-inicio' : 'inicio';
 const TABS = { admin: ['inicio', 'alumnos', 'asistencia', 'cobros'], oficina: ['inicio', 'alumnos', 'asistencia', 'cobros'], profe: ['inicio', 'horario', 'asistencia', 'examenes', 'alumnos'], alumno: ['mi-inicio', 'mi-horario', 'mis-cuotas', 'mis-notas', 'mi-asistencia'] };
 function hasDraft() { return (S.draftAsis && S.draftAsis.dirty) || (S.draftExam && S.draftExam.dirty); }
+// ---------- actualización en vivo ----------
+// tabla que cambió en la base → datos a recargar. Supabase Realtime solo avisa lo que cada uno tiene permiso de ver.
+const RT_KEYS = { asistencia: ['asis'], clases: ['clases'], cambios: ['cambios'], oficina_turnos: ['ofi'], oficina_disp: ['ofi'], pagos: ['pagos'],
+  alumnos: ['alumnos'], grupos: ['grupos'], examenes: ['exams'], notas: ['exams'], disponibilidad: ['semana'], semanas: ['semana'],
+  materias_semana: ['semana'], horarios: ['semana'], profesores: ['prof'], profesores_puntajes: ['punt'], perfiles: ['perfiles'], config: ['cfg'], links_inscripcion: ['links'] };
+// no se refresca mientras alguien está escribiendo o tiene algo sin guardar: se aplica apenas termine
+function ocupado() {
+  const ae = document.activeElement; const main = $('#main');
+  return hasDraft() || modalOpen() || !!(ae && main && main.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName));
+}
+function tiempoReal() {
+  if (S.rt || !S.sb || !S.perfil) return;
+  const mios = new Set(KEYS[rol()] || []); S.rtPend = S.rtPend || new Set();
+  const tablas = Object.keys(RT_KEYS).filter(t => RT_KEYS[t].some(k => mios.has(k)));
+  if (!tablas.length) return;
+  let ch = S.sb.channel('vibe-' + S.session.user.id);
+  tablas.forEach(t => { ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: t }, () => avisoRemoto(t)); });
+  S.rt = ch.subscribe(st => { S.rtEstado = st; });
+}
+function avisoRemoto(t) {
+  (RT_KEYS[t] || []).forEach(k => S.rtPend.add(k));
+  clearTimeout(S.rtTimer); S.rtTimer = setTimeout(aplicarRemoto, 800);
+}
+async function aplicarRemoto() {
+  if (!S.perfil || !S.rtPend || !S.rtPend.size) return;
+  if (ocupado() || document.visibilityState !== 'visible') { clearTimeout(S.rtTimer); S.rtTimer = setTimeout(aplicarRemoto, 3000); return; }
+  const mios = KEYS[rol()] || []; const ks = [...S.rtPend].filter(k => mios.includes(k)); S.rtPend.clear();
+  if (ks.length) await load(ks);
+}
+// respaldo por si se corta la conexión en vivo: cada 2 minutos, si la app está a la vista y nadie está escribiendo
+setInterval(() => { if (S.perfil && S.perfil.activo && document.visibilityState === 'visible' && Date.now() - S.lastLoad > 110000 && !ocupado()) load(); }, 30000);
 function go(v, after) {
   const doIt = () => { if (!allowed(v)) v = startView(); S.view = v; S.selAlumno = null; S.selGrupo = null; if (after) after(); if (location.hash.slice(1) !== v) location.hash = v; render(); window.scrollTo(0, 0); };
   if (hasDraft() && v !== S.view) { confirmDlg('Tenés cambios sin guardar (lista o notas). Si salís se pierden.', 'Salir sin guardar', () => { S.draftAsis = null; S.draftExam = null; doIt(); }); return; }
@@ -1994,32 +2028,24 @@ function vHorCambios() {
   if (res.length) h += `<div class="card"><div class="card-h"><h2>Resueltos</h2><small>Último mes y medio</small></div><div class="rows">${res.map(filaCambio).join('')}</div></div>`;
   return h;
 }
-// pedido de cambio (profe)
+// pedido de cambio (profe): solo clases publicadas de hoy que no son suyas
 let CB = null;
 async function openCambio(g, f, t) {
-  CB = { g: g || '', f: f || hoy(), t: t || '' };
-  openModal('Pedir cambio de clase', `<div class="empty">Cargando grupos…</div>`, '', 'narrow');
-  const { data, error } = await S.sb.rpc('grupos_lista'); if (error) { closeModal(); toast(errText(error), 'error'); return; }
-  CB.gs = data || []; if (!CB.g) CB.g = CB.gs[0]?.id || '';
+  CB = { sel: g && t && (!f || f === hoy()) ? g + '|' + t : '' };
+  openModal('Pedir cambio de clase', `<div class="empty">Cargando las clases de hoy…</div>`, '', 'narrow');
+  const { data, error } = await S.sb.rpc('clases_hoy'); if (!modalOpen()) return;
+  if (error) { closeModal(); toast(errText(error), 'error'); return; }
+  CB.cl = data || []; if (!CB.cl.some(c => c.grupo_id + '|' + c.turno === CB.sel)) CB.sel = CB.cl.length === 1 ? CB.cl[0].grupo_id + '|' + CB.cl[0].turno : '';
   renderCambio();
 }
-function turnosCambio() { const g = CB.gs.find(x => x.id === CB.g); const tl = turnosDe((g?.dias || {})[dkDe(CB.f)] || '-'); return tl.length ? tl : TURNOS; }
 function renderCambio() {
   if (!modalOpen()) return;
-  const tl = turnosCambio(); if (!tl.includes(CB.t)) CB.t = tl[0];
-  openModal('Pedir cambio de clase', `<p class="muted" style="margin:0 0 12px">Para una clase que no está a tu nombre en el horario: un reemplazo o un cambio con otro profe. Con el pedido ya podés llamar lista ese día. Te cuenta para el pago cuando la dirección lo apruebe.</p><div class="form">
-    <div class="fld full"><label for="cb-g">Grupo</label><select class="inp" id="cb-g" data-ch="cb-g">${CB.gs.map(x => `<option value="${esc(x.id)}" ${x.id === CB.g ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>
-    <div class="fld"><label for="cb-f">Día</label><input type="date" class="inp" id="cb-f" data-ch="cb-f" value="${esc(CB.f)}" min="${hoy()}" max="${addDays(hoy(), 21)}"></div>
-    <div class="fld"><label for="cb-t">Turno</label><select class="inp" id="cb-t" data-ch="cb-t">${tl.map(x => `<option ${x === CB.t ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
-    <div class="full" id="cb-info"><small class="muted">Buscando la clase…</small></div>
-    <div class="fld full"><label for="cb-m">Motivo</label><input class="inp" id="cb-m" maxlength="300" placeholder="Ej: reemplazo a Iván, que está enfermo"></div>
-    <div class="full err" id="cb-err"></div></div>`, `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="cambio-enviar">Enviar pedido</button>`, 'narrow');
-  infoCambio();
-}
-async function infoCambio() {
-  const { g, f, t } = CB; const { data } = await S.sb.rpc('info_clase', { g, f, t }); const el = $('#cb-info'); if (!el || CB.g !== g || CB.f !== f || CB.t !== t) return;
-  const c = (data || [])[0];
-  el.innerHTML = c?.materia ? `<div class="banner">${mchip(c.materia)} ${esc(c.tema || '')}${c.materia === 'examen' ? ' · examen' : c.profe ? ` · le toca a <b>${esc(c.profe)}</b>` : ' · sin profe en el horario'}</div>` : `<small class="muted">No hay clase publicada en ese turno. Igual podés pedirla si la vas a dar.</small>`;
+  if (!CB.cl.length) { openModal('Pedir cambio de clase', `<div class="empty"><b>Hoy no hay otras clases en el horario</b>Solo se pueden pedir cambios de clases publicadas de hoy. Si hay algo raro, avisá a la dirección.</div>`, `<button class="btn" data-act="close">Cerrar</button>`, 'narrow'); return; }
+  openModal('Pedir cambio de clase', `<p class="muted" style="margin:0 0 12px">Si hoy hubo un cambio de profe, elegí la clase que vas a dar. Con el pedido ya podés llamar lista; te cuenta para el pago cuando la dirección lo apruebe.</p>
+    <div class="rows" style="border:1px solid var(--line);border-radius:12px;overflow:hidden">${CB.cl.map(c => { const v = c.grupo_id + '|' + c.turno;
+      return `<label class="row click cbrow"><input type="radio" name="cb-sel" value="${esc(v)}" data-ch="cb-sel" ${v === CB.sel ? 'checked' : ''}><div class="t">${esc(c.turno)} · ${esc(c.grupo)}<small>${esc(matL(c.materia))}${c.tema ? ' — ' + esc(c.tema) : ''} · ${c.profe ? 'le toca a ' + esc(c.profe) : 'sin profe en el horario'}</small></div></label>`; }).join('')}</div>
+    <div class="form" style="margin-top:12px"><div class="fld full"><label for="cb-m">Motivo</label><input class="inp" id="cb-m" maxlength="300" placeholder="Ej: reemplazo a Iván, que está enfermo"></div><div class="full err" id="cb-err"></div></div>`,
+    `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="cambio-enviar">Enviar pedido</button>`, 'narrow');
 }
 
 /* plantel (dirección) */
@@ -2735,13 +2761,14 @@ const A = {
     const r = await run(S.sb.from('oficina_disp').upsert({ semana_id: S.oSem.id, user_id: S.session.user.id, dias: S.oDispDraft.dias, enviado: true, act: new Date().toISOString() }).select().single(), 'Disponibilidad enviada');
     if (r) { S.oMiDisp = r; render(); } else el.classList.remove('disabled'); },
   'cambio-enviar': async el => {
+    if (!CB.sel) { $('#cb-err').textContent = 'Elegí la clase que vas a dar.'; return; }
+    const [g, t] = CB.sel.split('|'); const f = hoy();
     const motivo = $('#cb-m').value.trim(); el.classList.add('disabled'); $('#cb-err').textContent = '';
-    const { error } = await S.sb.rpc('pedir_cambio', { g: CB.g, f: CB.f, t: CB.t, motivo });
+    const { error } = await S.sb.rpc('pedir_cambio', { g, f, t, motivo });
     if (error) { $('#cb-err').textContent = errText(error); el.classList.remove('disabled'); return; }
-    const { g, f, t } = CB; closeModal();
-    toast(f === hoy() ? 'Pedido enviado. Ya podés llamar lista.' : 'Pedido enviado a la dirección.');
+    closeModal(); toast('Pedido enviado. Ya podés llamar lista.');
     await load(['cambios', 'grupos', 'alumnos', 'asis', 'clases']);
-    if (f === hoy()) go('asistencia', () => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = g; S.ui.asisFecha = f; S.ui.asisTurno = t; S.draftAsis = null; });
+    go('asistencia', () => { S.ui.asisTab = 'tomar'; S.ui.asisGrupo = g; S.ui.asisFecha = f; S.ui.asisTurno = t; S.draftAsis = null; });
   },
   'cambio-resolver': async el => {
     const x = S.cambios[el.dataset.id]; const ok = el.dataset.v === '1'; if (!x) return;
@@ -2980,12 +3007,10 @@ const CH = {
   'pool-dia': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; if (el.value) it.dia = el.value; else delete it.dia; render(); guardarPool(el.dataset.g); },
   'pool-nivel': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; if (el.value) it.nivel = el.value; else delete it.nivel; render(); guardarPool(el.dataset.g); },
   pagoMes: el => { S.ui.pagoMes = el.value || hoy().slice(0, 7); S.ui.pagoVer = ''; render(); },
-  'cb-g': el => { CB.g = el.value; renderCambio(); },
+  'cb-sel': el => { CB.sel = el.value; },
   ofiMes: el => { S.ui.ofiMes = el.value || hoy().slice(0, 7); render(); },
   evMes: el => { S.ui.evMes = el.value || hoy().slice(0, 7); render(); },
   omonto: async el => { const u = el.dataset.u, v = parseMoney(el.value); if (await run(S.sb.from('oficina_montos').upsert({ user_id: u, monto_turno: v }), 'Pago por turno guardado')) { S.oMontos[u] = v; render(); } },
-  'cb-f': el => { CB.f = el.value || hoy(); renderCambio(); },
-  'cb-t': el => { CB.t = el.value; infoCambio(); },
   cobGrupo: el => { S.ui.cobGrupo = el.value; render(); },
   'pg-al': el => { PG.aid = el.value; PG.itemId = ''; $('#pg-body').innerHTML = pagoBody(); },
   'pg-item': el => { PG.itemId = el.value; $('#pg-body').innerHTML = pagoBody(); },

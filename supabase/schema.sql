@@ -591,7 +591,20 @@ language sql stable security definer set search_path = public as $$
   where c.grupo_id = g and c.fecha = f and c.turno = t and (public.es_staff() or public.mi_profesor() is not null)
 $$;
 
--- El profe pide dar una clase que no está a su nombre (hoy o hasta 3 semanas adelante)
+-- Clases publicadas de hoy (de grupos activos) que no son del profe: entre estas elige cuando hay un cambio a último momento
+create or replace function public.clases_hoy()
+returns table (grupo_id uuid, grupo text, turno text, materia text, tema text, profe text)
+language sql stable security definer set search_path = public as $$
+  select c.grupo_id, g.nombre, c.turno, c.materia, c.tema, pr.nombre
+  from clases c join grupos g on g.id = c.grupo_id and g.activo
+  left join profesores pr on pr.id = c.profesor_id
+  where c.fecha = public.hoy_py() and c.materia is not null and c.materia <> 'examen'
+    and public.mi_profesor() is not null and c.profesor_id is distinct from public.mi_profesor()
+  order by (c.turno = 'Tarde'), g.orden, g.nombre
+$$;
+
+-- El profe pide dar una clase de HOY que no está a su nombre (cambio de profe). Solo clases que existen en el
+-- horario publicado: no se pueden crear clases nuevas ni pedir otros días.
 create or replace function public.pedir_cambio(g uuid, f date, t text, motivo text) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare p uuid := public.mi_profesor(); r uuid;
@@ -600,8 +613,11 @@ begin
     raise exception 'Solo los profes piden cambios';
   end if;
   if t not in ('Mañana', 'Tarde') then raise exception 'Turno no válido'; end if;
-  if f < public.hoy_py() or f > public.hoy_py() + 21 then raise exception 'Podés pedir cambios desde hoy hasta 3 semanas adelante'; end if;
-  if not exists (select 1 from grupos where id = g and activo) then raise exception 'Grupo no válido'; end if;
+  if f <> public.hoy_py() then raise exception 'Solo podés pedir cambios de clases de hoy'; end if;
+  if not exists (select 1 from clases c join grupos gr on gr.id = c.grupo_id and gr.activo
+                  where c.grupo_id = g and c.fecha = f and c.turno = t and c.materia is not null and c.materia <> 'examen') then
+    raise exception 'Esa clase no está en el horario de hoy';
+  end if;
   if exists (select 1 from clases where grupo_id = g and fecha = f and turno = t and profesor_id = p) then
     raise exception 'Esa clase ya está a tu nombre en el horario';
   end if;
@@ -1031,6 +1047,23 @@ create policy elinks_ver on public.eval_links for select to authenticated using 
 drop policy if exists eval_ver on public.evaluaciones;
 create policy eval_ver on public.evaluaciones for select to authenticated using (public.es_admin());
 
+-- ---------- actualización en vivo (Supabase Realtime) -------------------
+-- La app se entera de los cambios sin recargar; Realtime respeta los permisos de cada uno.
+-- Las evaluaciones anónimas NO se publican.
+do $$
+declare t text;
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    foreach t in array array['asistencia', 'clases', 'cambios', 'oficina_turnos', 'oficina_disp', 'pagos', 'alumnos', 'grupos',
+                             'examenes', 'notas', 'disponibilidad', 'semanas', 'materias_semana', 'horarios', 'profesores',
+                             'profesores_puntajes', 'perfiles', 'config', 'links_inscripcion'] loop
+      if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+        execute format('alter publication supabase_realtime add table public.%I', t);
+      end if;
+    end loop;
+  end if;
+end $$;
+
 -- ---------- permisos de tablas para el rol de la API --------------------
 revoke all on all tables in schema public from anon;
 grant select, insert, update, delete on public.perfiles, public.config, public.grupos, public.alumnos,
@@ -1048,7 +1081,7 @@ grant execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados(
   public.puede_llamar(uuid, date, text), public.es_oficina(), public.grupos_lista(), public.info_clase(uuid, date, text),
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
-  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.link_evaluacion(uuid, date)
+  public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.link_evaluacion(uuid, date), public.clases_hoy()
   to authenticated;
 -- la evaluación se responde sin cuenta (link público)
 grant execute on function public.eval_info(text), public.evaluar(text, uuid, int, int, text, text, text, text) to anon, authenticated;
@@ -1059,7 +1092,7 @@ revoke execute on function public.guardar_mi_ficha(jsonb), public.mis_resultados
   public.pedir_cambio(uuid, date, text, text), public.resolver_cambio(uuid, boolean),
   public.marcar_turno(uuid), public.pedir_turno(date, text, text), public.resolver_turno(uuid, boolean),
   public.borrar_profe(uuid), public.vincular_profe(uuid, uuid), public.vincular_cuenta_profe(),
-  public.link_evaluacion(uuid, date), public.eval_abierta(date, text) from public, anon;
+  public.link_evaluacion(uuid, date), public.eval_abierta(date, text), public.clases_hoy() from public, anon;
 grant execute on function public.info_link(text) to anon, authenticated;
 grant execute on function public.usar_link(text) to authenticated;
 

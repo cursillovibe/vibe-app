@@ -27,7 +27,7 @@ Reemplaza a la app vibe-horarios (sus datos se importaron con `supabase/importar
 - **Disponibilidad**: cada profe marca sus turnos libres de la semana siguiente desde el miércoles hasta el sábado 17:00. La dirección puede reabrir la carga y avisar por WhatsApp a los que faltan.
 - **Armar horario**: se cargan las materias de la semana por grupo (sin día) y el armado elige el día según los profes libres, con las mismas reglas de siempre (los grupos con prioridad reciben a los mejores profes, Geometría en dos días seguidos con profes distintos, nivel mínimo, clases encadenadas, día fijo, examen sin profe, equidad mínima). Se puede cambiar cualquier bloque a mano y después **publicar**.
 - **Semana**: las clases publicadas, con quién llamó lista en cada una.
-- **Cambios**: cuando un profe va a dar una clase que no está a su nombre (reemplazo, cambio entre profes), la pide desde la app. Con el pedido ya puede llamar lista; la dirección lo aprueba antes o después de la clase y recién ahí la clase pasa a su nombre y le cuenta para el pago.
+- **Cambios**: cuando un profe va a dar una clase de **hoy** que no está a su nombre (reemplazo, cambio a último momento), la elige de la lista de clases publicadas de hoy y la pide desde la app (no se pueden pedir otros días ni clases que no están en el horario). Con el pedido ya puede llamar lista; la dirección lo aprueba antes o después de la clase y recién ahí la clase pasa a su nombre y le cuenta para el pago.
 - **Plantel**: profes, puntajes y pago por clase (solo la dirección).
 - **Pago a profes**: por mes, cuenta cada clase en la que el profe del horario (o con el cambio aprobado) llamó lista. Mañana y tarde cuentan por separado. Los exámenes que cuidó se ven pero no suman. Las clases sin lista se pueden marcar a mano (si firmó en papel).
 
@@ -99,3 +99,7 @@ Las respuestas viejas de los formularios de Google se pueden importar: en **Impo
 - El alumno lo abre **sin cuenta** y califica cada clase del día: calificación (Muy mala → Excelente), puntualidad, si se entendió, si le aclararon las dudas, cómo terminó y un comentario. Se puede responder desde que empieza la clase hasta el día siguiente.
 - **Anónimo:** la respuesta no guarda quién la mandó (ni cuenta, ni correo, ni celular, ni hora). La página usa una conexión aparte, sin la sesión del alumno aunque tenga la app abierta. Una respuesta por celular y **cupo por clase = presentes de la lista** (presente o tarde): la evaluación de una clase se habilita cuando se llama lista y recibe como máximo tantas respuestas como presentes hubo.
 - Resultados solo para la dirección en **Horario → Evaluaciones**: por profe, por materia y comentarios.
+
+## Actualización en vivo
+
+La app se actualiza sola: cuando alguien guarda algo (lista, cobro, pedido de cambio, turno, horario), los demás lo ven en uno o dos segundos sin recargar (Supabase Realtime, que respeta los permisos de cada uno). Si alguien está escribiendo o tiene algo sin guardar, espera a que termine. De respaldo, cada 2 minutos refresca. Las evaluaciones anónimas no se publican en vivo.
