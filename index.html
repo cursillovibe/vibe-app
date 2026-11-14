@@ -333,8 +333,16 @@ textarea.inp{min-height:90px;resize:vertical;line-height:1.45}
 button.mchip{border:0;cursor:pointer;font-family:inherit}
 .wkh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .wkh .lbl{font-family:var(--font-display);font-weight:700;min-width:150px;text-align:center}
-.wk{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(148px,1fr))}
-.wc{border:1px solid var(--line);border-radius:10px;padding:9px 8px;text-align:center;background:var(--surface);display:flex;flex-direction:column;gap:4px;align-items:center;min-height:118px}
+.wk{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));align-items:start}
+.wkd{display:flex;flex-direction:column;gap:8px;min-width:0}
+.wc{position:relative;border:1px solid var(--line);border-radius:10px;padding:9px 8px;text-align:center;background:var(--surface);display:flex;flex-direction:column;gap:4px;align-items:center;min-height:118px}
+.wc.fijo{border-color:var(--accent)}
+.wc .fx{position:absolute;top:2px;right:2px;width:28px;height:28px;border:0;background:none;border-radius:7px;display:grid;place-items:center;color:var(--muted);opacity:.4;cursor:pointer;padding:0}
+.wc .fx svg.i{width:15px;height:15px}
+.wc .fx:hover{opacity:.9}
+.wc .fx[aria-pressed="true"]{color:var(--accent);opacity:1}
+.wc .fx[aria-pressed="true"] svg.i{fill:currentColor}
+.fxl{display:inline-flex;vertical-align:-3px;color:var(--accent)}.fxl svg.i{width:15px;height:15px;fill:currentColor}
 .wc.click{cursor:pointer}.wc.click:hover{border-color:var(--accent)}
 .wc.fer{background:var(--bad-soft);border-color:transparent;justify-content:center}
 .wc.hoy{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
@@ -521,6 +529,7 @@ const ICONS = {
   logout:'<path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/>',
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
   print:'<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
+  pin:'<path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 14v7"/>',
   ext:'<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
 };
 const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -689,9 +698,11 @@ const cargaReabierta = w => { if (!w || !w.carga_abierta_hasta || Date.now() >= 
 function antigDeAnios(y) { if (y <= 1) return 3; if (y <= 3) return 3 + ((y - 1) / 2) * 3.5; if (y < 5) return 6.5 + ((y - 3) / 2) * 3.5; return 10; }
 function conocProm(scores) { const v = Object.values(scores || {}).filter(x => typeof x === 'number'); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
 function totalPuntaje(p) { return conocProm(p.scores) * 0.5 + num(p.manejo) * 0.25 + antigDeAnios(num(p.anios)) * 0.15 + num(p.punt) * 0.1; }
-function armarHorario({ profesores, grupos, pool, feriados = [], disponibilidad }) {
+function armarHorario({ profesores, grupos, pool, feriados = [], disponibilidad, fijos = [] }) {
   const count = {}; profesores.forEach(p => (count[p.id] = 0));
   const ocupado = {}; const out = {};
+  // bloques que la dirección fijó a mano: quedan como están; el motor arma el resto alrededor (mismas reglas)
+  fijos.forEach(f => { if (f.profe) { count[f.profe] = (count[f.profe] || 0) + 1; ocupado[f.profe + '|' + f.day + '|' + f.turno] = true; } });
   const disponible = (id, day, turno) => { const d = disponibilidad[id]; return !!(d && d.enviado && d.dias && d.dias[day] && d.dias[day][turno]); };
   const MIN_NIVEL = { medio: 6, alto: 8 }; const minDe = it => MIN_NIVEL[it && it.nivel] || 0;
   const bestProfe = (mat, day, turno, prioridad, excludeId, minScore = 0) => {
@@ -712,6 +723,7 @@ function armarHorario({ profesores, grupos, pool, feriados = [], disponibilidad 
     const prioridad = g.prioridad; const slots = [];
     DK.forEach(day => { if (feriados.includes(day)) return; turnosDe(g.dias[day]).forEach(turno => slots.push({ day, turno })); });
     const items = (pool[g.id] || []).slice(); const assign = {}; const usadas = new Set();
+    slots.forEach((s, idx) => { if (fijos.some(f => f.grupo === g.id && f.day === s.day && f.turno === s.turno)) usadas.add(idx); });
     items.forEach((it, i) => {
       if (!it || !it.dia) return;
       const cand = slots.map((s, idx) => ({ s, idx })).filter(({ s, idx }) => s.day === it.dia && !usadas.has(idx));
@@ -885,7 +897,7 @@ const LOADERS = {
         S.sb.from('horarios').select('*').eq('semana_id', w.id).order('generado', { ascending: false }).limit(1)]);
       for (const r of [dr, pr, hr]) if (r.error) throw r.error;
       S.dispRows = dr.data || []; S.pool = Object.fromEntries((pr.data || []).map(r => [r.grupo_id, Array.isArray(r.items) ? r.items : []]));
-      S.borr = hr.data && hr.data[0] ? { data: hr.data[0].data || {}, generado: hr.data[0].generado } : null;
+      S.borr = hr.data && hr.data[0] ? { data: hr.data[0].data || {}, generado: hr.data[0].generado, origen: hr.data[0].origen || null } : null;
       if (S.ui.armLunes === lunesSig()) { S.semProf = w; S.miDisp = S.miProf ? (S.dispRows.find(r => r.profesor_id === S.miProf.id) || null) : null; }
       else if (S.miProf) { const { data: w2 } = await S.sb.rpc('abrir_semana', { l: lunesSig() }); S.semProf = w2; const { data: md } = await S.sb.from('disponibilidad').select('*').eq('semana_id', w2.id).eq('profesor_id', S.miProf.id).maybeSingle(); S.miDisp = md || null; }
     } else if (S.miProf) {
@@ -1590,12 +1602,18 @@ function vHorSemana() {
   const ids = [...new Set(cls.map(c => c.grupo_id))].map(id => S.grupos[id]).filter(Boolean).sort((a, b) => num(a.orden) - num(b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
   ids.forEach(g => {
     const cg = cls.filter(c => c.grupo_id === g.id).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
-    h += `<div class="card"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}</h3><div class="wk">${cg.map(celdaClase).join('')}</div></div></div>`;
+    h += `<div class="card"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}</h3>${wkDias(cg, c => c.fecha, celdaClase)}</div></div>`;
   });
-  if (isAdmin()) h += `<small class="muted">Tocá una clase para cambiar el profe o marcar quién la dio (si alguien firmó en papel).</small>`;
+  if (isAdmin()) h += `<div class="actions" style="justify-content:space-between"><small class="muted">Tocá una clase para cambiar el profe o marcar quién la dio (si alguien firmó en papel).</small>${S.sem && S.sem.lunes === l && S.sem.publicada ? `<button class="btn sm ghost danger" data-act="despublicar">${ic('x')}Retirar el horario publicado</button>` : ''}</div>`;
   return h;
 }
-function celdaClase(c) {
+// una columna por día: la mañana arriba y la tarde abajo (la tarde no repite el día)
+function wkDias(items, diaDe, celda) {
+  const cols = [], m = new Map();
+  items.forEach(it => { const k = diaDe(it); if (!m.has(k)) { m.set(k, []); cols.push(k); } m.get(k).push(it); });
+  return `<div class="wk">${cols.map(k => `<div class="wkd">${m.get(k).map((it, i) => celda(it, i > 0)).join('')}</div>`).join('')}</div>`;
+}
+function celdaClase(c, seg) {
   const t = hoy(); const dict = c.dictada_por; const reemp = dict && dict !== c.profesor_id && c.materia !== 'examen';
   let est = '';
   if (dict) est = `<span class="ok">✓ Lista${c.dictada_en ? ' ' + horaDe(c.dictada_en) : ''}${reemp || !c.profesor_id ? ' · ' + esc(primerN(dict)) : ''}</span>${reemp ? `<span class="no">${cambioDe(c)?.estado === 'rechazado' ? 'cambio rechazado' : 'cambio sin aprobar'}</span>` : ''}`;
@@ -1603,7 +1621,7 @@ function celdaClase(c) {
   else if (c.fecha === t && c.materia !== 'examen') est = `<span class="t">Hoy · sin lista todavía</span>`;
   const prof = c.materia === 'examen' ? `<span class="t">sin profe</span>` : c.profesor_id ? `<span class="p">${esc(primerN(c.profesor_id))}</span>` : c.materia ? `<span class="sc">SIN COBERTURA</span>` : `<span class="t">fuera del horario</span>`;
   const nt = tieneNotas(c) ? `<span class="nt" title="${esc(notaTxt(c))}">✎ Con observaciones</span>` : '';
-  return `<div class="wc ${isAdmin() ? 'click' : ''} ${c.fecha === t ? 'hoy' : ''}" ${isAdmin() ? `data-act="clase-editar" data-id="${esc(c.id)}"` : ''}><span class="d">${dkDe(c.fecha)} ${dm(c.fecha)}</span><span class="t">${esc(c.turno)}</span>${mchip(c.materia)}${c.tema ? `<span class="tema">${esc(c.tema)}</span>` : ''}${prof}${est}${nt}</div>`;
+  return `<div class="wc ${isAdmin() ? 'click' : ''} ${c.fecha === t ? 'hoy' : ''}" ${isAdmin() ? `data-act="clase-editar" data-id="${esc(c.id)}"` : ''}>${seg ? '' : `<span class="d">${dkDe(c.fecha)} ${dm(c.fecha)}</span>`}<span class="t">${esc(c.turno)}</span>${mchip(c.materia)}${c.tema ? `<span class="tema">${esc(c.tema)}</span>` : ''}${prof}${est}${nt}</div>`;
 }
 function openClaseForm(id) {
   const c = S.clases[id]; if (!c) return; const ps = profsActivos();
@@ -1637,14 +1655,15 @@ function vHorArmar() {
       ${lista.map((it, i) => `<div class="it">${i > 0 ? `<button class="tg" data-act="pool-seg" data-g="${esc(g.id)}" data-i="${i}" aria-pressed="${!!it.seguida}" title="Va el día siguiente a la de arriba">⛓</button>` : ''}${mchip(it.mat)}<input class="inp" id="pt-${esc(g.id)}-${i}" data-ch="pool-tema" data-g="${esc(g.id)}" data-i="${i}" value="${esc(it.tema || '')}" placeholder="tema (opcional)" aria-label="Tema"><select class="inp" data-ch="pool-dia" data-g="${esc(g.id)}" data-i="${i}" aria-label="Fijar día"><option value="">Día: libre</option>${DK.map(k => `<option ${it.dia === k ? 'selected' : ''}>${k}</option>`).join('')}</select>${it.mat !== 'examen' ? `<select class="inp" data-ch="pool-nivel" data-g="${esc(g.id)}" data-i="${i}" aria-label="Nivel mínimo del profe"><option value="">Nivel: libre</option><option value="medio" ${it.nivel === 'medio' ? 'selected' : ''}>Medio (≥6)</option><option value="alto" ${it.nivel === 'alto' ? 'selected' : ''}>Alto (≥8)</option></select>` : ''}<button class="x" data-act="pool-del" data-g="${esc(g.id)}" data-i="${i}" aria-label="Quitar">${ic('trash')}</button></div>`).join('') || '<span class="muted">Sin materias cargadas.</span>'}
       <div class="chips" style="margin-top:4px">${Object.keys(MATS).map(k => `<button class="tg" data-act="pool-add" data-g="${esc(g.id)}" data-v="${k}">+ ${MATS[k].l}</button>`).join('')}</div></div></div>`;
   });
-  h += `<div class="actions"><button class="btn primary" data-act="armar">${S.borr ? 'Volver a armar' : 'Armar horario de la semana'}</button>${S.borr ? `<small class="muted">Volver a armar reemplaza los cambios hechos a mano.</small>` : ''}</div>`;
+  const nFij = S.borr ? fijosMarcados().length : 0;
+  h += `<div class="actions"><button class="btn primary" data-act="armar">${S.borr ? 'Volver a armar' : 'Armar horario de la semana'}</button>${S.borr ? `<small class="muted">${nFij ? `Tenés ${nFij} bloque${nFij === 1 ? '' : 's'} fijado${nFij === 1 ? '' : 's'} <span class="fxl">${ic('pin')}</span>: al volver a armar te pregunto si los conservás.` : 'Lo que cambies a mano queda fijado <span class="fxl">' + ic('pin') + '</span> y al volver a armar podés conservarlo.'}</small>` : ''}</div>`;
   if (S.borr) h += vBorrador();
   return h;
 }
 function celdasBorr(g) {
   const fer = S.sem.feriados || [], res = S.borr?.data?.[g.id] || [], cells = [];
   DK.forEach(day => { const code = g.dias?.[day] || '-'; if (code === '-') return; if (fer.includes(day)) { cells.push({ day, feriado: true }); return; }
-    turnosDe(code).forEach(turno => { const s = res.find(r => r.day === day && r.turno === turno) || {}; cells.push({ day, turno, materia: s.materia || null, tema: s.tema || '', profe: s.profe || null }); }); });
+    turnosDe(code).forEach(turno => { const s = res.find(r => r.day === day && r.turno === turno) || {}; cells.push({ day, turno, materia: s.materia || null, tema: s.tema || '', profe: s.profe || null, fm: !!s.fm, fp: !!s.fp }); }); });
   return cells;
 }
 function conteoBorr() {
@@ -1657,16 +1676,21 @@ function vBorrador() {
   const env = id => !!S.dispRows.find(r => r.profesor_id === id)?.enviado;
   const lista = profsActivos().sort((a, b) => (conteo[b.id] || 0) - (conteo[a.id] || 0) || a.nombre.localeCompare(b.nombre, 'es'));
   let h = `<div class="card"><div class="card-h"><h2>Clases por profe</h2><small>En rojo: envió disponibilidad y quedó sin clases</small></div><div class="card-b cnts">${lista.map(p => { const n = conteo[p.id] || 0; return `<span class="${n ? '' : env(p.id) ? 'cero' : 'nada'}" title="${esc(p.nombre)}">${esc(p.nombre.split(' ')[0])} ${n || env(p.id) ? `<b>${n}</b>` : '<small>no envió</small>'}</span>`; }).join('')}</div></div>`;
+  h += `<small class="muted"><span class="fxl">${ic('pin')}</span> = fijado a mano: al volver a armar queda como está. Tocá el pin de un bloque para fijarlo o soltarlo.</small>`;
   gs.forEach(g => {
     const cells = celdasBorr(g);
     const at = s => `data-g="${esc(g.id)}" data-d="${s.day}" data-t="${s.turno}"`;
-    h += `<div class="card"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}</h3>${cells.length ? `<div class="wk">${cells.map(s => s.feriado ? `<div class="wc fer"><span class="d">${s.day} ${dm(fDia(l, s.day))}</span><span class="sc">FERIADO</span></div>`
-      : `<div class="wc"><span class="d">${s.day} ${dm(fDia(l, s.day))}</span><span class="t">${s.turno}</span>${s.materia ? `<button class="mchip" style="background:${MATS[s.materia]?.bg};color:${MATS[s.materia]?.fg}" data-act="bmat" ${at(s)} title="Cambiar materia o moverla de día">${esc(matL(s.materia))}</button>${s.tema ? `<span class="tema">${esc(s.tema)}</span>` : ''}${s.materia === 'examen' ? '<span class="t">sin profe</span>' : s.profe ? `<button class="lnk p" data-act="bprof" ${at(s)} title="Cambiar profe">${esc(primerN(s.profe))}</button>` : `<button class="lnk sc" data-act="bprof" ${at(s)}>SIN COBERTURA</button>`}` : `<button class="lnk t" data-act="bmat" ${at(s)} title="Poner una materia">— vacío</button>`}</div>`).join('')}</div>` : '<span class="muted">Este grupo no tiene turnos cargados.</span>'}</div></div>`;
+    const celda = (s, seg) => { const dia = seg ? '' : `<span class="d">${s.day} ${dm(fDia(l, s.day))}</span>`;
+      if (s.feriado) return `<div class="wc fer">${dia}<span class="sc">FERIADO</span></div>`;
+      const fij = s.fm || s.fp;
+      const pin = s.materia || fij ? `<button class="fx" data-act="bfijo" ${at(s)} aria-pressed="${!!fij}" title="${fij ? 'Fijado a mano: al volver a armar queda como está. Tocá para soltarlo.' : 'Fijar este bloque tal como está'}" aria-label="${fij ? 'Soltar bloque' : 'Fijar bloque'}">${ic('pin')}</button>` : '';
+      return `<div class="wc ${fij ? 'fijo' : ''}">${pin}${dia}<span class="t">${s.turno}</span>${s.materia ? `<button class="mchip" style="background:${MATS[s.materia]?.bg};color:${MATS[s.materia]?.fg}" data-act="bmat" ${at(s)} title="Cambiar materia o moverla de día">${esc(matL(s.materia))}</button>${s.tema ? `<span class="tema">${esc(s.tema)}</span>` : ''}${s.materia === 'examen' ? '<span class="t">sin profe</span>' : s.profe ? `<button class="lnk p" data-act="bprof" ${at(s)} title="Cambiar profe">${esc(primerN(s.profe))}</button>` : `<button class="lnk sc" data-act="bprof" ${at(s)}>SIN COBERTURA</button>`}` : `<button class="lnk t" data-act="bmat" ${at(s)} title="Poner una materia">— vacío</button>`}</div>`; };
+    h += `<div class="card"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}</h3>${cells.length ? wkDias(cells, s => s.day, celda) : '<span class="muted">Este grupo no tiene turnos cargados.</span>'}</div></div>`;
   });
   const pend = !w.publicada || S.borr.generado > w.publicada;
   h += `<div class="card"><div class="card-h"><h2>Publicar y mandar al grupo</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
-    <p style="margin:0">${pend ? 'Al publicar, cada profe ve sus clases y los alumnos ven la materia y el tema de cada día (sin el nombre del profe).' : 'Publicado. Si cambiás algo, volvé a publicar.'}</p>
-    <div class="actions"><button class="btn primary ${pend ? '' : 'disabled'}" data-act="publicar">${ic('check')}${w.publicada ? 'Publicar cambios' : 'Publicar horario'}</button><button class="btn" data-act="hor-png">${ic('download')}Imagen para el grupo</button><button class="btn" data-act="hor-msg">${ic('wa')}Mensaje a cada profe</button></div></div></div>`;
+    <p style="margin:0">${pend ? 'Al publicar, cada profe ve sus clases y los alumnos ven la materia y el tema de cada día (sin el nombre del profe).' : 'Publicado. Si cambiás algo, volvé a publicar.'}${w.publicada ? ' Si lo publicaste por error, retiralo: profes y alumnos dejan de verlo hasta que publiques de nuevo.' : ''}</p>
+    <div class="actions"><button class="btn primary ${pend ? '' : 'disabled'}" data-act="publicar">${ic('check')}${w.publicada ? 'Publicar cambios' : 'Publicar horario'}</button><button class="btn" data-act="hor-png">${ic('download')}Imagen para el grupo</button><button class="btn" data-act="hor-msg">${ic('wa')}Mensaje a cada profe</button>${w.publicada ? `<button class="btn ghost danger" data-act="despublicar">${ic('x')}Retirar publicación</button>` : ''}</div></div></div>`;
   return h;
 }
 let BK = null; // bloque del borrador en edición
@@ -1693,17 +1717,97 @@ function openBMat(g, d, t) {
     <div style="margin-top:14px"><b style="font-size:13px">O cambiar por otra materia (mismo día)</b><div class="chips" style="margin-top:6px">${Object.keys(MATS).map(k => `<button class="tg" data-act="bmat-set" data-v="${k}" ${a?.materia === k ? 'disabled' : ''}>${MATS[k].l}</button>`).join('')}</div></div>`,
     `${a?.materia ? `<button class="btn ghost danger" data-act="bmat-set" data-v="" style="margin-right:auto">Dejar vacío</button>` : ''}<button class="btn" data-act="close">Cancelar</button>`);
 }
-async function guardarBorr(data, msg) {
-  const r = await run(S.sb.from('horarios').insert({ semana_id: S.sem.id, data }).select('generado').single());
-  if (!r) return false; S.borr = { data, generado: r.generado }; if (msg) toast(msg); render(); return true;
+async function guardarBorr(data, msg, origen = 'manual') {
+  const r = await run(S.sb.from('horarios').insert({ semana_id: S.sem.id, data, origen }).select('generado').single());
+  if (!r) return false; S.borr = { data, generado: r.generado, origen }; if (msg) toast(msg); render(); return true;
+}
+// bloques fijados a mano en el borrador (fm: materia y día; fp: también el profe)
+function fijosMarcados() { const r = []; Object.entries(S.borr?.data || {}).forEach(([g, L]) => (L || []).forEach(s => { if (s && (s.fm || s.fp)) r.push({ g, s }); })); return r; }
+async function fijosBorr() {
+  if (!S.borr) return [];
+  if (S.borr.origen) return fijosMarcados();
+  // borrador de antes de los pines: los cambios a mano se detectan comparando con el último armado automático
+  const { data: rows, error } = await S.sb.from('horarios').select('data,generado').eq('semana_id', S.sem.id).order('generado');
+  if (error || !rows || !rows.length) return fijosMarcados();
+  const kk = (g, s) => g + '|' + s.day + '|' + s.turno;
+  const mapa = d => { const m = {}; Object.entries(d || {}).forEach(([g, L]) => (L || []).forEach(s => { if (s && s.materia) m[kk(g, s)] = s; })); return m; };
+  const igual = (p, q) => p && q && p.materia === q.materia && (p.tema || '') === (q.tema || '') && (p.profe || null) === (q.profe || null);
+  const dif = (a, b) => { const A = mapa(a), B = mapa(b); let n = 0; new Set([...Object.keys(A), ...Object.keys(B)]).forEach(x => { if (!igual(A[x], B[x])) n++; }); return n; };
+  let base = rows[0].data;
+  for (let i = 1; i < rows.length; i++) if (dif(rows[i - 1].data, rows[i].data) > 2) base = rows[i].data;   // un cambio a mano toca 1 o 2 bloques; un armado, muchos
+  const B = mapa(base), out = [];
+  Object.entries(S.borr.data || {}).forEach(([g, L]) => (L || []).forEach(s => { if (!s || !s.materia) return; const b = B[kk(g, s)];
+    if (!b || b.materia !== s.materia || (b.tema || '') !== (s.tema || '')) out.push({ g, s: { ...s, fm: true } });
+    else if ((b.profe || null) !== (s.profe || null)) out.push({ g, s: { ...s, fm: true, fp: true } }); }));
+  return out;
+}
+const fijoTxt = ({ g, s }) => `${gName(g)} · ${s.day} ${dm(fDia(S.sem.lunes, s.day))} ${s.turno} · ${s.materia ? matL(s.materia) + (s.materia === 'examen' ? '' : ' — ' + (s.fp ? (s.profe ? primerN(s.profe) : 'sin profe') : 'el profe lo elige el armado')) : 'vacío'}`;
+let ARM = null; // fijados que se muestran en el diálogo de volver a armar
+function openArmar(fijos) {
+  ARM = fijos; const pub = !!S.sem.publicada;
+  openModal('Volver a armar', `${fijos.length ? `<p style="margin:0 0 8px">Tenés <b>${fijos.length} bloque${fijos.length === 1 ? '' : 's'} que cambiaste a mano</b>:</p>
+    <div class="rows" style="max-height:220px;overflow:auto;margin-bottom:10px">${fijos.map(x => `<div class="row"><div class="t"><span class="fxl">${ic('pin')}</span> ${esc(fijoTxt(x))}</div></div>`).join('')}</div>
+    <p class="muted" style="margin:0">Si los conservás, quedan como están y el armado reparte el resto alrededor (los profes fijados no se usan en otro grupo a esa hora).</p>` : `<p style="margin:0">Se arma de nuevo todo el borrador con la disponibilidad y las materias cargadas.</p>`}
+    ${pub ? `<label class="chk" style="margin-top:14px;display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="arm-despub"><span><b>Retirar ya el horario publicado.</b> Profes y alumnos dejan de verlo hasta que publiques el nuevo. Marcalo si lo publicaste por error.</span></label>` : ''}`,
+    fijos.length ? `<button class="btn" data-act="close">Cancelar</button><button class="btn ghost danger" data-act="armar-ir" data-v="cero">Borrar mis cambios y armar de cero</button><button class="btn primary" data-act="armar-ir" data-v="fijos">Armar respetando mis cambios</button>`
+      : `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="armar-ir" data-v="cero">Volver a armar</button>`);
+}
+async function despublicarYa() {
+  const { data, error } = await S.sb.rpc('despublicar_horario', { sem: S.sem.id });
+  if (error) { toast(errText(error), 'error'); return false; }
+  const q = data?.quedan || 0;
+  toast(`Horario retirado: profes y alumnos ya no lo ven.${q ? ` ${q} clase${q === 1 ? '' : 's'} con lista o anotaciones quedan registradas.` : ''}`);
+  await load(['semana', 'clases']); return true;
+}
+async function armarYa(fijos, despub) {
+  if (despub && !(await despublicarYa())) return;
+  const fer = S.sem.feriados || []; const disponibilidad = {}; S.dispRows.forEach(r => (disponibilidad[r.profesor_id] = { enviado: r.enviado, dias: r.dias }));
+  const profesores = profsActivos().map(p => { const s = S.punt[p.id] || {}; return { id: p.id, nombre: p.nombre, anios: num(s.anios), manejo: num(s.manejo), punt: num(s.punt), scores: s.scores || {} }; });
+  const gsAct = gruposActivos();
+  const grupos = gsAct.map(g => ({ id: g.id, nombre: g.nombre, prioridad: !!g.prioridad, dias: g.dias || {} }));
+  const pool = {}; gsAct.forEach(g => (pool[g.id] = (S.pool[g.id] || []).map(it => ({ ...it }))));
+  const bloq = [], tal = [], elegir = [];
+  (fijos || []).forEach(({ g, s: s0 }) => {
+    const gr = grupos.find(x => x.id === g); if (!gr) return;
+    if (fer.includes(s0.day) || !turnosDe(gr.dias[s0.day] || '-').includes(s0.turno)) return;   // ese bloque ya no existe (feriado o cambió el turno del grupo)
+    let s = { ...s0 };
+    if (s.materia) {   // esa materia ya está puesta: se saca del reparto (null mantiene las cadenas ⛓ del resto)
+      const L = pool[g]; let i = L.findIndex(it => it && it.mat === s.materia && (it.tema || '') === (s.tema || ''));
+      if (i < 0) i = L.findIndex(it => it && it.mat === s.materia && !it.tema); if (i < 0) i = L.findIndex(it => it && it.mat === s.materia);
+      if (i >= 0) { if (!s.tema && L[i].tema) s.tema = L[i].tema; if (!s.nivel && L[i].nivel) s.nivel = L[i].nivel; L[i] = null; }
+    }
+    const conProfe = s.fp || !s.materia || s.materia === 'examen';
+    bloq.push({ grupo: g, day: s.day, turno: s.turno, profe: conProfe && s.materia && s.materia !== 'examen' ? s.profe || null : null });
+    if (conProfe) tal.push({ g, s });
+    else {   // materia y día fijos, el profe lo elige el motor: va como un bloque suelto con esa sola materia
+      const vid = 'fijo|' + g + '|' + s.day + '|' + s.turno; elegir.push({ vid, g, s });
+      grupos.push({ id: vid, nombre: gr.nombre, prioridad: gr.prioridad, dias: { [s.day]: s.turno === 'Mañana' ? 'M' : 'T' } });
+      pool[vid] = [{ mat: s.materia, tema: s.tema || '', nivel: s.nivel || null }];
+    }
+  });
+  const res = armarHorario({ profesores, grupos, pool, feriados: fer, disponibilidad, fijos: bloq });
+  const out = {};
+  gsAct.forEach(g => (out[g.id] = (res[g.id] || []).filter(x => !bloq.some(b => b.grupo === g.id && b.day === x.day && b.turno === x.turno))));
+  tal.forEach(({ g, s }) => out[g].push({ ...s, fm: true }));
+  elegir.forEach(({ vid, g, s }) => { const r = (res[vid] || [])[0]; out[g].push({ ...s, profe: r ? r.profe : null, fm: true, fp: false }); });
+  Object.values(out).forEach(L => L.sort((a, b) => DK.indexOf(a.day) - DK.indexOf(b.day) || TURNOS.indexOf(a.turno) - TURNOS.indexOf(b.turno)));
+  const n = tal.length + elegir.length;
+  await guardarBorr(out, n ? `Horario armado respetando ${n} bloque${n === 1 ? '' : 's'} fijado${n === 1 ? '' : 's'}. Revisalo y publicalo.` : 'Horario armado. Revisalo y publicalo.', 'motor');
 }
 async function guardarPool(gid) { await run(S.sb.from('materias_semana').upsert({ semana_id: S.sem.id, grupo_id: gid, items: S.pool[gid] || [] }, { onConflict: 'semana_id,grupo_id' })); }
 
 /* imagen del horario para el grupo de profes */
 async function horarioPNG() {
   const w = S.sem, l = w.lunes, gs = gruposActivos().map(g => [g, celdasBorr(g)]).filter(([, c]) => c.length);
-  const cellW = 150, cellH = 124, gap = 10, padX = 26; let maxCols = 1; gs.forEach(([, c]) => (maxCols = Math.max(maxCols, c.length)));
-  const W = maxCols * cellW + (maxCols - 1) * gap + padX * 2; let H = 96; gs.forEach(() => (H += 28 + cellH + 22)); H += 26;
+  const cellW = 150, cellH = 124, gap = 10, padX = 26;
+  // una columna por día: la mañana arriba y la tarde abajo
+  const lay = gs.map(([g, cells]) => { const dias = [...new Set(cells.map(s => s.day))], hayM = cells.some(s => s.turno === 'Mañana');
+    const filas = hayM && cells.some(s => s.turno === 'Tarde') ? 2 : 1;
+    const pos = cells.map(s => ({ s, col: dias.indexOf(s.day), row: !s.feriado && hayM && s.turno === 'Tarde' ? 1 : 0 }));
+    pos.forEach(p => (p.dia = p.row === 0 || !pos.some(q => q.col === p.col && q.row === 0)));
+    return { g, dias, filas, pos }; });
+  let maxCols = 1; lay.forEach(L => (maxCols = Math.max(maxCols, L.dias.length)));
+  const W = maxCols * cellW + (maxCols - 1) * gap + padX * 2; let H = 96; lay.forEach(L => (H += 28 + L.filas * cellH + (L.filas - 1) * gap + 22)); H += 26;
   const cv = document.createElement('canvas'); cv.width = W * 2; cv.height = H * 2; const ctx = cv.getContext('2d'); ctx.scale(2, 2);
   const rr = (x, y, ww, hh, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + ww, y, x + ww, y + hh, r); ctx.arcTo(x + ww, y + hh, x, y + hh, r); ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + ww, y, r); ctx.closePath(); };
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.textBaseline = 'top';
@@ -1712,11 +1816,12 @@ async function horarioPNG() {
   ctx.textAlign = 'left'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 22px Montserrat, sans-serif'; ctx.fillText('Horario de la semana', padX, 20);
   ctx.fillStyle = '#68625A'; ctx.font = '13px Figtree, sans-serif'; ctx.fillText(`Semana del ${rangoSem(l)} · Coronel Oviedo`, padX, 46);
   let y = 84;
-  gs.forEach(([g, cells]) => {
+  lay.forEach(({ g, filas, pos }) => {
     ctx.textAlign = 'left'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 15px Montserrat, sans-serif'; ctx.fillText(g.nombre, padX, y); y += 26;
-    cells.forEach((s, i) => {
-      const x = padX + i * (cellW + gap); rr(x, y, cellW, cellH, 8); ctx.fillStyle = s.feriado ? '#fef2f2' : '#f8f7f4'; ctx.fill(); ctx.strokeStyle = '#E4E0D9'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.textAlign = 'center'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 12px Figtree, sans-serif'; ctx.fillText(`${s.day} ${dm(fDia(l, s.day))}`, x + cellW / 2, y + 10);
+    const y0 = y;
+    pos.forEach(({ s, col: ci, row, dia }) => {
+      const x = padX + ci * (cellW + gap), y = y0 + row * (cellH + gap); rr(x, y, cellW, cellH, 8); ctx.fillStyle = s.feriado ? '#fef2f2' : '#f8f7f4'; ctx.fill(); ctx.strokeStyle = '#E4E0D9'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.textAlign = 'center'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 12px Figtree, sans-serif'; if (dia) ctx.fillText(`${s.day} ${dm(fDia(l, s.day))}`, x + cellW / 2, y + 10);
       if (s.feriado) { ctx.fillStyle = '#BF3328'; ctx.fillText('FERIADO', x + cellW / 2, y + 56); return; }
       ctx.fillStyle = '#94a3b8'; ctx.font = '10px Figtree, sans-serif'; ctx.fillText(s.turno === 'Mañana' ? 'Mañana · 8–12' : 'Tarde · 13:30–17:30', x + cellW / 2, y + 26);
       if (!s.materia) { ctx.fillStyle = '#cbd5e1'; ctx.font = '13px sans-serif'; ctx.fillText('—', x + cellW / 2, y + 60); return; }
@@ -1729,7 +1834,7 @@ async function horarioPNG() {
       if (s.profe) { ctx.fillStyle = '#17140F'; ctx.font = '13px Figtree, sans-serif'; ctx.fillText(primerN(s.profe), x + cellW / 2, y + 96); }
       else if (s.materia !== 'examen') { ctx.fillStyle = '#BF3328'; ctx.font = 'bold 11px Figtree, sans-serif'; ctx.fillText('SIN COBERTURA', x + cellW / 2, y + 98); }
     });
-    y += cellH + 22;
+    y = y0 + filas * cellH + (filas - 1) * gap + 22;
   });
   ctx.textAlign = 'left'; ctx.fillStyle = '#b8b2a8'; ctx.font = '11px Figtree, sans-serif'; ctx.fillText((S.cfg.nombre || 'Cursillo VIBE') + ' · ' + (S.cfg.tel || ''), padX, y);
   return await new Promise(res => cv.toBlob(res, 'image/png'));
@@ -2790,33 +2895,46 @@ const A = {
   'pool-del': async el => { const g = el.dataset.g; S.pool[g] = (S.pool[g] || []).filter((_, i) => i !== +el.dataset.i); render(); await guardarPool(g); },
   'pool-seg': async el => { const g = el.dataset.g, it = (S.pool[g] || [])[+el.dataset.i]; if (!it) return; it.seguida = !it.seguida; render(); await guardarPool(g); },
   armar: async el => {
-    const fer = S.sem.feriados || []; const disponibilidad = {}; S.dispRows.forEach(r => (disponibilidad[r.profesor_id] = { enviado: r.enviado, dias: r.dias }));
-    const profesores = profsActivos().map(p => { const s = S.punt[p.id] || {}; return { id: p.id, nombre: p.nombre, anios: num(s.anios), manejo: num(s.manejo), punt: num(s.punt), scores: s.scores || {} }; });
-    const grupos = gruposActivos().map(g => ({ id: g.id, nombre: g.nombre, prioridad: !!g.prioridad, dias: g.dias || {} }));
-    const doIt = async () => { el.classList.add('disabled'); const res = armarHorario({ profesores, grupos, pool: S.pool, feriados: fer, disponibilidad }); await guardarBorr(res, 'Horario armado. Revisalo y publicalo.'); el.classList.remove('disabled'); };
-    if (S.borr) confirmDlg('Volver a armar reemplaza los cambios que hiciste a mano en el borrador. ¿Seguimos?', 'Volver a armar', doIt, false); else doIt();
+    if (!S.borr) { el.classList.add('disabled'); await armarYa([], false); el.classList.remove('disabled'); return; }
+    el.classList.add('disabled'); const fijos = await fijosBorr(); el.classList.remove('disabled');
+    if (!fijos.length && !S.sem.publicada) { el.classList.add('disabled'); await armarYa([], false); el.classList.remove('disabled'); return; }
+    openArmar(fijos);
+  },
+  'armar-ir': async el => {
+    const despub = !!$('#arm-despub')?.checked, fijos = el.dataset.v === 'fijos' ? (ARM || []) : [];
+    el.classList.add('disabled'); closeModal(); await armarYa(fijos, despub);
+  },
+  despublicar: () => confirmDlg('¿Retirar el horario publicado de esta semana? Profes y alumnos dejan de verlo hasta que lo vuelvas a publicar. Las clases que ya tienen lista quedan registradas. El borrador no se toca.', 'Retirar', () => despublicarYa()),
+  bfijo: async el => {
+    const g = el.dataset.g, d = el.dataset.d, t = el.dataset.t; const lista = [...(S.borr?.data?.[g] || [])]; const i = lista.findIndex(s => s.day === d && s.turno === t); if (i < 0) return;
+    const s = lista[i], fij = s.fm || s.fp;
+    if (fij && !s.materia) lista.splice(i, 1);   // un bloque vaciado a mano, al soltarlo, vuelve a quedar libre
+    else lista[i] = fij ? { ...s, fm: false, fp: false } : { ...s, fm: true, fp: !!s.profe || s.materia === 'examen' };
+    await guardarBorr({ ...S.borr.data, [g]: lista }, fij ? 'Bloque suelto: al volver a armar lo puede cambiar' : 'Bloque fijado: al volver a armar queda como está');
   },
   bprof: el => openBProf(el.dataset.g, el.dataset.d, el.dataset.t),
   bmat: el => openBMat(el.dataset.g, el.dataset.d, el.dataset.t),
   'bprof-set': async el => {
     const { g, d, t } = BK; const pid = el.dataset.v || null; const H = { ...S.borr.data };
-    H[g] = (H[g] || []).map(s => s.day === d && s.turno === t ? { ...s, profe: pid } : s); closeModal(); await guardarBorr(H, pid ? 'Profe cambiado' : 'Bloque sin profe');
+    H[g] = (H[g] || []).map(s => s.day === d && s.turno === t ? { ...s, profe: pid, fm: true, fp: true } : s); closeModal(); await guardarBorr(H, pid ? 'Profe cambiado (queda fijado)' : 'Bloque sin profe (queda fijado)');
   },
   'bmat-set': async el => {
     const { g, d, t } = BK; const mat = el.dataset.v || null; let lista = [...(S.borr.data[g] || [])]; const i = lista.findIndex(s => s.day === d && s.turno === t);
-    if (!mat) { if (i >= 0) lista = lista.filter((_, x) => x !== i); }
-    else if (i >= 0) lista[i] = { ...lista[i], materia: mat, tema: '', profe: mat === 'examen' ? null : lista[i].profe || null };
-    else lista.push({ day: d, turno: t, materia: mat, tema: '', profe: null });
-    closeModal(); await guardarBorr({ ...S.borr.data, [g]: lista }, mat ? 'Materia cambiada' : 'Bloque vacío');
+    if (!mat) { const v = { day: d, turno: t, materia: null, tema: '', profe: null, fm: true }; if (i >= 0) lista[i] = v; else lista.push(v); }   // vaciado a mano: queda vacío al volver a armar
+    else if (i >= 0) lista[i] = { ...lista[i], materia: mat, tema: '', nivel: null, profe: mat === 'examen' ? null : lista[i].profe || null, fm: true };
+    else lista.push({ day: d, turno: t, materia: mat, tema: '', profe: null, fm: true });
+    closeModal(); await guardarBorr({ ...S.borr.data, [g]: lista }, mat ? 'Materia cambiada (queda fijada)' : 'Bloque vacío (queda fijado)');
   },
   'bmat-mover': async el => {
     const { g, d, t } = BK; const dd = el.dataset.d, dt = el.dataset.t; let lista = [...(S.borr.data[g] || [])];
-    const iA = lista.findIndex(s => s.day === d && s.turno === t), iB = lista.findIndex(s => s.day === dd && s.turno === dt);
+    const iA = lista.findIndex(s => s.day === d && s.turno === t && s.materia), iB = lista.findIndex(s => s.day === dd && s.turno === dt && s.materia);
     const a = iA >= 0 ? lista[iA] : null, b = iB >= 0 ? lista[iB] : null;
     const viaja = (s, day, turno) => s.materia !== 'examen' && s.profe && estaLibre(s.profe, day, turno) && !ocupadoEn(s.profe, day, turno, g) ? s.profe : null;
-    if (a && b) { lista[iA] = { ...a, materia: b.materia, tema: b.tema || '', profe: b.materia === 'examen' ? null : a.profe || null }; lista[iB] = { ...b, materia: a.materia, tema: a.tema || '', profe: a.materia === 'examen' ? null : b.profe || null }; }
-    else if (a && !b) { lista = lista.filter((_, x) => x !== iA); lista.push({ day: dd, turno: dt, materia: a.materia, tema: a.tema || '', profe: viaja(a, dd, dt) }); }
-    else if (!a && b) { lista = lista.filter((_, x) => x !== iB); lista.push({ day: d, turno: t, materia: b.materia, tema: b.tema || '', profe: viaja(b, d, t) }); }
+    const sin = (day, turno) => lista.filter(s => !(s.day === day && s.turno === turno));
+    // lo que se mueve queda fijado en su nuevo día; cada profe se queda en su día
+    if (a && b) { lista[iA] = { ...a, materia: b.materia, tema: b.tema || '', nivel: b.nivel || null, profe: b.materia === 'examen' ? null : a.profe || null, fm: true }; lista[iB] = { ...b, materia: a.materia, tema: a.tema || '', nivel: a.nivel || null, profe: a.materia === 'examen' ? null : b.profe || null, fm: true }; }
+    else if (a && !b) { const pv = viaja(a, dd, dt); lista = sin(d, t); lista = lista.filter(s => !(s.day === dd && s.turno === dt)); lista.push({ day: dd, turno: dt, materia: a.materia, tema: a.tema || '', nivel: a.nivel || null, profe: pv, fm: true, fp: !!(pv && a.fp) }); }
+    else if (!a && b) { const pv = viaja(b, d, t); lista = sin(dd, dt); lista = lista.filter(s => !(s.day === d && s.turno === t)); lista.push({ day: d, turno: t, materia: b.materia, tema: b.tema || '', nivel: b.nivel || null, profe: pv, fm: true, fp: !!(pv && b.fp) }); }
     else { closeModal(); return; }
     closeModal(); await guardarBorr({ ...S.borr.data, [g]: lista }, a && b ? 'Materias intercambiadas' : 'Clase movida de día');
   },
