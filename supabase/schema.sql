@@ -761,13 +761,19 @@ create or replace function public.eval_info(tk text) returns json
 language sql stable security definer set search_path = public as $$
   select json_build_object('grupo', g.nombre, 'fecha', l.fecha, 'cerrada', public.hoy_py() > l.fecha + 1,
     'clases', coalesce((select json_agg(json_build_object('id', c.id, 'turno', c.turno, 'materia', c.materia, 'tema', c.tema,
-                          'abierta', public.eval_abierta(c.fecha, c.turno)) order by (c.turno = 'Tarde'))
-                        from clases c where c.grupo_id = l.grupo_id and c.fecha = l.fecha
+                          'abierta', public.eval_abierta(c.fecha, c.turno), 'lista', x.presentes > 0, 'llena', x.presentes > 0 and x.resp >= x.presentes)
+                          order by (c.turno = 'Tarde'))
+                        from clases c
+                        cross join lateral (select (select count(*) from asistencia a where a.grupo_id = c.grupo_id and a.fecha = c.fecha
+                                                      and a.turno = c.turno and a.marca in ('P', 'T')) as presentes,
+                                                   (select count(*) from evaluaciones e where e.clase_id = c.id) as resp) x
+                        where c.grupo_id = l.grupo_id and c.fecha = l.fecha
                           and ((c.materia is not null and c.materia <> 'examen') or (c.materia is null and c.dictada_por is not null))), '[]'::json))
   from eval_links l join grupos g on g.id = l.grupo_id where l.token = tk
 $$;
 
--- Guardar una evaluación: anónima (no se registra quién la manda). Tope de respuestas por clase según los alumnos del grupo.
+-- Guardar una evaluación: anónima (no se registra quién la manda). Cupo por clase = presentes que marcó el profe
+-- en la lista (presente o tarde): si la lista dice 12 presentes, la clase recibe como máximo 12 respuestas.
 create or replace function public.evaluar(tk text, cid uuid, general int, entendio int, puntual text, dudas text, termino text, comentario text)
 returns void language plpgsql security definer set search_path = public as $$
 declare l eval_links; c clases; tope int;
@@ -777,8 +783,9 @@ begin
   select * into c from clases where id = cid and grupo_id = l.grupo_id and fecha = l.fecha;
   if not found then raise exception 'Esa clase no corresponde a este link'; end if;
   if not public.eval_abierta(c.fecha, c.turno) then raise exception 'Esta clase todavía no empezó o ya cerró la evaluación'; end if;
-  select greatest(count(*), 10) + 5 into tope from alumnos where grupo_id = c.grupo_id and estado in ('activo', 'pendiente');
-  if (select count(*) from evaluaciones e where e.clase_id = cid) >= tope then raise exception 'Ya se recibieron todas las respuestas de esta clase'; end if;
+  select count(*) into tope from asistencia a where a.grupo_id = c.grupo_id and a.fecha = c.fecha and a.turno = c.turno and a.marca in ('P', 'T');
+  if tope = 0 then raise exception 'Todavía no se llamó lista de esta clase: la evaluación se habilita cuando el profe la llama'; end if;
+  if (select count(*) from evaluaciones e where e.clase_id = cid) >= tope then raise exception 'Ya respondieron todos los presentes de esta clase'; end if;
   insert into evaluaciones (clase_id, general, entendio, puntual, dudas, termino, comentario)
   values (cid, general, entendio, nullif(puntual, ''), nullif(dudas, ''), nullif(termino, ''), nullif(left(btrim(coalesce(comentario, '')), 600), ''));
 end $$;

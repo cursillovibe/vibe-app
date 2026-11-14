@@ -1769,6 +1769,8 @@ function vEval() {
     h += `<section class="evc"><h2>${tit}</h2>${c.tema ? `<small class="muted" style="margin-top:-8px">${esc(c.tema)}</small>` : ''}`;
     if (S.evDone[c.id]) h += `<div class="ev-ok">✓ Ya respondiste esta clase. ¡Gracias!</div>`;
     else if (!c.abierta) h += `<div class="muted">Se puede evaluar desde que empieza la clase (${c.turno === 'Tarde' ? '13:30' : '8:00'}).</div>`;
+    else if (!c.lista) h += `<div class="muted">Todavía no se llamó lista de esta clase. La evaluación se habilita cuando el profe la llama (solo responden los que estuvieron presentes).</div>`;
+    else if (c.llena) h += `<div class="muted">Ya respondieron todos los presentes de esta clase. ¡Gracias!</div>`;
     else if (R.skip) h += `<div class="muted">Marcaste que no estuviste en esta clase. <button class="linkbtn" data-act="ev-skip" data-c="${esc(c.id)}">Deshacer</button></div>`;
     else {
       if (R.general) pend++;
@@ -1782,7 +1784,7 @@ function vEval() {
     }
     h += `</section>`;
   });
-  const quedan = I.clases.some(c => !S.evDone[c.id] && c.abierta && !(S.evR[c.id] || {}).skip);
+  const quedan = I.clases.some(c => !S.evDone[c.id] && c.abierta && c.lista && !c.llena && !(S.evR[c.id] || {}).skip);
   if (quedan) h += `<div style="display:grid;gap:6px"><button class="btn primary" data-act="ev-enviar" ${pend ? '' : 'disabled'} style="min-height:48px">Enviar respuestas</button><small class="muted">Solo la primera pregunta de cada clase es obligatoria.</small></div>`;
   return card(h);
 }
@@ -1793,7 +1795,7 @@ async function openEvalLink(g, f) {
   if (error) { openModal('Link de evaluación', `<div class="banner bad">${esc(errText(error))}</div>`, `<button class="btn" data-act="close">Cerrar</button>`, 'narrow'); return; }
   const url = APP_URL + '?e=' + tk;
   const msg = `📝 *¿Cómo estuvieron las clases ${f === hoy() ? 'de hoy' : 'del ' + dkDe(f) + ' ' + dm(f)}?* (${gName(g)})\nRespondé en 1 minuto. Es *anónimo*: nadie sabe quién responde, ni los profes ni la dirección.\n👉 ${url}`;
-  openModal('Link de evaluación · ' + gName(g), `<p class="muted" style="margin:0 0 10px">Mandalo al grupo de WhatsApp de ${esc(gName(g))}. Sirve para todas las clases de ese día y se puede responder hasta el día siguiente.</p>
+  openModal('Link de evaluación · ' + gName(g), `<p class="muted" style="margin:0 0 10px">Mandalo al grupo de WhatsApp de ${esc(gName(g))}. Sirve para todas las clases de ese día, se habilita cuando se llama lista y recibe como máximo tantas respuestas como presentes hubo. Se puede responder hasta el día siguiente.</p>
     <textarea class="inp" id="ev-msg" style="min-height:130px">${esc(msg)}</textarea>`,
     `<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Ver cómo queda</a><button class="btn" data-act="ev-copiar">${ic('copy')}Copiar</button><a class="btn wa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${ic('wa')}WhatsApp</a>`, 'narrow');
 }
@@ -1833,7 +1835,9 @@ function vHorEval() {
   let h = `<div class="filters"><input type="month" class="inp" data-ch="evMes" value="${esc(mes)}" style="width:auto" aria-label="Mes"><small class="muted">Las respuestas son anónimas: la app no guarda quién respondió. Para recibirlas, mandá el link desde Inicio → Evaluación de las clases de hoy.</small></div>`;
   if (!rows.length) return h + `<div class="card"><div class="empty"><b>Todavía no hay evaluaciones en ${MESES[+mes.slice(5) - 1]}</b>Cada día, mandá al grupo de WhatsApp el link de evaluación (Inicio → Evaluación de las clases de hoy). Los alumnos responden sin cuenta y de forma anónima.</div></div>`;
   const tot = evAgg(rows);
-  h += `<div class="kpis">${kpi('Respuestas', fmtN(tot.n), cap(MESES[+mes.slice(5) - 1]))}${kpi('Calificación promedio', tot.gen == null ? '—' : tot.gen.toFixed(1) + ' / 5', 'de Muy mala (1) a Excelente (5)', tot.gen != null && tot.gen < 3 ? 'bad' : '')}${kpi('Empezó puntual', tot.punt == null ? '—' : tot.punt + '%', 'respondió "Sí, a horario"')}${kpi('Se entendió', tot.ent == null ? '—' : tot.ent.toFixed(1) + ' / 5', 'de Nada (1) a Muy bien (5)')}</div>`;
+  const evCl = [...new Set(rows.map(r => r.clase_id))].map(id => rows.find(r => r.clase_id === id).clases);
+  const pres = sum(evCl.map(c => Object.values(S.asis[asisKey(c.grupo_id, c.fecha, c.turno)]?.marcas || {}).filter(m => m === 'P' || m === 'T').length));
+  h += `<div class="kpis">${kpi('Respuestas', fmtN(tot.n), pres ? `respondió el ${Math.round(100 * tot.n / pres)}% de los presentes` : cap(MESES[+mes.slice(5) - 1]))}${kpi('Calificación promedio', tot.gen == null ? '—' : tot.gen.toFixed(1) + ' / 5', 'de Muy mala (1) a Excelente (5)', tot.gen != null && tot.gen < 3 ? 'bad' : '')}${kpi('Empezó puntual', tot.punt == null ? '—' : tot.punt + '%', 'respondió "Sí, a horario"')}${kpi('Se entendió', tot.ent == null ? '—' : tot.ent.toFixed(1) + ' / 5', 'de Nada (1) a Muy bien (5)')}</div>`;
   const head = `<thead><tr><th></th><th class="n">Resp.</th><th class="n">Calificación</th><th class="n">Se entendió</th><th class="n">Puntual</th><th class="n">Dudas aclaradas</th><th class="n">Tema completo</th></tr></thead>`;
   const porP = {}; rows.forEach(r => (porP[evProfe(r)] ||= []).push(r));
   const ps = Object.entries(porP).map(([pid, rs]) => ({ pid, a: evAgg(rs) })).sort((x, y) => (y.a.gen || 0) - (x.a.gen || 0));
@@ -2679,13 +2683,13 @@ const A = {
   'ev-enviar': async el => {
     const I = S.evInfo; el.disabled = true; let ok = 0, err = '';
     for (const c of I.clases) {
-      const R = S.evR[c.id] || {}; if (S.evDone[c.id] || R.skip || !R.general || !c.abierta) continue;
+      const R = S.evR[c.id] || {}; if (S.evDone[c.id] || R.skip || !R.general || !c.abierta || !c.lista || c.llena) continue;
       const { error } = await S.ev.rpc('evaluar', { tk: EVAL, cid: c.id, general: R.general, entendio: R.entendio ?? null, puntual: R.puntual || '', dudas: R.dudas || '', termino: R.termino || '', comentario: R.comentario || '' });
       if (error) { err = errText(error); continue; }
       ok++; S.evDone[c.id] = true; try { localStorage.setItem('vibe-ev-' + c.id, '1'); } catch (e) { }
     }
     if (ok) S.evGracias = true; if (err) toast(err, 'error');
-    render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+    await cargarEval(); window.scrollTo({ top: 0, behavior: 'smooth' });
   },
   // --- turnos de oficina
   ofitab: el => { S.ui.ofiTab = el.dataset.v; render(); },
