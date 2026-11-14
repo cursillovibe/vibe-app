@@ -343,6 +343,7 @@ button.mchip{border:0;cursor:pointer;font-family:inherit}
 .wc .fx[aria-pressed="true"]{color:var(--accent);opacity:1}
 .wc .fx[aria-pressed="true"] svg.i{fill:currentColor}
 .fxl{display:inline-flex;vertical-align:-3px;color:var(--accent)}.fxl svg.i{width:15px;height:15px;fill:currentColor}
+.push-b>span:first-child{display:flex;gap:10px;align-items:flex-start}.push-b>span:first-child>svg.i{color:var(--accent);margin-top:1px}
 .wc.click{cursor:pointer}.wc.click:hover{border-color:var(--accent)}
 .wc.fer{background:var(--bad-soft);border-color:transparent;justify-content:center}
 .wc.hoy{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
@@ -530,6 +531,7 @@ const ICONS = {
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
   print:'<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
   pin:'<path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 14v7"/>',
+  bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   ext:'<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
 };
 const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -930,6 +932,7 @@ async function iniciar() {
     await cargarEval(); return;
   }
   S.sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' } });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });   // para los avisos al celular
   if (['invite', 'recovery'].includes(HASH0.get('type'))) S.needPassword = true;
   if (CODIGO) { try { const { data } = await S.sb.rpc('info_link', { c: CODIGO }); S.linkInfo = (data && data[0]) || { invalido: true }; } catch (e) { S.linkInfo = { invalido: true }; } }
   if (HASH0.get('error_description')) S.authMsg = /expired|invalid/i.test(HASH0.get('error_description')) ? 'El enlace ya venció o ya se usó. Pedí uno nuevo con "Olvidé mi contraseña" o avisá a la oficina.' : HASH0.get('error_description');
@@ -958,12 +961,12 @@ async function entrar() {
     if (['invite', 'recovery', 'signup'].includes(HASH0.get('type')) || HASH0.get('access_token') || CODIGO) history.replaceState(null, '', location.pathname);
     { const v = location.hash.slice(1); if (v && allowed(v)) S.view = v; else S.view = startView(); }
     render();
-    if (S.perfil && S.perfil.activo) { await load(); tiempoReal(); }
+    if (S.perfil && S.perfil.activo) { await load(); tiempoReal(); pushRevisar(); }
   } finally { entrando = false; }
 }
-function limpiar() { if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) { } } S.rt = null; if (S.rtPend) S.rtPend.clear(); Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
+function limpiar() { if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) { } } S.rt = null; S.push = null; S.pushRes = null; if (S.rtPend) S.rtPend.clear(); Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
   prof: {}, punt: {}, clases: {}, clRango: null, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !ocupado()) load(); else if (document.visibilityState === 'visible') aplicarRemoto(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !ocupado()) load(); else if (document.visibilityState === 'visible') aplicarRemoto(); if (document.visibilityState === 'visible' && S.perfil) pushRevisar(); });
 
 /* ---------- UI base ---------- */
 function toast(msg, kind = 'ok') { const el = document.createElement('div'); el.className = 'toast ' + kind; el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), kind === 'error' ? 6000 : 2800); }
@@ -1192,6 +1195,7 @@ VIEWS['mi-inicio'] = () => {
   const a = yo(); const g = S.grupos[a.grupoId]; const c = cuenta(a); const as = asisAlumno(a);
   const exs = Object.values(S.exams).filter(e => e.notas[a.id] !== undefined).sort((x, y) => (y.fecha || '').localeCompare(x.fecha || ''));
   let h = ph(`Hola, ${a.nombre.split(' ')[0] || ''}`, fechaLarga(hoy()), `<button class="btn" data-act="nav" data-v="mis-datos">${ic('user')}Mis datos</button>`);
+  if (a.grupoId && a.estado === 'activo') h += cardPush();
   const prox = (S.miHor || []).filter(c => c.fecha >= hoy()).slice(0, 3);
   if (prox.length) h += `<div class="card"><div class="card-h"><h2>Próximas clases</h2><button class="btn sm ghost" data-act="nav" data-v="mi-horario">Ver horario</button></div><div class="rows">${prox.map(c => `<div class="row"><div class="t">${c.fecha === hoy() ? '<b>Hoy</b>' : cap(DIAS[new Date(c.fecha + 'T12:00:00').getDay()]) + ' ' + dm(c.fecha)} · ${esc(c.turno)}<small>${esc(c.tema || (c.materia === 'examen' ? 'Examen' : ''))}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></div>`;
   if (a.estado === 'pendiente' || !a.grupoId) h += `<div class="banner">Tu ficha está completa. La oficina te va a asignar a tu grupo; cuando lo haga vas a ver acá tus cuotas, notas y asistencia.</div>`;
@@ -1232,6 +1236,65 @@ VIEWS['mis-datos'] = () => {
   const a = yo();
   return ph('Mis datos', esc(a.email)) + `<div class="card"><div class="card-b">${fichaForm(a, 'md')}<div class="err" id="md-err" style="margin-top:12px"></div></div><div class="savebar"><small>Si cambiás algo, la oficina lo ve al instante.</small><button class="btn primary" data-act="datos-guardar">Guardar cambios</button></div></div>`;
 };
+/* ---------- avisos por notificación (push) ---------- */
+// estado en este celular: activo · inactivo · bloqueado · ios (hay que instalar la app) · no (el navegador no permite)
+const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const instalada = () => !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+const pushSoporta = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { } };
+const b64aBytes = x => { const p = x.replace(/-/g, '+').replace(/_/g, '/'); return Uint8Array.from(atob(p + '='.repeat((4 - p.length % 4) % 4)), c => c.charCodeAt(0)); };
+async function pushSub() { try { const reg = await navigator.serviceWorker.getRegistration(); return reg ? await reg.pushManager.getSubscription() : null; } catch (e) { return null; } }
+async function pushRevisar() {
+  let e;
+  if (!pushSoporta()) e = esIOS() && !instalada() ? 'ios' : 'no';
+  else if (Notification.permission === 'denied') e = 'bloqueado';
+  else {
+    const sub = Notification.permission === 'granted' ? await pushSub() : null;
+    e = sub && lsGet('vibe-push') === S.session?.user?.id ? 'activo' : 'inactivo';
+    if (e === 'activo' && !S.pushSync) { S.pushSync = true; S.sb.rpc('guardar_push', { ep: sub.endpoint, k: sub.toJSON().keys }).then(() => { }, () => { }); }   // lo mantiene al día
+  }
+  if (S.push !== e) { S.push = e; render(); }
+}
+async function pushActivar(el) {
+  if (!pushSoporta()) return pushRevisar();
+  if (el) el.classList.add('disabled');
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast(perm === 'denied' ? 'Bloqueaste los avisos. Podés activarlos desde los ajustes del celular o del navegador.' : 'No se activaron los avisos.', 'error'); return pushRevisar(); }
+    const r = await invocar('push', { tipo: 'clave' });
+    if (r.error || !r.publica) { toast(r.error || 'No se pudieron activar los avisos. Probá de nuevo.', 'error'); return; }
+    const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
+    const opts = { userVisibleOnly: true, applicationServerKey: b64aBytes(r.publica) };
+    let sub; try { sub = await reg.pushManager.subscribe(opts); } catch (e) { const v = await reg.pushManager.getSubscription(); if (v) await v.unsubscribe(); sub = await reg.pushManager.subscribe(opts); }
+    if (!(await run(S.sb.rpc('guardar_push', { ep: sub.endpoint, k: sub.toJSON().keys })))) return;
+    lsSet('vibe-push', S.session.user.id); S.push = 'activo'; render();
+    const t = await invocar('push', { tipo: 'prueba' });
+    toast(t.enviados ? 'Listo: te mandamos un aviso de prueba. Así te vamos a recordar tus clases.' : 'Avisos activados en este celular.');
+  } catch (e) { toast('No se pudieron activar los avisos en este navegador.', 'error'); }
+  finally { if (el) el.classList.remove('disabled'); }
+}
+async function pushQuitar() { const sub = await pushSub(); if (sub && lsGet('vibe-push') === S.session?.user?.id) { try { await S.sb.rpc('quitar_push', { ep: sub.endpoint }); } catch (e) { } } return sub; }
+const PUSH_AL = 'la noche anterior y a la mañana qué clase tenés y qué preparar';
+const PUSH_PR = 'la noche anterior y a la mañana qué clase das, y cuándo cargar tu disponibilidad';
+function pushTexto() { return isAlumno() ? PUSH_AL : isProfe() ? PUSH_PR : 'los avisos del horario'; }
+// tarjeta en Inicio (profes y alumnos) hasta que activen los avisos en este celular
+function cardPush() {
+  const e = S.push; if (!e || e === 'activo' || e === 'no') return '';
+  const no = +(lsGet('vibe-push-no') || 0); if (Date.now() - no < 7 * 864e5) return '';
+  const cerrar = `<button class="btn sm ghost" data-act="push-ahora-no">Ahora no</button>`;
+  if (e === 'ios') return `<div class="banner push-b"><span>${ic('bell')}<span><b>Avisos en iPhone:</b> en Safari tocá <b>Compartir</b> y elegí <b>“Agregar a inicio”</b>. Después abrí VIBE desde el ícono y activá los avisos: te recordamos ${pushTexto()}.</span></span>${cerrar}</div>`;
+  if (e === 'bloqueado') return `<div class="banner push-b"><span>${ic('bell')}<span>Los avisos de VIBE están <b>bloqueados</b> en este celular. Para recibirlos, permití las notificaciones de VIBE en los ajustes del celular o del navegador.</span></span>${cerrar}</div>`;
+  return `<div class="banner push-b"><span>${ic('bell')}<span><b>Activá los avisos:</b> te recordamos ${pushTexto()}.</span></span><span class="actions"><button class="btn sm primary" data-act="push-activar">Activar avisos</button>${cerrar}</span></div>`;
+}
+function cardPushCuenta() {
+  const e = S.push;
+  const txt = { activo: '<b>Activados en este celular.</b> Te llegan ' + (isAlumno() || isProfe() ? 'los recordatorios de tus clases.' : 'los avisos del horario.'), inactivo: 'Todavía no activaste los avisos en este celular. Te recordamos ' + pushTexto() + '.',
+    bloqueado: 'Están <b>bloqueados</b>. Permití las notificaciones de VIBE en los ajustes del celular o del navegador y volvé a entrar.', ios: 'En iPhone: en Safari tocá <b>Compartir</b> → <b>“Agregar a inicio”</b>, abrí VIBE desde el ícono y activalos acá.',
+    no: 'Este navegador no permite avisos. Probá con Chrome (Android) o con la app instalada desde Safari (iPhone).' }[e] || 'Revisando…';
+  return `<div class="card"><div class="card-h"><h2>Avisos en este celular</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start"><p style="margin:0">${txt}</p>
+    <div class="actions">${e === 'inactivo' ? `<button class="btn primary" data-act="push-activar">${ic('bell')}Activar avisos</button>` : ''}${e === 'activo' ? `<button class="btn" data-act="push-probar">${ic('bell')}Mandarme un aviso de prueba</button><button class="btn ghost danger" data-act="push-desactivar">Desactivar</button>` : ''}</div></div></div>`;
+}
 VIEWS.cuenta = () => {
   const p = S.perfil;
   return ph('Mi cuenta', esc(p.email)) + `<div class="grid2"><div class="card"><div class="card-h"><h2>Cambiar contraseña</h2></div><div class="card-b"><form data-form="clave2" style="display:flex;flex-direction:column;gap:12px">
@@ -1239,7 +1302,7 @@ VIEWS.cuenta = () => {
     <div class="fld"><label for="c2-pass2">Repetila</label><input class="inp" id="c2-pass2" type="password" autocomplete="new-password" required></div>
     <div class="err" id="c2-err"></div><div><button class="btn primary" type="submit">Guardar contraseña</button></div></form></div></div>
     <div class="card"><div class="card-h"><h2>Sesión</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start"><dl class="dl"><dt>Nombre</dt><dd>${esc(p.nombre || '—')}</dd><dt>Rol</dt><dd>${ROLE_LBL[p.rol]}</dd></dl>
-    <button class="btn" data-act="salir">${ic('logout')}Cerrar sesión</button><small>Para instalar la app en el celular: abrí este link en el navegador y elegí “Agregar a pantalla de inicio”.</small></div></div></div>`;
+    <button class="btn" data-act="salir">${ic('logout')}Cerrar sesión</button><small>Para instalar la app en el celular: abrí este link en el navegador y elegí “Agregar a pantalla de inicio”.</small></div></div></div>${cardPushCuenta()}`;
 };
 
 /* ---------- vistas de oficina y profes ---------- */
@@ -1279,6 +1342,7 @@ VIEWS.inicio = () => {
       <div class="card"><div class="card-h"><h2>Cuotas vencidas</h2>${deud.length ? `<button class="btn sm ghost" data-act="nav" data-v="cobros">Ver todas</button>` : ''}</div>
       <div class="rows">${deud.length ? deud.slice(0, 6).map(x => rowDeuda(x.a, x.c)).join('') : `<div class="empty"><b>Nadie con cuotas vencidas</b>Todo al día por ahora.</div>`}</div></div></div>`;
   } else {
+    h += cardPush();
     h += `<div class="grid2">${cardListasHoy()}${cardExamenesRecientes()}</div>`;
     h += cardEvalHoy();
   }
@@ -1690,6 +1754,7 @@ function vBorrador() {
   const pend = !w.publicada || S.borr.generado > w.publicada;
   h += `<div class="card"><div class="card-h"><h2>Publicar y mandar al grupo</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
     <p style="margin:0">${pend ? 'Al publicar, cada profe ve sus clases y los alumnos ven la materia y el tema de cada día (sin el nombre del profe).' : 'Publicado. Si cambiás algo, volvé a publicar.'}${w.publicada ? ' Si lo publicaste por error, retiralo: profes y alumnos dejan de verlo hasta que publiques de nuevo.' : ''}</p>
+    <label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pub-avisar" ${S.ui.pubAvisar === false ? '' : 'checked'} data-ch="pub-avisar"><span>Avisar al celular de profes y alumnos al publicar</span></label>
     <div class="actions"><button class="btn primary ${pend ? '' : 'disabled'}" data-act="publicar">${ic('check')}${w.publicada ? 'Publicar cambios' : 'Publicar horario'}</button><button class="btn" data-act="hor-png">${ic('download')}Imagen para el grupo</button><button class="btn" data-act="hor-msg">${ic('wa')}Mensaje a cada profe</button>${w.publicada ? `<button class="btn ghost danger" data-act="despublicar">${ic('x')}Retirar publicación</button>` : ''}</div></div></div>`;
   return h;
 }
@@ -2297,9 +2362,26 @@ VIEWS.ajustes = () => {
     <textarea class="inp" id="c-msg" style="min-height:150px">${esc(c.msg || DEFAULT_MSG)}</textarea>
     <span class="hint muted" style="font-size:13px">Se reemplaza automáticamente: {encargado} {alumno} {nombre} {grupo} {detalle} {total} {transferencia} {cursillo}</span>
     <div><button class="btn primary" data-act="msg-guardar">Guardar mensaje</button></div></div></div>`;
+  if (isAdmin()) h += cardPushAjustes();
   h += `<div class="card"><div class="card-h"><h2>Exportar</h2><small>Copia de seguridad en CSV (se abre en Excel)</small></div><div class="card-b actions"><button class="btn" data-act="exp-alumnos">${ic('download')}Alumnos con estado de cuenta</button><button class="btn" data-act="exp-pagos-todos">${ic('download')}Todos los pagos</button><button class="btn" data-act="exp-asis">${ic('download')}Asistencia</button></div></div>`;
   return h;
 };
+const PUSH_DEF = { noche: '20:00', manana: '06:30', alNoche: true, alManana: true, prNoche: true, prManana: true, disp: true };
+const pushCfg = () => ({ ...PUSH_DEF, ...(S.cfg.push || {}) });
+function cardPushAjustes() {
+  const c = pushCfg(), r = S.pushRes;
+  if (!r && !S.pushResCargando) { S.pushResCargando = true; S.sb.rpc('push_resumen').then(({ data }) => { S.pushRes = data || null; S.pushResCargando = false; if (S.view === 'ajustes') render(); }, () => { S.pushResCargando = false; }); }
+  const chk = (k, l) => `<label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pu-${k}" ${c[k] ? 'checked' : ''}><span>${l}</span></label>`;
+  const sin = r ? (r.profes_sin || []) : [];
+  return `<div class="card"><div class="card-h"><h2>Avisos al celular</h2><small>Les llegan a quienes instalaron la app y activaron los avisos</small></div><div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+    ${r ? `<p style="margin:0"><b>${r.profes_con} de ${r.profes}</b> profes y <b>${r.alumnos_con} de ${r.alumnos}</b> alumnos ya los activaron.${sin.length ? ` Faltan: ${sin.map(x => esc(x.nombre.split(' ')[0]) + (x.cuenta ? '' : ' <small class="muted">(no entró a la app)</small>')).join(', ')}.` : ''}</p>${sin.length ? `<div><button class="btn sm wa" data-act="push-wa">${ic('wa')}Pedir a los profes que los activen</button></div>` : ''}` : '<small class="muted">Contando quién los activó…</small>'}
+    <div class="form"><div class="fld"><label for="pu-noche">Recordatorio de la noche (clases de mañana)</label><input class="inp" type="time" id="pu-noche" value="${esc(c.noche)}"></div>
+    <div class="fld"><label for="pu-manana">Recordatorio de la mañana (clases de hoy)</label><input class="inp" type="time" id="pu-manana" value="${esc(c.manana)}"></div></div>
+    <div class="grid2" style="gap:6px 18px"><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Alumnos</b>${chk('alNoche', 'A la noche: “Mañana tenés Física… prepará tus cosas”')}${chk('alManana', 'A la mañana: “Hoy tenés Física… no te olvides tus materiales”')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Profes</b>${chk('prNoche', 'A la noche: “Mañana das Física en CPI2, 8:00”')}${chk('prManana', 'A la mañana: “Hoy das Física… buena clase”')}${chk('disp', 'Disponibilidad: mié 17:00, jue y vie 13:00, sáb 11:00 (a los que no cargaron)')}</div></div>
+    <small class="muted">Cuando publicás el horario también se puede avisar a profes y alumnos (casilla al lado de Publicar).</small>
+    <div><button class="btn primary" data-act="push-cfg">Guardar avisos</button></div></div></div>`;
+}
 async function guardarCfg(cambios, msg) { const valor = { ...S.cfg, ...cambios }; const ok = await run(S.sb.from('config').upsert({ clave: 'general', valor }), msg); if (ok) { S.cfg = valor; render(); } return ok; }
 
 /* ---------- formularios: grupo ---------- */
@@ -2649,7 +2731,7 @@ const A = {
   recargar: () => location.reload(),
   'recargar-datos': () => load(),
   'auth-view': el => { S.authView = el.dataset.v; S.authMsg = ''; render(); },
-  salir: async () => { const f = async () => { await S.sb.auth.signOut(); limpiar(); S.authMsg = ''; history.replaceState(null, '', location.pathname); render(); }; if (hasDraft()) confirmDlg('Tenés cambios sin guardar. ¿Salir igual?', 'Salir', f); else f(); },
+  salir: async () => { const f = async () => { await pushQuitar(); lsSet('vibe-push', null); await S.sb.auth.signOut(); limpiar(); S.authMsg = ''; history.replaceState(null, '', location.pathname); render(); }; if (hasDraft()) confirmDlg('Tenés cambios sin guardar. ¿Salir igual?', 'Salir', f); else f(); },
   'ver-grupo': el => go('grupos', () => { S.selGrupo = el.dataset.id; }),
   'back-grupos': () => { S.selGrupo = null; render(); },
   'ver-alumno': el => { closeModal(); go('alumnos', () => { S.selAlumno = el.dataset.id; S.ui.alTab = isStaff() ? 'cuenta' : 'asistencia'; }); },
@@ -2939,10 +3021,22 @@ const A = {
     closeModal(); await guardarBorr({ ...S.borr.data, [g]: lista }, a && b ? 'Materias intercambiadas' : 'Clase movida de día');
   },
   publicar: async el => {
-    el.classList.add('disabled'); const { data, error } = await S.sb.rpc('publicar_horario', { sem: S.sem.id });
+    const avisar = $('#pub-avisar') ? $('#pub-avisar').checked : true, antes = !!S.sem.publicada, sem = S.sem.id;
+    el.classList.add('disabled'); const { data, error } = await S.sb.rpc('publicar_horario', { sem });
     if (error) { toast(errText(error), 'error'); el.classList.remove('disabled'); return; }
-    toast(`Horario publicado: ${data} clase${data === 1 ? '' : 's'}. Ya lo ven profes y alumnos.`); await load(['semana', 'clases']);
+    let extra = '';
+    if (avisar) { const r = await invocar('push', { tipo: 'publicado', sem, actualizado: antes }); extra = r.error ? ' No se pudo mandar el aviso al celular.' : ` Aviso enviado a ${r.enviados || 0} celular${r.enviados === 1 ? '' : 'es'}.`; }
+    toast(`Horario publicado: ${data} clase${data === 1 ? '' : 's'}. Ya lo ven profes y alumnos.${extra}`); await load(['semana', 'clases']);
   },
+  'push-activar': el => pushActivar(el),
+  'push-ahora-no': () => { lsSet('vibe-push-no', String(Date.now())); render(); },
+  'push-probar': async el => { el.classList.add('disabled'); const r = await invocar('push', { tipo: 'prueba' }); el.classList.remove('disabled');
+    if (r.error) toast(r.error, 'error'); else if (!r.enviados) { toast('Este celular ya no está anotado. Activá los avisos de nuevo.', 'error'); lsSet('vibe-push', null); pushRevisar(); } else toast('Aviso de prueba enviado: debería llegarte en unos segundos.'); },
+  'push-desactivar': async () => { const sub = await pushQuitar(); if (sub) { try { await sub.unsubscribe(); } catch (e) { } } lsSet('vibe-push', null); S.push = 'inactivo'; render(); toast('Avisos desactivados en este celular'); },
+  'push-cfg': async () => { const g = k => $('#pu-' + k), push = { noche: g('noche').value || PUSH_DEF.noche, manana: g('manana').value || PUSH_DEF.manana };
+    ['alNoche', 'alManana', 'prNoche', 'prManana', 'disp'].forEach(k => (push[k] = g(k).checked)); await guardarCfg({ push }, 'Avisos guardados'); },
+  'push-wa': () => { const txt = `🔔 *${S.cfg.nombre || 'Cursillo VIBE'}*\nActivá los avisos de la app para que te recordemos tus clases (la noche anterior y a la mañana) y cuándo cargar tu disponibilidad:\n1. Entrá a la app 👉 ${APP_URL}\n2. En Inicio tocá *Activar avisos* y permití las notificaciones.\nEn iPhone: primero en Safari tocá Compartir → *Agregar a inicio* y abrí la app desde el ícono.`;
+    window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); },
   'hor-png': async () => { toast('Generando imagen…'); const b = await horarioPNG(); if (!b) { toast('No se pudo generar la imagen.', 'error'); return; }
     const url = URL.createObjectURL(b); openModal('Imagen del horario', `<img src="${url}" alt="Horario de la semana" style="width:100%;border:1px solid var(--line);border-radius:10px"><p class="muted" style="margin:10px 0 0">Descargala y mandala al grupo de profes por WhatsApp.</p>`, `<button class="btn" data-act="close">Cerrar</button><button class="btn primary" data-act="hor-png-bajar">${ic('download')}Descargar</button>`, 'wide'); S.pngBlob = b; },
   'hor-png-bajar': () => { if (S.pngBlob) guardarArchivo(`Horario VIBE ${S.sem.lunes}.png`, S.pngBlob); },
@@ -3125,6 +3219,7 @@ const CH = {
   'pool-dia': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; if (el.value) it.dia = el.value; else delete it.dia; render(); guardarPool(el.dataset.g); },
   'pool-nivel': el => { const it = (S.pool[el.dataset.g] || [])[+el.dataset.i]; if (!it) return; if (el.value) it.nivel = el.value; else delete it.nivel; render(); guardarPool(el.dataset.g); },
   pagoMes: el => { S.ui.pagoMes = el.value || hoy().slice(0, 7); S.ui.pagoVer = ''; render(); },
+  'pub-avisar': el => { S.ui.pubAvisar = el.checked; },
   'cb-sel': el => { CB.sel = el.value; },
   ofiMes: el => { S.ui.ofiMes = el.value || hoy().slice(0, 7); render(); },
   evMes: el => { S.ui.evMes = el.value || hoy().slice(0, 7); render(); },
