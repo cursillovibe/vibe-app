@@ -16,10 +16,10 @@ select (x->>'id')::uuid, x->>'nombre', nullif(x->>'descripcion', ''), coalesce((
 from mig, jsonb_array_elements(j->'grupos') x
 on conflict (id) do nothing;
 
--- plantel (sin la cuenta "Admin VIBE"; Guido queda con el correo de la dirección)
+-- plantel (sin la cuenta "Admin VIBE"). Guido entra como profe con su Gmail; informacion@ es solo la dirección.
 insert into public.profesores (id, email, nombre, telefono, activo)
 select (x->>'id')::uuid,
-       case lower(x->>'email') when 'guidobenitez11@gmail.com' then 'informacion@vibe.com.py' else nullif(lower(x->>'email'), '') end,
+       nullif(lower(x->>'email'), ''),
        x->>'nombre', nullif(x->>'telefono', ''), coalesce((x->>'activo')::boolean, true)
 from mig, jsonb_array_elements(j->'profesores') x
 where coalesce((x->>'es_admin')::boolean, false) = false
