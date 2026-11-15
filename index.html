@@ -1277,7 +1277,8 @@ async function pushActivar(el) {
 async function pushQuitar() { const sub = await pushSub(); if (sub && lsGet('vibe-push') === S.session?.user?.id) { try { await S.sb.rpc('quitar_push', { ep: sub.endpoint }); } catch (e) { } } return sub; }
 const PUSH_AL = 'la noche anterior y a la mañana qué clase tenés y qué preparar';
 const PUSH_PR = 'la noche anterior y a la mañana qué clase das, y cuándo cargar tu disponibilidad';
-function pushTexto() { return isAlumno() ? PUSH_AL : isProfe() ? PUSH_PR : 'los avisos del horario'; }
+const PUSH_OF = 'la noche anterior y a la mañana qué turno tenés en la oficina, y cuándo cargar tu disponibilidad';
+function pushTexto() { return isAlumno() ? PUSH_AL : isProfe() ? PUSH_PR : isOficina() ? PUSH_OF : 'los avisos del horario'; }
 // tarjeta en Inicio (profes y alumnos) hasta que activen los avisos en este celular
 function cardPush() {
   const e = S.push; if (!e || e === 'activo' || e === 'no') return '';
@@ -1289,7 +1290,7 @@ function cardPush() {
 }
 function cardPushCuenta() {
   const e = S.push;
-  const txt = { activo: '<b>Activados en este celular.</b> Te llegan ' + (isAlumno() || isProfe() ? 'los recordatorios de tus clases.' : 'los avisos del horario.'), inactivo: 'Todavía no activaste los avisos en este celular. Te recordamos ' + pushTexto() + '.',
+  const txt = { activo: '<b>Activados en este celular.</b> Te llegan ' + (isAlumno() || isProfe() ? 'los recordatorios de tus clases.' : isOficina() ? 'los avisos de tus turnos en la oficina.' : 'los avisos del horario.'), inactivo: 'Todavía no activaste los avisos en este celular. Te recordamos ' + pushTexto() + '.',
     bloqueado: 'Están <b>bloqueados</b>. Permití las notificaciones de VIBE en los ajustes del celular o del navegador y volvé a entrar.', ios: 'En iPhone: en Safari tocá <b>Compartir</b> → <b>“Agregar a inicio”</b>, abrí VIBE desde el ícono y activalos acá.',
     no: 'Este navegador no permite avisos. Probá con Chrome (Android) o con la app instalada desde Safari (iPhone).' }[e] || 'Revisando…';
   return `<div class="card"><div class="card-h"><h2>Avisos en este celular</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start"><p style="margin:0">${txt}</p>
@@ -1320,7 +1321,7 @@ VIEWS.inicio = () => {
   }
   if (isStaff()) {
     const pend = pendientes();
-    if (isOficina()) h += cardTurnoHoy();
+    if (isOficina()) h += cardPush() + cardTurnoHoy();
     const op = oPend().length;
     if (isAdmin() && op) h += `<div class="banner click" data-act="nav" data-v="oficina"><span><b>${op} turno${op === 1 ? '' : 's'} de oficina</b> pedido${op === 1 ? '' : 's'} esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
     const csf = isAdmin() && S.loaded.prof && S.loaded.perfiles ? cuentasSinFila().length : 0;
@@ -1901,7 +1902,7 @@ async function horarioPNG() {
     });
     y = y0 + filas * cellH + (filas - 1) * gap + 22;
   });
-  ctx.textAlign = 'left'; ctx.fillStyle = '#b8b2a8'; ctx.font = '11px Figtree, sans-serif'; ctx.fillText((S.cfg.nombre || 'Cursillo VIBE') + ' · ' + (S.cfg.tel || ''), padX, y);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#b8b2a8'; ctx.font = '11px Figtree, sans-serif'; ctx.fillText((S.cfg.nombre || 'Cursillo VIBE') + (S.cfg.tel ? ' · ' + S.cfg.tel : ''), padX, y);
   return await new Promise(res => cv.toBlob(res, 'image/png'));
 }
 // texto por profe con sus clases del borrador
@@ -2125,7 +2126,7 @@ function vOfiSemana() {
   const hoyT = oTurnosDe(t).filter(x => x.estado !== 'rechazado');
   if (hoyT.length) h += `<div class="card"><div class="card-h"><h2>Hoy en la oficina</h2><small>${fmtF(t)}</small></div><div class="rows">${OTURNOS.flatMap(tt => hoyT.filter(x => x.turno === tt)).map(x => `<div class="row"><div class="t">${esc(x.turno)} · ${esc(nomP(x.user_id))}</div><div class="r">${x.estado === 'pendiente' ? pill('Pedido', 'pend') : ''}${x.marcado_en ? pill('✓ Marcó ' + horaDe(x.marcado_en), 'ok') : pill('Sin marcar', '')}</div></div>`).join('')}</div></div>`;
   const vacios = DK.reduce((n, k) => n + ofiAbre(k).filter(tt => !oTurnosDe(fDia(l, k), tt).some(x => x.estado !== 'rechazado')).length, 0);
-  h += `<div class="card"><div class="card-h"><div><h2>Turnos de la semana</h2><small>Tocá un nombre para asignarle o sacarle el turno. En verde, los que dijeron que pueden.</small></div><div class="actions"><button class="btn sm" data-act="oturno-auto" ${vacios ? '' : 'disabled'}>Completar con disponibles</button><button class="btn sm wa" data-act="oturno-msg">${ic('wa')}Mensaje para el grupo</button></div></div>`;
+  h += `<div class="card"><div class="card-h"><div><h2>Turnos de la semana</h2><small>Tocá un nombre para asignarle o sacarle el turno. En verde, los que dijeron que pueden.</small></div><div class="actions"><button class="btn sm" data-act="oturno-auto" ${vacios ? '' : 'disabled'}>Completar con disponibles</button><button class="btn sm wa" data-act="oturno-msg">${ic('wa')}Mensaje para el grupo</button><button class="btn sm" data-act="ofi-png">${ic('download')}Imagen para el grupo</button><button class="btn sm" data-act="ofi-avisar">${ic('bell')}Avisar al celular</button></div></div>`;
   h += DK.map(k => {
     const f = fDia(l, k); const abre = ofiAbre(k); const extra = OTURNOS.filter(tt => !abre.includes(tt) && oTurnosDe(f, tt).length); const ts = OTURNOS.filter(tt => abre.includes(tt) || extra.includes(tt));
     if (!ts.length) return '';
@@ -2169,6 +2170,43 @@ function vOfiPago() {
   const det = xs.filter(x => x.marcado_en || (x.estado === 'asignado' && x.fecha < hoy())).sort((a, b) => a.fecha.localeCompare(b.fecha) || OTURNOS.indexOf(a.turno) - OTURNOS.indexOf(b.turno));
   if (det.length) h += `<div class="card"><div class="card-h"><h2>Detalle del mes</h2></div><div class="rows">${det.map(x => `<div class="row"><div class="t">${dkDe(x.fecha)} ${dm(x.fecha)} · ${esc(x.turno)} · ${esc(nomP(x.user_id))}${x.motivo ? `<small>${esc(x.motivo)}</small>` : ''}</div><div class="r">${x.estado === 'pendiente' ? pill('Falta aprobar', 'pend') : x.estado === 'rechazado' ? pill('Rechazado', 'bad') : ''}${x.marcado_en ? pill('✓ ' + horaDe(x.marcado_en), 'ok') : pill('Sin marcar', 'bad')}</div></div>`).join('')}</div></div>`;
   return h;
+}
+const OT_COL = { 'Mañana': { bg: '#FFF1D6', fg: '#8A5300' }, 'Tarde': { bg: '#FFE2CC', fg: '#A33B00' }, 'Noche': { bg: '#E3E8FF', fg: '#3236A8' } };
+// una columna por día y una fila por turno (mañana, tarde, noche), con quiénes trabajan
+async function oficinaPNG() {
+  const l = S.oSem.lunes;
+  const quien = (f, tt) => oTurnosDe(f, tt).filter(x => x.estado !== 'rechazado').map(x => primerP(x.user_id));
+  const cols = DK.map(k => { const f = fDia(l, k), abre = ofiAbre(k); return { k, f, abre, ts: OTURNOS.filter(tt => abre.includes(tt) || quien(f, tt).length) }; }).filter(c => c.ts.length);
+  if (!cols.length) return null;
+  const filas = OTURNOS.filter(tt => cols.some(c => c.ts.includes(tt)));
+  let maxN = 1; cols.forEach(c => c.ts.forEach(tt => (maxN = Math.max(maxN, quien(c.f, tt).length))));
+  const cellW = 150, gap = 10, padX = 26, cellH = Math.max(92, 48 + maxN * 18 + 8);
+  const W = cols.length * cellW + (cols.length - 1) * gap + padX * 2, H = 84 + 24 + filas.length * cellH + (filas.length - 1) * gap + 22 + 44;
+  const cv = document.createElement('canvas'); cv.width = W * 2; cv.height = H * 2; const ctx = cv.getContext('2d'); ctx.scale(2, 2);
+  const rr = (x, y, ww, hh, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + ww, y, x + ww, y + hh, r); ctx.arcTo(x + ww, y + hh, x, y + hh, r); ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + ww, y, r); ctx.closePath(); };
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.textBaseline = 'top';
+  try { const im = new Image(); im.src = 'img/logo-vibe.png'; await im.decode(); const lh = 34, lw = im.width * lh / im.height; ctx.drawImage(im, W - padX - lw, 20, lw, lh); } catch (e) { }
+  ctx.fillStyle = '#FB8500'; ctx.fillRect(padX, 66, W - padX * 2, 3);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 22px Montserrat, sans-serif'; ctx.fillText('Turnos de la oficina', padX, 20);
+  ctx.fillStyle = '#68625A'; ctx.font = '13px Figtree, sans-serif'; ctx.fillText(`Semana del ${rangoSem(l)} · Coronel Oviedo`, padX, 46);
+  let y = 84;
+  ctx.textAlign = 'center'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 13px Figtree, sans-serif';
+  cols.forEach((c, i) => ctx.fillText(`${c.k} ${dm(c.f)}`, padX + i * (cellW + gap) + cellW / 2, y));
+  y += 24;
+  filas.forEach((tt, r) => cols.forEach((c, i) => {
+    if (!c.ts.includes(tt)) return;
+    const x = padX + i * (cellW + gap), yy = y + r * (cellH + gap), co = OT_COL[tt];
+    rr(x, yy, cellW, cellH, 8); ctx.fillStyle = '#f8f7f4'; ctx.fill(); ctx.strokeStyle = '#E4E0D9'; ctx.lineWidth = 1; ctx.stroke();
+    rr(x + 12, yy + 10, cellW - 24, 22, 6); ctx.fillStyle = co.bg; ctx.fill(); ctx.fillStyle = co.fg; ctx.font = 'bold 12px Figtree, sans-serif'; ctx.fillText(tt, x + cellW / 2, yy + 15);
+    const ns = quien(c.f, tt);
+    if (!ns.length) { ctx.fillStyle = '#BF3328'; ctx.font = 'bold 11px Figtree, sans-serif'; ctx.fillText('SIN NADIE', x + cellW / 2, yy + 48); return; }
+    ctx.fillStyle = '#17140F'; ctx.font = '13px Figtree, sans-serif';
+    ns.forEach((n, j) => { let tx = n; while (ctx.measureText(tx).width > cellW - 16 && tx.length > 1) tx = tx.slice(0, -2) + '…'; ctx.fillText(tx, x + cellW / 2, yy + 44 + j * 18); });
+  }));
+  y += filas.length * cellH + (filas.length - 1) * gap + 18;
+  ctx.textAlign = 'left'; ctx.fillStyle = '#68625A'; ctx.font = '12px Figtree, sans-serif'; ctx.fillText('Acordate de marcar tu turno en la app cada día que trabajás.', padX, y); y += 22;
+  ctx.fillStyle = '#b8b2a8'; ctx.font = '11px Figtree, sans-serif'; ctx.fillText((S.cfg.nombre || 'Cursillo VIBE') + (S.cfg.tel ? ' · ' + S.cfg.tel : ''), padX, y);
+  return await new Promise(res => cv.toBlob(res, 'image/png'));
 }
 function ofiMensaje() {
   const l = S.oSem.lunes; const lines = [`*Turnos de oficina* · semana del ${rangoSem(l)}`, ''];
@@ -2366,7 +2404,7 @@ VIEWS.ajustes = () => {
   h += `<div class="card"><div class="card-h"><h2>Exportar</h2><small>Copia de seguridad en CSV (se abre en Excel)</small></div><div class="card-b actions"><button class="btn" data-act="exp-alumnos">${ic('download')}Alumnos con estado de cuenta</button><button class="btn" data-act="exp-pagos-todos">${ic('download')}Todos los pagos</button><button class="btn" data-act="exp-asis">${ic('download')}Asistencia</button></div></div>`;
   return h;
 };
-const PUSH_DEF = { noche: '20:00', manana: '06:30', alNoche: true, alManana: true, prNoche: true, prManana: true, disp: true };
+const PUSH_DEF = { noche: '20:00', manana: '06:30', alNoche: true, alManana: true, prNoche: true, prManana: true, disp: true, ofNoche: true, ofManana: true, ofDisp: true };
 const pushCfg = () => ({ ...PUSH_DEF, ...(S.cfg.push || {}) });
 function cardPushAjustes() {
   const c = pushCfg(), r = S.pushRes;
@@ -2374,12 +2412,13 @@ function cardPushAjustes() {
   const chk = (k, l) => `<label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pu-${k}" ${c[k] ? 'checked' : ''}><span>${l}</span></label>`;
   const sin = r ? (r.profes_sin || []) : [];
   return `<div class="card"><div class="card-h"><h2>Avisos al celular</h2><small>Les llegan a quienes instalaron la app y activaron los avisos</small></div><div class="card-b" style="display:flex;flex-direction:column;gap:14px">
-    ${r ? `<p style="margin:0"><b>${r.profes_con} de ${r.profes}</b> profes y <b>${r.alumnos_con} de ${r.alumnos}</b> alumnos ya los activaron.${sin.length ? ` Faltan: ${sin.map(x => esc(x.nombre.split(' ')[0]) + (x.cuenta ? '' : ' <small class="muted">(no entró a la app)</small>')).join(', ')}.` : ''}</p>${sin.length ? `<div><button class="btn sm wa" data-act="push-wa">${ic('wa')}Pedir a los profes que los activen</button></div>` : ''}` : '<small class="muted">Contando quién los activó…</small>'}
+    ${r ? `<p style="margin:0"><b>${r.profes_con} de ${r.profes}</b> profes, <b>${r.alumnos_con} de ${r.alumnos}</b> alumnos y <b>${r.oficina_con ?? 0} de ${r.oficina ?? 0}</b> de la oficina ya los activaron.${sin.length ? ` Faltan: ${sin.map(x => esc(x.nombre.split(' ')[0]) + (x.cuenta ? '' : ' <small class="muted">(no entró a la app)</small>')).join(', ')}.` : ''}</p>${sin.length ? `<div><button class="btn sm wa" data-act="push-wa">${ic('wa')}Pedir a los profes que los activen</button></div>` : ''}` : '<small class="muted">Contando quién los activó…</small>'}
     <div class="form"><div class="fld"><label for="pu-noche">Recordatorio de la noche (clases de mañana)</label><input class="inp" type="time" id="pu-noche" value="${esc(c.noche)}"></div>
     <div class="fld"><label for="pu-manana">Recordatorio de la mañana (clases de hoy)</label><input class="inp" type="time" id="pu-manana" value="${esc(c.manana)}"></div></div>
-    <div class="grid2" style="gap:6px 18px"><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Alumnos</b>${chk('alNoche', 'A la noche: “Mañana tenés Física… prepará tus cosas”')}${chk('alManana', 'A la mañana: “Hoy tenés Física… no te olvides tus materiales”')}</div>
-    <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Profes</b>${chk('prNoche', 'A la noche: “Mañana das Física en CPI2, 8:00”')}${chk('prManana', 'A la mañana: “Hoy das Física… buena clase”')}${chk('disp', 'Disponibilidad: mié 17:00, jue y vie 13:00, sáb 11:00 (a los que no cargaron)')}</div></div>
-    <small class="muted">Cuando publicás el horario también se puede avisar a profes y alumnos (casilla al lado de Publicar).</small>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px 18px"><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Alumnos</b>${chk('alNoche', 'A la noche: “Mañana tenés Física… prepará tus cosas”')}${chk('alManana', 'A la mañana: “Hoy tenés Física… no te olvides tus materiales”')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Profes</b>${chk('prNoche', 'A la noche: “Mañana das Física en CPI2, 8:00”')}${chk('prManana', 'A la mañana: “Hoy das Física… buena clase”')}${chk('disp', 'Disponibilidad: mié 17:00, jue y vie 13:00, sáb 11:00 (a los que no cargaron)')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Oficina</b>${chk('ofNoche', 'A la noche: “Mañana te toca la oficina, turno de la tarde”')}${chk('ofManana', 'A la mañana: “Hoy te toca la oficina… marcá tu turno”')}${chk('ofDisp', 'Disponibilidad: los mismos días que los profes')}</div></div>
+    <small class="muted">Cuando publicás el horario también se puede avisar a profes y alumnos (casilla al lado de Publicar). Los turnos de la semana de la oficina se mandan desde Turnos oficina → Avisar al celular.</small>
     <div><button class="btn primary" data-act="push-cfg">Guardar avisos</button></div></div></div>`;
 }
 async function guardarCfg(cambios, msg) { const valor = { ...S.cfg, ...cambios }; const ok = await run(S.sb.from('config').upsert({ clave: 'general', valor }), msg); if (ok) { S.cfg = valor; render(); } return ok; }
@@ -2929,6 +2968,14 @@ const A = {
     el.disabled = true; const r = await run(S.sb.from('oficina_turnos').insert(nuevos).select(), `Se asignaron ${nuevos.length} turno${nuevos.length === 1 ? '' : 's'}`);
     if (r) { r.forEach(x => S.oTurnos[x.id] = x); render(); } else el.disabled = false;
   },
+  'ofi-png': async () => { toast('Generando imagen…'); const b = await oficinaPNG(); if (!b) { toast('Todavía no hay turnos para armar la imagen.', 'error'); return; }
+    const url = URL.createObjectURL(b); S.pngOfi = b;
+    openModal('Imagen de los turnos de la oficina', `<img src="${url}" alt="Turnos de la oficina" style="width:100%;border:1px solid var(--line);border-radius:10px"><p class="muted" style="margin:10px 0 0">Descargala y mandala al grupo de la oficina por WhatsApp.</p>`, `<button class="btn" data-act="close">Cerrar</button><button class="btn primary" data-act="ofi-png-bajar">${ic('download')}Descargar</button>`, 'wide'); },
+  'ofi-png-bajar': () => { if (S.pngOfi) guardarArchivo(`Turnos oficina VIBE ${S.oSem.lunes}.png`, S.pngOfi); },
+  'ofi-avisar': el => confirmDlg(`¿Mandar a cada persona de la oficina sus turnos de la semana del ${rangoSem(S.oSem.lunes)} al celular? Les llega a quienes activaron los avisos.`, 'Mandar', async () => {
+    el.classList.add('disabled'); const r = await invocar('push', { tipo: 'oficina', lunes: S.oSem.lunes }); el.classList.remove('disabled');
+    if (r.error) toast(r.error, 'error');
+    else toast(r.enviados ? `Turnos enviados a ${r.enviados} celular${r.enviados === 1 ? '' : 'es'} de la oficina.` : 'Nadie de la oficina tiene los avisos activados todavía. Mandales la imagen o el mensaje por WhatsApp.', r.enviados ? undefined : 'error'); }, false),
   'oturno-msg': () => { openModal('Mensaje para el grupo de la oficina', `<textarea class="inp" id="ot-msg" style="min-height:260px">${esc(ofiMensaje())}</textarea>`, `<button class="btn" data-act="close">Cerrar</button><button class="btn" data-act="ot-copiar">${ic('copy')}Copiar</button><a class="btn wa" href="https://wa.me/?text=${encodeURIComponent(ofiMensaje())}" target="_blank" rel="noopener">${ic('wa')}Abrir WhatsApp</a>`); },
   'ot-copiar': async () => { try { await navigator.clipboard.writeText($('#ot-msg').value); toast('Mensaje copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
   'oturno-resolver': async el => { const ok = el.dataset.v === '1'; el.classList.add('disabled');
@@ -3034,7 +3081,7 @@ const A = {
     if (r.error) toast(r.error, 'error'); else if (!r.enviados) { toast('Este celular ya no está anotado. Activá los avisos de nuevo.', 'error'); lsSet('vibe-push', null); pushRevisar(); } else toast('Aviso de prueba enviado: debería llegarte en unos segundos.'); },
   'push-desactivar': async () => { const sub = await pushQuitar(); if (sub) { try { await sub.unsubscribe(); } catch (e) { } } lsSet('vibe-push', null); S.push = 'inactivo'; render(); toast('Avisos desactivados en este celular'); },
   'push-cfg': async () => { const g = k => $('#pu-' + k), push = { noche: g('noche').value || PUSH_DEF.noche, manana: g('manana').value || PUSH_DEF.manana };
-    ['alNoche', 'alManana', 'prNoche', 'prManana', 'disp'].forEach(k => (push[k] = g(k).checked)); await guardarCfg({ push }, 'Avisos guardados'); },
+    ['alNoche', 'alManana', 'prNoche', 'prManana', 'disp', 'ofNoche', 'ofManana', 'ofDisp'].forEach(k => (push[k] = g(k).checked)); await guardarCfg({ push }, 'Avisos guardados'); },
   'push-wa': () => { const txt = `🔔 *${S.cfg.nombre || 'Cursillo VIBE'}*\nActivá los avisos de la app para que te recordemos tus clases (la noche anterior y a la mañana) y cuándo cargar tu disponibilidad:\n1. Entrá a la app 👉 ${APP_URL}\n2. En Inicio tocá *Activar avisos* y permití las notificaciones.\nEn iPhone: primero en Safari tocá Compartir → *Agregar a inicio* y abrí la app desde el ícono.`;
     window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); },
   'hor-png': async () => { toast('Generando imagen…'); const b = await horarioPNG(); if (!b) { toast('No se pudo generar la imagen.', 'error'); return; }
