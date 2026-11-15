@@ -355,6 +355,18 @@ button.mchip{border:0;cursor:pointer;font-family:inherit}
 .wc .no{font-size:11px;font-weight:700;color:var(--bad)}
 .wc .nt{font-size:11px;font-weight:700;color:var(--accent-ink)}
 .row.cbrow{grid-template-columns:auto minmax(0,1fr);cursor:pointer}
+.row.trow{grid-template-columns:auto minmax(0,1fr);align-items:start}
+.row.trow .t.click{cursor:pointer}
+.tchk{width:28px;height:28px;border-radius:8px;border:2px solid var(--line);background:var(--surface);cursor:pointer;font-weight:800;font-size:15px;color:#fff;display:grid;place-items:center;padding:0;margin-top:1px}
+.tchk:hover{border-color:var(--accent)}
+.row.trow.hecha .tchk{background:var(--ok);border-color:var(--ok)}
+.row.trow.hecha .tt{text-decoration:line-through;color:var(--muted)}
+.row.trow .t small{margin-top:3px}
+.row.trow .t small.tm{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.row.trow .t small.td{color:var(--ink);white-space:pre-line}
+.tinfo{font-size:13px;color:var(--muted);background:var(--sunken);border-radius:10px;padding:10px 12px;line-height:1.5}
+.arow .ah{display:inline-block;min-width:46px;margin-right:8px;font-variant-numeric:tabular-nums;color:var(--muted);font-weight:700}
+code.aj{font-size:12px;white-space:pre-wrap;word-break:break-all}
 .row.cbrow input{width:18px;height:18px;accent-color:var(--accent);margin:0}
 .row.cbrow:has(input:checked){background:var(--accent-soft)}
 /* turnos de oficina */
@@ -532,6 +544,8 @@ const ICONS = {
   print:'<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
   pin:'<path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 14v7"/>',
   bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  tasks:'<path d="M9 5h11M9 12h11M9 19h11"/><path d="m3.5 5 1.2 1.2L7 4"/><path d="m3.5 12 1.2 1.2L7 11"/><path d="m3.5 19 1.2 1.2L7 18"/>',
+  activity:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
   ext:'<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
 };
 const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -547,7 +561,7 @@ const S = {
         horTab: 'semana', horLunes: '', armLunes: '', pagoMes: hoy().slice(0, 7), pagoVer: '' },
   draftAsis: null, draftExam: null,
   // horario
-  prof: {}, punt: {}, clases: {}, clRango: null, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: []
+  prof: {}, punt: {}, clases: {}, clRango: null, tareas: {}, act: [], actKey: null, actAl: {}, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: []
 };
 const rol = () => S.perfil?.rol || '';
 const isAdmin = () => rol() === 'admin';
@@ -907,10 +921,20 @@ const LOADERS = {
       const { data: md } = await S.sb.from('disponibilidad').select('*').eq('semana_id', w.id).eq('profesor_id', S.miProf.id).maybeSingle(); S.miDisp = md || null;
     }
   },
+  // tareas de la oficina: las pendientes y las hechas de los últimos 45 días
+  tareas: async () => { const d = addDays(hoy(), -45); try { S.tareas = idx(await fetchAll('tareas', '*', q => q.or(`hecha.eq.false,hecha_en.gte.${d}`).order('creado'))); } catch (e) { console.warn('tareas', e); S.tareas = S.tareas || {}; } },
+  // registro de actividad (solo dirección), según los filtros de la pantalla Actividad
+  act: async () => {
+    const k = actClave(); S.actKey = k; const [d0, d1] = actRango(); const u = S.ui;
+    let q = S.sb.from('actividad').select('*').gte('cuando', d0 + 'T00:00:00-03:00').lt('cuando', addDays(d1, 1) + 'T00:00:00-03:00').order('id', { ascending: false }).limit(ACT_MAX);
+    if (u.actQuien && u.actQuien.startsWith('rol:')) q = q.eq('rol', u.actQuien.slice(4)); else if (u.actQuien) q = q.eq('user_id', u.actQuien);
+    const { data, error } = await q; if (error) { console.warn('actividad', error); S.act = []; return; }
+    if (S.actKey === k) S.act = data || [];
+  },
   miHor: async () => { const l = lunesDe(hoy()); const { data, error } = await S.sb.rpc('mi_horario', { desde: l, hasta: addDays(l, 13) }); if (error) throw error; S.miHor = data || []; }
 };
-const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'punt', 'clases', 'semana', 'cambios', 'ofi'],
-  oficina: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'clases', 'cambios', 'ofi'],
+const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'punt', 'clases', 'semana', 'cambios', 'ofi', 'tareas', 'act'],
+  oficina: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'clases', 'cambios', 'ofi', 'tareas'],
   profe: ['cfg', 'grupos', 'alumnos', 'asis', 'exams', 'prof', 'clases', 'semana', 'cambios'], alumno: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'resultados', 'miHor'] };
 async function load(keys) {
   keys = keys || KEYS[rol()] || [];
@@ -965,7 +989,7 @@ async function entrar() {
   } finally { entrando = false; }
 }
 function limpiar() { if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) { } } S.rt = null; S.push = null; S.pushRes = null; if (S.rtPend) S.rtPend.clear(); Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
-  prof: {}, punt: {}, clases: {}, clRango: null, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
+  prof: {}, punt: {}, clases: {}, clRango: null, tareas: {}, act: [], actKey: null, actAl: {}, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !ocupado()) load(); else if (document.visibilityState === 'visible') aplicarRemoto(); if (document.visibilityState === 'visible' && S.perfil) pushRevisar(); });
 
 /* ---------- UI base ---------- */
@@ -1022,7 +1046,9 @@ const NAV = [
   { id: 'horario', l: 'Horario', i: 'clock', r: ['profe', 'admin', 'oficina'] },
   { id: 'oficina', l: 'Turnos oficina', i: 'team', r: ['admin'] },
   { id: 'mis-turnos', l: 'Mis turnos', i: 'check', r: ['oficina'] },
+  { id: 'tareas', l: 'Tareas', i: 'tasks', r: ['admin', 'oficina'] },
   { id: 'equipo', l: 'Equipo', i: 'team', r: ['admin'] },
+  { id: 'actividad', l: 'Actividad', i: 'activity', r: ['admin'] },
   { id: 'ajustes', l: 'Ajustes', i: 'gear', r: ['admin', 'oficina'] },
   { id: 'mi-inicio', l: 'Inicio', i: 'home', r: ['alumno'] },
   { id: 'mi-horario', l: 'Horario', i: 'clock', r: ['alumno'] },
@@ -1040,7 +1066,7 @@ function hasDraft() { return (S.draftAsis && S.draftAsis.dirty) || (S.draftExam 
 // tabla que cambió en la base → datos a recargar. Supabase Realtime solo avisa lo que cada uno tiene permiso de ver.
 const RT_KEYS = { asistencia: ['asis'], clases: ['clases'], cambios: ['cambios'], oficina_turnos: ['ofi'], oficina_disp: ['ofi'], pagos: ['pagos'],
   alumnos: ['alumnos'], grupos: ['grupos'], examenes: ['exams'], notas: ['exams'], disponibilidad: ['semana'], semanas: ['semana'],
-  materias_semana: ['semana'], horarios: ['semana'], profesores: ['prof'], profesores_puntajes: ['punt'], perfiles: ['perfiles'], config: ['cfg'], links_inscripcion: ['links'] };
+  materias_semana: ['semana'], horarios: ['semana'], profesores: ['prof'], profesores_puntajes: ['punt'], perfiles: ['perfiles'], config: ['cfg'], links_inscripcion: ['links'], tareas: ['tareas'], actividad: ['act'] };
 // no se refresca mientras alguien está escribiendo o tiene algo sin guardar: se aplica apenas termine
 function ocupado() {
   const ae = document.activeElement; const main = $('#main');
@@ -1073,7 +1099,7 @@ function go(v, after) {
   doIt();
 }
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (S.perfil && v && v !== S.view && NAV.some(n => n.id === v)) go(v); });
-const badgeN = id => id === 'inscripciones' ? pendientes().length : 0;
+const badgeN = id => id === 'inscripciones' ? pendientes().length : id === 'tareas' ? (S.loaded.tareas ? misTareas().length : 0) : 0;
 
 function renderShell() {
   const app = $('#app'); const logged = S.perfil && S.perfil.activo && !S.needPassword && !(isAlumno() && yo() && !yo().fichaCompleta);
@@ -1236,6 +1262,154 @@ VIEWS['mis-datos'] = () => {
   const a = yo();
   return ph('Mis datos', esc(a.email)) + `<div class="card"><div class="card-b">${fichaForm(a, 'md')}<div class="err" id="md-err" style="margin-top:12px"></div></div><div class="savebar"><small>Si cambiás algo, la oficina lo ve al instante.</small><button class="btn primary" data-act="datos-guardar">Guardar cambios</button></div></div>`;
 };
+
+/* ---------- tareas de la oficina / librería ---------- */
+const TCAT = { oficina: 'Oficina', libreria: 'Librería', compras: 'Compras', recordar: 'Recordar a Guido' };
+const dPY = ts => new Date(ts).toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' });
+const fechaHora = ts => ts ? fmtF(dPY(ts)) + ' ' + horaDe(ts) : '';
+const cuandoCorto = ts => { if (!ts) return ''; const f = dPY(ts); return (f === hoy() ? 'hoy' : f === addDays(hoy(), -1) ? 'ayer' : fmtF(f).slice(0, 5)) + ' ' + horaDe(ts); };
+const nomCorto = id => (nomP(id) || '').split(/[\s@]/)[0];
+const tareasAbiertas = () => Object.values(S.tareas || {}).filter(t => !t.hecha);
+const tareaVencida = t => !t.hecha && t.vence && t.vence < hoy();
+const ordenTareas = (a, b) => (b.urgente - a.urgente) || ((tareaVencida(b) ? 1 : 0) - (tareaVencida(a) ? 1 : 0)) || String(a.vence || '9999').localeCompare(String(b.vence || '9999')) || String(a.creado).localeCompare(String(b.creado));
+// las que le tocan a quien mira: a la oficina, las de cualquiera y las suyas; a la dirección, las de "Recordar a Guido" y las suyas
+const misTareas = () => tareasAbiertas().filter(t => isAdmin() ? (t.categoria === 'recordar' || t.para === S.session?.user?.id) : (!t.para || t.para === S.session?.user?.id));
+const genteOficina = () => Object.values(S.perfiles || {}).filter(p => p.rol === 'oficina' && p.activo).sort((a, b) => String(a.nombre || a.email).localeCompare(String(b.nombre || b.email)));
+function rowTarea(t) {
+  const meta = [pill(TCAT[t.categoria] || t.categoria)];
+  if (t.urgente && !t.hecha) meta.push(pill('Urgente', 'bad'));
+  if (t.vence && !t.hecha) meta.push(pill((tareaVencida(t) ? 'Venció el ' : 'Para el ') + fmtF(t.vence).slice(0, 5), tareaVencida(t) ? 'bad' : 'pend'));
+  if (t.para) meta.push(pill('Para ' + nomCorto(t.para), 'acc'));
+  const quien = t.hecha ? `Hecha por ${esc(nomP(t.hecha_por))} · ${esc(cuandoCorto(t.hecha_en))}${t.nota_cierre ? ' · “' + esc(t.nota_cierre) + '”' : ''}` : `Anotó ${esc(nomP(t.creado_por))} · ${esc(cuandoCorto(t.creado))}`;
+  return `<div class="row trow${t.hecha ? ' hecha' : ''}"><button class="tchk" data-act="${t.hecha ? 'tarea-reabrir' : 'tarea-check'}" data-id="${esc(t.id)}" aria-label="${t.hecha ? 'Volver a abrir' : 'Marcar como hecha'}" title="${t.hecha ? 'Volver a abrir' : 'Marcar como hecha'}">${t.hecha ? '✓' : ''}</button>
+    <div class="t click" data-act="tarea-ver" data-id="${esc(t.id)}"><span class="tt">${esc(t.titulo)}</span>${t.detalle && !t.hecha ? `<small class="td">${esc(t.detalle)}</small>` : ''}<small class="tm">${meta.join('')}</small><small>${quien}</small></div></div>`;
+}
+function cardTareas() {
+  if (!S.loaded.tareas) return '';
+  const ab = tareasAbiertas().sort(ordenTareas);
+  const lista = isAdmin() ? [...ab.filter(t => t.categoria === 'recordar'), ...ab.filter(t => t.categoria !== 'recordar')] : ab;
+  return `<div class="card"><div class="card-h"><div><h2>Tareas de la oficina</h2><small>${ab.length ? `${ab.length} pendiente${ab.length === 1 ? '' : 's'}` : 'Nada pendiente'}</small></div><div class="actions"><button class="btn sm" data-act="tarea-nueva">${ic('plus')}Nueva</button><button class="btn sm ghost" data-act="nav" data-v="tareas">Ver todas</button></div></div>
+    <div class="rows">${lista.slice(0, 5).map(rowTarea).join('') || `<div class="empty"><b>Todo hecho</b>Anotá acá lo que haya que hacer: imprimir, fotocopias, compras, recordatorios…</div>`}${lista.length > 5 ? `<div class="row click" data-act="nav" data-v="tareas"><div class="t muted">y ${lista.length - 5} más…</div></div>` : ''}</div></div>`;
+}
+VIEWS.tareas = () => {
+  if (!ready('tareas', 'perfiles')) return loadingView();
+  const u = S.ui; if (!u.tVer) u.tVer = 'pend'; const me = S.session.user.id;
+  const todas = Object.values(S.tareas); const nAb = todas.filter(t => !t.hecha).length;
+  let list = todas.filter(t => u.tVer === 'pend' ? !t.hecha : t.hecha);
+  if (u.tCat) list = list.filter(t => t.categoria === u.tCat);
+  if (u.tMias) list = list.filter(t => t.para === me);
+  list.sort(u.tVer === 'pend' ? ordenTareas : (a, b) => String(b.hecha_en).localeCompare(String(a.hecha_en)));
+  let h = ph('Tareas', 'Lo que hay que hacer en la oficina y la librería. Queda quién la anotó y quién la hizo.', `<button class="btn primary" data-act="tarea-nueva">${ic('plus')}Nueva tarea</button>`);
+  h += `<div class="tabsbar"><button data-act="tver" data-v="pend" aria-pressed="${u.tVer === 'pend'}">Pendientes${nAb ? ' (' + nAb + ')' : ''}</button><button data-act="tver" data-v="hechas" aria-pressed="${u.tVer === 'hechas'}">Hechas</button></div>`;
+  h += `<div class="filters"><div class="chips"><button class="chip" data-act="tcat" data-v="" aria-pressed="${!u.tCat}">Todas</button>${Object.entries(TCAT).map(([k, l]) => `<button class="chip" data-act="tcat" data-v="${k}" aria-pressed="${u.tCat === k}">${esc(l)}</button>`).join('')}<button class="chip" data-act="tmias" aria-pressed="${!!u.tMias}">Para mí</button></div></div>`;
+  h += `<div class="card"><div class="rows">${list.map(rowTarea).join('') || `<div class="empty"><b>${u.tVer === 'pend' ? 'No hay tareas pendientes' : 'Todavía no hay tareas hechas'}</b>${u.tVer === 'pend' ? 'Tocá “Nueva tarea” para anotar lo que haya que hacer.' : 'Acá aparecen las tareas hechas de los últimos 45 días.'}</div>`}</div></div>`;
+  return h;
+};
+let TF = null;
+function openTarea(id) {
+  const t = id ? S.tareas[id] : null; TF = { id: t ? t.id : null };
+  const opts = `<option value="">Cualquiera de la oficina</option>` + genteOficina().map(p => `<option value="${esc(p.id)}" ${t?.para === p.id ? 'selected' : ''}>${esc(p.nombre || p.email)}</option>`).join('')
+    + (t?.para && !genteOficina().some(p => p.id === t.para) ? `<option value="${esc(t.para)}" selected>${esc(nomP(t.para))}</option>` : '');
+  const hist = t ? `<div class="full tinfo">Anotó <b>${esc(nomP(t.creado_por))}</b> · ${esc(fechaHora(t.creado))}${t.editado ? `<br>Editó <b>${esc(nomP(t.editado_por))}</b> · ${esc(fechaHora(t.editado))}` : ''}${t.hecha ? `<br>La hizo <b>${esc(nomP(t.hecha_por))}</b> · ${esc(fechaHora(t.hecha_en))}${t.nota_cierre ? ` · “${esc(t.nota_cierre)}”` : ''}` : ''}</div>` : '';
+  openModal(t ? (t.hecha ? 'Tarea hecha' : 'Tarea') : 'Nueva tarea', `<div class="form">
+    <div class="fld full"><label for="tf-t">Qué hay que hacer <span class="req">*</span></label><input class="inp" id="tf-t" maxlength="200" value="${esc(t?.titulo || '')}" placeholder="Ej: imprimir 20 libros de Álgebra"></div>
+    <div class="fld full"><label for="tf-d">Detalle</label><textarea class="inp" id="tf-d" maxlength="2000" rows="3" placeholder="Ej: anillados, para CPI 2, antes del sábado">${esc(t?.detalle || '')}</textarea></div>
+    <div class="fld"><label for="tf-c">Tipo</label><select class="inp" id="tf-c">${Object.entries(TCAT).map(([k, l]) => `<option value="${k}" ${(t?.categoria || 'oficina') === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+    <div class="fld"><label for="tf-p">Para quién</label><select class="inp" id="tf-p">${opts}</select></div>
+    <div class="fld"><label for="tf-v">Para cuándo <span class="muted" style="font-weight:400">(opcional)</span></label><input type="date" class="inp" id="tf-v" value="${esc(t?.vence || '')}"></div>
+    <label class="chk" style="display:flex;gap:8px;align-items:center;align-self:end;min-height:42px"><input type="checkbox" id="tf-u" ${t?.urgente ? 'checked' : ''}><span>Urgente</span></label>
+    ${t && !t.hecha ? `<div class="fld full"><label for="tf-n">Nota al marcarla como hecha <span class="muted" style="font-weight:400">(opcional)</span></label><input class="inp" id="tf-n" maxlength="1000" placeholder="Ej: quedaron en el estante de la oficina"></div>` : ''}
+    ${hist}<div class="full err" id="tf-err"></div></div>`,
+    `${t && isAdmin() ? `<button class="btn ghost danger" data-act="tarea-borrar" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cerrar</button>`
+    + (t ? (t.hecha ? `<button class="btn" data-act="tarea-guardar">Guardar cambios</button><button class="btn primary" data-act="tarea-reabrir" data-id="${esc(t.id)}">Volver a abrir</button>` : `<button class="btn" data-act="tarea-guardar">Guardar cambios</button><button class="btn primary" data-act="tarea-hecha">✓ Marcar como hecha</button>`) : `<button class="btn primary" data-act="tarea-guardar">Guardar</button>`), 'narrow');
+  if (!t) setTimeout(() => $('#tf-t')?.focus(), 50);
+}
+function tareaForm() {
+  const titulo = $('#tf-t').value.trim(); $('#tf-err').textContent = '';
+  if (!titulo) { $('#tf-err').textContent = 'Escribí qué hay que hacer.'; $('#tf-t').focus(); return null; }
+  return { titulo, detalle: $('#tf-d').value.trim() || null, categoria: $('#tf-c').value, para: $('#tf-p').value || null, vence: $('#tf-v').value || null, urgente: $('#tf-u').checked };
+}
+async function tareaHecha(id, extra) {
+  const t = S.tareas[id]; if (!t) return false; const antes = { ...t };
+  Object.assign(t, { hecha: true, hecha_por: S.session.user.id, hecha_en: new Date().toISOString() }, extra || {}); render();
+  const { error } = await S.sb.from('tareas').update({ ...(extra || {}), hecha: true }).eq('id', id);
+  if (error) { S.tareas[id] = antes; render(); toast(errText(error), 'error'); return false; }
+  toast('Tarea hecha ✓'); load(['tareas']); return true;
+}
+
+/* ---------- registro de actividad (solo dirección) ---------- */
+const ACT_MAX = 1000;
+const ACT_TIPOS = { cobros: ['Cobros', ['pagos']], alumnos: ['Alumnos', ['alumnos']], listas: ['Listas', ['asistencia']], notas: ['Notas y exámenes', ['notas', 'examenes']],
+  grupos: ['Grupos', ['grupos']], inscripciones: ['Links de inscripción', ['links_inscripcion']], oficina: ['Turnos de oficina', ['oficina_turnos', 'oficina_disp', 'oficina_montos']],
+  tareas: ['Tareas', ['tareas']], profes: ['Profes (cambios, disponibilidad, plantel)', ['cambios', 'disponibilidad', 'profesores']], equipo: ['Cuentas y roles', ['perfiles']], ajustes: ['Ajustes', ['config']] };
+const ACT_LBL = { nombre: 'Nombre', apellido: 'Apellido', ci: 'Cédula', fecha_nac: 'Fecha de nacimiento', tel: 'Teléfono', ciudad: 'Ciudad', colegio: 'Colegio', encargado: 'Encargado',
+  encargado_tel: 'Tel. del encargado', programa: 'Curso', ficha: 'Ficha', ficha_completa: 'Ficha completa', grupo_id: 'Grupo', estado: 'Estado', descuento: 'Descuento %',
+  cuota_especial: 'Cuota especial', mat_exonerada: 'Matrícula exonerada', obs: 'Observaciones', email: 'Correo', user_id: 'Persona', link_id: 'Link de inscripción', alumno_id: 'Alumno',
+  item: 'Ítem', concepto: 'Concepto', monto: 'Monto', fecha: 'Fecha', metodo: 'Forma de pago', horario: 'Horario', inicio: 'Inicio', fin: 'Fin', activo: 'Activo', plan: 'Plan de pagos',
+  dias: 'Días', prioridad: 'Prioridad', orden: 'Orden', descripcion: 'Descripción', materia: 'Materia', maximo: 'Puntaje máximo', codigo: 'Código', titulo: 'Título', turno: 'Turno',
+  motivo: 'Motivo', marcado_en: 'Marcado', detalle: 'Detalle', categoria: 'Tipo', urgente: 'Urgente', vence: 'Para cuándo', para: 'Para', hecha: 'Hecha', nota_cierre: 'Nota',
+  rol: 'Rol', profesor_id: 'Profe', profe_antes: 'Profe antes', monto_turno: 'Pago por turno', valor: 'Ajustes', enviado: 'Enviada', semana_id: 'Semana', tema: 'Tema', nota: 'Nota', marca: 'Marca' };
+const actRango = () => { const u = S.ui, d = u.actDia || hoy(); if (u.actRango === '7d') return [addDays(d, -6), d]; if (u.actRango === 'mes') { const m0 = d.slice(0, 7) + '-01'; return [m0, addDays(addMonths(m0, 1), -1)]; } return [d, d]; };
+const actClave = () => [S.ui.actDia || hoy(), S.ui.actRango || 'dia', S.ui.actQuien || ''].join('|');
+const actCampo = k => { const [a, b] = String(k).split('.'); if (b === undefined) return ACT_LBL[a] || a; if (a === 'valor') return 'Ajustes · ' + b; return (ACT_LBL[a] || a) + ' · ' + b; };
+function actVal(k, v, agrup) {
+  if (v === null || v === undefined || v === '') return '<span class="muted">—</span>';
+  if (agrup && typeof v === 'string' && /^[PATJ]$/.test(v)) return esc({ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[v]);
+  if (typeof v === 'boolean') return v ? 'Sí' : 'No';
+  if (typeof v === 'number' && /monto|cuota_especial/.test(k)) return esc(money(v));
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return esc(fmtF(v));
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return esc(fechaHora(v));
+  if (typeof v === 'object') { const j = JSON.stringify(v); return `<code class="aj">${esc(j.length > 160 ? j.slice(0, 160) + '…' : j)}</code>`; }
+  return esc(String(v));
+}
+const accPill = a => a.accion === 'crear' ? pill('Nuevo', 'ok') : a.accion === 'borrar' ? pill('Borrado', 'bad') : pill('Cambio', 'pend');
+function rowAct(a, conQuien = true) {
+  const h0 = horaDe(a.cuando), h1 = a.hasta ? horaDe(a.hasta) : h0;
+  return `<div class="row click arow" data-act="act-ver" data-id="${esc(a.id)}"><div class="t"><span class="ah">${esc(h0)}${h1 !== h0 ? '–' + esc(h1) : ''}</span>${esc(a.resumen)}<small>${conQuien ? `<b>${esc(a.quien || '—')}</b> · ${esc(ROLE_LBL[a.rol] || a.rol || '')}` : esc(fmtF(dPY(a.cuando)))}</small></div><div class="r">${accPill(a)}</div></div>`;
+}
+function bannerActividad() {
+  if (!S.loaded.act || S.actKey !== [hoy(), 'dia', ''].join('|')) return '';
+  const otros = S.act.filter(a => a.user_id !== S.session.user.id); if (!otros.length) return '';
+  const porP = {}; otros.forEach(a => porP[a.quien || '—'] = (porP[a.quien || '—'] || 0) + 1);
+  return `<div class="banner click" data-act="nav" data-v="actividad"><span><b>${otros.length} movimiento${otros.length === 1 ? '' : 's'} hoy</b> de ${Object.entries(porP).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([n, c]) => esc(n.split(' ')[0]) + ' (' + c + ')').join(', ')}.</span><span class="btn sm">Ver actividad</span></div>`;
+}
+VIEWS.actividad = () => {
+  const u = S.ui; if (!u.actDia) u.actDia = hoy(); if (!u.actRango) u.actRango = 'dia';
+  let h = ph('Actividad', 'Quién hizo qué y cuándo. Nadie puede borrar ni cambiar este registro.');
+  const gente = Object.values(S.perfiles || {}).filter(p => p.rol !== 'alumno').sort((a, b) => ['admin', 'oficina', 'profe'].indexOf(a.rol) - ['admin', 'oficina', 'profe'].indexOf(b.rol) || String(a.nombre || a.email).localeCompare(String(b.nombre || b.email)));
+  h += `<div class="filters">
+    <input type="date" class="inp" data-ch="actDia" value="${esc(u.actDia)}" max="${hoy()}" style="width:auto" aria-label="Día">
+    <select class="inp" data-ch="actRango" style="width:auto" aria-label="Rango"><option value="dia" ${u.actRango === 'dia' ? 'selected' : ''}>Ese día</option><option value="7d" ${u.actRango === '7d' ? 'selected' : ''}>7 días hasta ese día</option><option value="mes" ${u.actRango === 'mes' ? 'selected' : ''}>Todo ese mes</option></select>
+    <select class="inp" data-ch="actQuien" style="width:auto" aria-label="Persona"><option value="">Todas las personas</option><option value="rol:oficina" ${u.actQuien === 'rol:oficina' ? 'selected' : ''}>Toda la oficina</option><option value="rol:profe" ${u.actQuien === 'rol:profe' ? 'selected' : ''}>Todos los profes</option><option value="rol:alumno" ${u.actQuien === 'rol:alumno' ? 'selected' : ''}>Alumnos (sus datos)</option>${gente.map(p => `<option value="${esc(p.id)}" ${u.actQuien === p.id ? 'selected' : ''}>${esc((p.nombre || p.email) + ' · ' + (ROLE_LBL[p.rol] || p.rol))}</option>`).join('')}</select>
+    <select class="inp" data-ch="actTipo" style="width:auto" aria-label="Tipo"><option value="">Todo</option>${Object.entries(ACT_TIPOS).map(([k, [l]]) => `<option value="${k}" ${u.actTipo === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+    <div class="search">${ic('search')}<input class="inp" id="act-q" data-in="actQ" placeholder="Buscar: alumno, concepto, recibo…" value="${esc(u.actQ || '')}" autocomplete="off"></div></div>`;
+  if (S.actKey !== actClave()) { if (!S.actCargando) { S.actCargando = true; load(['act']).finally(() => { S.actCargando = false; }); } return h + loadingView(); }
+  let rows = S.act.filter(a => !u.actTipo || ACT_TIPOS[u.actTipo][1].includes(a.tabla));
+  if (u.actQ) { const q = norm(u.actQ); rows = rows.filter(a => norm(a.resumen + ' ' + (a.quien || '') + ' ' + JSON.stringify(a.cambios || {})).includes(q)); }
+  if (!rows.length) return h + `<div class="card"><div class="empty"><b>No hay movimientos</b>${u.actRango === 'dia' ? 'Ese día nadie cambió nada con esos filtros.' : 'No hay nada con esos filtros.'}</div></div>`;
+  const porP = {}; rows.forEach(a => porP[a.quien || '—'] = (porP[a.quien || '—'] || 0) + 1);
+  h += `<div class="chips" style="margin-bottom:12px">${Object.entries(porP).sort((x, y) => y[1] - x[1]).map(([n, c]) => `<span class="pill">${esc(n)} · ${c}</span>`).join('')}</div>`;
+  if (S.act.length >= ACT_MAX) h += `<div class="banner" style="margin-bottom:12px">Se muestran los últimos ${ACT_MAX} movimientos. Elegí un día o una persona para ver el resto.</div>`;
+  const dias = {}; rows.forEach(a => (dias[dPY(a.cuando)] ||= []).push(a));
+  h += Object.entries(dias).map(([d, l]) => `<div class="card"><div class="card-h"><h2>${esc(fechaLarga(d))}</h2><small>${l.length} movimiento${l.length === 1 ? '' : 's'}</small></div><div class="rows">${l.map(a => rowAct(a)).join('')}</div></div>`).join('');
+  return h;
+};
+function openActividad(id) {
+  const a = S.act.find(x => String(x.id) === String(id)) || Object.values(S.actAl || {}).flat().find(x => x && String(x.id) === String(id)); if (!a) return;
+  const agrup = ['asistencia', 'notas'].includes(a.tabla);
+  const filas = Object.entries(a.cambios || {}).sort((x, y) => agrup ? x[0].localeCompare(y[0]) : 0).map(([k, v]) => `<tr><td>${esc(agrup ? k : actCampo(k))}</td><td>${actVal(k, v && v[0], agrup)}</td><td>${actVal(k, v && v[1], agrup)}</td></tr>`).join('');
+  const h1 = a.hasta && horaDe(a.hasta) !== horaDe(a.cuando) ? ' a ' + horaDe(a.hasta) : '';
+  openModal('Movimiento', `<p style="margin:0 0 6px"><b>${esc(a.resumen)}</b></p><p class="muted" style="margin:0 0 14px">${esc(a.quien || '—')} · ${esc(ROLE_LBL[a.rol] || a.rol || '')}<br>${esc(fechaLarga(dPY(a.cuando)))} · ${esc(horaDe(a.cuando))}${esc(h1)}</p>
+    ${filas ? `<div class="tw"><table><thead><tr><th>${agrup ? 'Alumno' : 'Dato'}</th><th>Antes</th><th>Después</th></tr></thead><tbody>${filas}</tbody></table></div>` : ''}`, `<button class="btn" data-act="close">Cerrar</button>`, 'narrow');
+}
+function cardMovAlumno(a) {
+  const l = S.actAl[a.id];
+  if (l === undefined) { S.actAl[a.id] = null; S.sb.from('actividad').select('*').eq('alumno_id', a.id).order('id', { ascending: false }).limit(100).then(({ data, error }) => { S.actAl[a.id] = error ? [] : (data || []); if (error) toast(errText(error), 'error'); render(); }); }
+  if (!l) return `<div class="card"><div class="loading">Cargando…</div></div>`;
+  return `<div class="card"><div class="card-h"><div><h2>Movimientos</h2><small>Quién cargó o cambió algo de este alumno (sus datos y sus pagos)</small></div><button class="btn sm ghost" data-act="act-al-recargar" data-id="${esc(a.id)}">Actualizar</button></div>
+    <div class="rows">${l.length ? l.map(x => `<div class="row click arow" data-act="act-ver" data-id="${esc(x.id)}"><div class="t"><span class="ah">${esc(fmtF(dPY(x.cuando)).slice(0, 5))} ${esc(horaDe(x.cuando))}</span>${esc(x.resumen)}<small><b>${esc(x.quien || '—')}</b> · ${esc(ROLE_LBL[x.rol] || x.rol || '')}</small></div><div class="r">${accPill(x)}</div></div>`).join('') : `<div class="empty"><b>Sin movimientos registrados</b>Desde el 15/11/2026 queda anotado cada cambio.</div>`}</div></div>`;
+}
+
 /* ---------- avisos por notificación (push) ---------- */
 // estado en este celular: activo · inactivo · bloqueado · ios (hay que instalar la app) · no (el navegador no permite)
 const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1322,6 +1496,8 @@ VIEWS.inicio = () => {
   if (isStaff()) {
     const pend = pendientes();
     if (isOficina()) h += cardPush() + cardTurnoHoy();
+    h += cardTareas();
+    if (isAdmin()) h += bannerActividad();
     const op = oPend().length;
     if (isAdmin() && op) h += `<div class="banner click" data-act="nav" data-v="oficina"><span><b>${op} turno${op === 1 ? '' : 's'} de oficina</b> pedido${op === 1 ? '' : 's'} esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
     const csf = isAdmin() && S.loaded.prof && S.loaded.perfiles ? cuentasSinFila().length : 0;
@@ -1465,7 +1641,7 @@ function sparkline(vals) {
 function vAlumno(a) {
   const c = cuenta(a); const as = asisAlumno(a); const pagos = S.idx.pagosByAlumno[a.id] || [];
   const exs = Object.values(S.exams).filter(e => e.notas && e.notas[a.id] !== undefined).sort((x, y) => (x.fecha || '').localeCompare(y.fecha || ''));
-  const tabs = isStaff() ? [['cuenta', 'Cuenta'], ['asistencia', 'Asistencia'], ['examenes', 'Exámenes'], ['datos', 'Ficha']] : [['asistencia', 'Asistencia'], ['examenes', 'Exámenes'], ['datos', 'Contacto']];
+  const tabs = isStaff() ? [['cuenta', 'Cuenta'], ['asistencia', 'Asistencia'], ['examenes', 'Exámenes'], ['datos', 'Ficha'], ...(isAdmin() ? [['mov', 'Movimientos']] : [])] : [['asistencia', 'Asistencia'], ['examenes', 'Exámenes'], ['datos', 'Contacto']];
   const tab = tabs.some(t => t[0] === S.ui.alTab) ? S.ui.alTab : tabs[0][0];
   let h = `<div><button class="back" data-act="back-alumnos">${ic('back')}Alumnos</button></div>`;
   h += ph(nombreA(a), `${esc(gName(a.grupoId))} ${pillEstado(a)}${a.ci ? ' · CI ' + esc(a.ci) : ''}`,
@@ -1489,6 +1665,8 @@ function vAlumno(a) {
   } else if (tab === 'examenes') {
     const vals = exs.map(e => Math.round(num(e.notas[a.id]) / num(e.max || 100) * 100));
     h += `<div class="card"><div class="card-h"><h2>Exámenes</h2>${sparkline(vals)}</div>${exs.length ? `<div class="tw"><table><thead><tr><th>Examen</th><th>Fecha</th><th class="n">Nota</th><th class="n">%</th><th class="n">Puesto</th></tr></thead><tbody>${exs.slice().reverse().map(e => { const v = num(e.notas[a.id]); const p = Math.round(v / num(e.max || 100) * 100); const ranking = Object.values(e.notas).map(num).sort((x, y) => y - x); return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td>${esc(e.nombre)}${e.materia ? `<br><small>${esc(e.materia)}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n num">${fmtN(v)} / ${fmtN(e.max || 100)}</td><td class="n ${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</td><td class="n">${ranking.indexOf(v) + 1}° de ${ranking.length}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Sin notas cargadas.</div>'}</div>`;
+  } else if (tab === 'mov') {
+    h += cardMovAlumno(a);
   } else {
     const filas = [['Curso', progDe(a)], ...FICHA.filter(f => f.k && (aplica(f, a) || valorFicha(a, f))).map(f => [f.l, f.t === 'date' ? fmtF(valorFicha(a, f)) : valorFicha(a, f)])];
     const acceso = !a.email ? 'Sin correo cargado' : a.userId ? (a.fichaCompleta ? 'Tiene cuenta y completó su ficha' : 'Invitado; todavía no completó la ficha') : 'Sin cuenta todavía';
@@ -2997,6 +3175,25 @@ const A = {
   'oturno-marcar': async el => { el.classList.add('disabled');
     if (await run(S.sb.rpc('marcar_turno', { tid: el.dataset.id }), 'Turno marcado')) await load(['ofi']); else el.classList.remove('disabled'); },
   'oturno-nuevo': el => openPedirTurno(el.dataset.f),
+  'tarea-nueva': () => openTarea(),
+  'tarea-ver': el => openTarea(el.dataset.id),
+  'tarea-check': el => { el.disabled = true; tareaHecha(el.dataset.id); },
+  'tarea-guardar': async el => {
+    const d = tareaForm(); if (!d) return; el.classList.add('disabled');
+    const q = TF.id ? S.sb.from('tareas').update(d).eq('id', TF.id) : S.sb.from('tareas').insert(d);
+    if (await run(q, TF.id ? 'Tarea guardada' : 'Tarea anotada')) { closeModal(); await load(['tareas']); } else el.classList.remove('disabled');
+  },
+  'tarea-hecha': async el => {
+    const d = tareaForm(); if (!d) return; el.classList.add('disabled'); const n = ($('#tf-n')?.value || '').trim();
+    const id = TF.id; closeModal(); await tareaHecha(id, { ...d, nota_cierre: n || null });
+  },
+  'tarea-reabrir': async el => { if (await run(S.sb.from('tareas').update({ hecha: false }).eq('id', el.dataset.id), 'La tarea volvió a pendientes')) { closeModal(); await load(['tareas']); } },
+  'tarea-borrar': () => { const id = TF.id; confirmDlg('¿Borrar esta tarea? Queda anotado en la actividad.', 'Borrar tarea', async () => { if (await run(S.sb.from('tareas').delete().eq('id', id), 'Tarea borrada')) { closeModal(); await load(['tareas']); } }); },
+  tver: el => { S.ui.tVer = el.dataset.v; render(); },
+  tcat: el => { S.ui.tCat = el.dataset.v; render(); },
+  tmias: () => { S.ui.tMias = !S.ui.tMias; render(); },
+  'act-ver': el => openActividad(el.dataset.id),
+  'act-al-recargar': el => { delete S.actAl[el.dataset.id]; render(); },
   'oturno-pedir': async el => {
     const f = $('#ot-f').value || hoy(), t = $('#ot-t').value, motivo = $('#ot-m').value.trim(); el.classList.add('disabled'); $('#ot-err').textContent = '';
     const { data: id, error } = await S.sb.rpc('pedir_turno', { f, t, motivo });
@@ -3274,6 +3471,7 @@ const A = {
 };
 const IN = {
   q: el => { S.ui.q = el.value; sched(); },
+  actQ: el => { S.ui.actQ = el.value; sched(); },
   pf: el => { const it = PF.items[+el.dataset.i]; if (!it) return; const k = el.dataset.k; it[k] = k === 'monto' ? parseMoney(el.value) : el.value; const t = $('#pf-total'); if (t) t.textContent = 'Total ' + money(sum(PF.items.map(i => i.monto))); },
   nota: el => { const D = S.draftExam; if (!D) return; D.notas[el.dataset.id] = el.value; D.dirty = true; const sb = el.closest('.card').querySelector('.savebar'); if (sb) { sb.querySelector('small').textContent = 'Hay cambios sin guardar'; sb.querySelector('.btn').classList.remove('disabled'); } },
   'wa-msg': () => { $('#wa-btn').innerHTML = waBtn(); },
@@ -3295,6 +3493,10 @@ const CH = {
   'pub-avisar': el => { S.ui.pubAvisar = el.checked; },
   'cb-sel': el => { CB.sel = el.value; },
   ofiMes: el => { S.ui.ofiMes = el.value || hoy().slice(0, 7); render(); },
+  actDia: el => { S.ui.actDia = el.value || hoy(); render(); },
+  actRango: el => { S.ui.actRango = el.value; render(); },
+  actQuien: el => { S.ui.actQuien = el.value; render(); },
+  actTipo: el => { S.ui.actTipo = el.value; render(); },
   evMes: el => { S.ui.evMes = el.value || hoy().slice(0, 7); render(); },
   omonto: async el => { const u = el.dataset.u, v = parseMoney(el.value); if (await run(S.sb.from('oficina_montos').upsert({ user_id: u, monto_turno: v }), 'Pago por turno guardado')) { S.oMontos[u] = v; render(); } },
   cobGrupo: el => { S.ui.cobGrupo = el.value; render(); },
