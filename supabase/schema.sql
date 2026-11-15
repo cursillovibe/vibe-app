@@ -1363,6 +1363,8 @@ create index if not exists tareas_estado_idx on public.tareas(hecha, hecha_en);
 create or replace function public.tareas_sellar() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  -- cambios del sistema (sin usuario): se aceptan tal cual. Así, si se borra una cuenta, la base puede dejar en blanco quién anotó o hizo la tarea.
+  if auth.uid() is null then return new; end if;
   if tg_op = 'INSERT' then
     new.creado_por := auth.uid(); new.creado := now(); new.editado_por := null; new.editado := null;
     if new.hecha then new.hecha_por := auth.uid(); new.hecha_en := now(); else new.hecha_por := null; new.hecha_en := null; new.nota_cierre := null; end if;
