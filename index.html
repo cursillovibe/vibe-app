@@ -137,8 +137,10 @@ main{padding:28px 32px 48px;max-width:1160px;width:100%;display:flex;flex-direct
 
 /* rows */
 .rows{display:flex;flex-direction:column}
-.row{display:grid;grid-template-columns:minmax(min(150px,48%),1fr) auto;align-items:center;gap:10px 14px;padding:11px 16px;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 14px;padding:11px 16px;border-top:1px solid var(--line)}
 .row:first-child{border-top:0}
+.row:has(> .r .btn){grid-template-columns:minmax(min(150px,48%),1fr) auto}
+.row .r .inp{min-width:0;max-width:100%}
 .row.click{cursor:pointer}
 .row.click:hover{background:var(--sunken)}
 .row .t{font-weight:600;overflow-wrap:anywhere}
