@@ -44,6 +44,7 @@ En **Turnos oficina** (solo la dirección): turnos Mañana, Tarde y Noche.
 - La dirección arma la semana tocando nombres (en verde, los que pueden) o con "Completar con disponibles", y manda el mensaje al grupo por WhatsApp. En "Horario de la oficina" se eligen los turnos que abre cada día (por defecto lunes a viernes mañana, tarde y noche; sábado y domingo mañana y tarde).
 - Cada persona **marca su turno** el día que trabaja (desde Inicio o Mis turnos). Si trabaja un turno que no tenía, lo pide y la dirección lo aprueba.
 - **Pago por turno**: por mes, cuenta cada turno asignado (o pedido y aprobado) que la persona marcó el mismo día. El monto por turno solo lo ve la dirección.
+- **Imagen para el grupo** (Turnos oficina): una columna por día y una fila por turno (mañana, tarde, noche) con quiénes trabajan, y "SIN NADIE" donde falta cubrir. Mismo estilo que la imagen del horario de los profes.
 
 ## Archivos
 
@@ -117,6 +118,7 @@ Les llegan a quienes **instalaron la app y tocaron "Activar avisos"** (en Inicio
 - **Al publicar el horario** (casilla al lado de Publicar): a cada profe "Salió el horario: tenés N clases" y a los alumnos de los grupos con clases "Ya está tu horario". Si se vuelve a publicar, dice "Se actualizó".
 - **A la noche** (20:00 por defecto) las clases de mañana y **a la mañana** (6:30) las de hoy. Alumnos: materia, tema y hora, y que preparen sus cosas (si es examen, otro texto). Profes: materia, tema, grupo y hora, y que llamen lista.
 - **Disponibilidad** a los profes que todavía no cargaron: miércoles 17:00, jueves y viernes 13:00, sábado 11:00 (último aviso).
+- **Oficina**: a la noche "Mañana te toca la oficina: turno de la tarde" y a la mañana "Hoy te toca la oficina… marcá tu turno" (solo turnos asignados por la dirección); disponibilidad los mismos días que los profes; y desde **Turnos oficina → Avisar al celular** la dirección le manda a cada uno sus turnos de la semana (si lo vuelve a mandar, dice "Se actualizaron").
 - Horas y qué se manda a quién: **Ajustes → Avisos al celular** (también muestra quiénes ya los activaron y arma un mensaje de WhatsApp para pedirles que los activen).
 - Cómo funciona: el cron llama a la función `push` cada 15 minutos; la función mira la hora de Paraguay y lo que dice Ajustes, y cada aviso sale una sola vez por día (`push_log`). Los textos se arman en la base (`push_mensajes`). Si un celular desinstaló la app, se borra solo.
 

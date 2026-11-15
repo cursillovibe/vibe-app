@@ -898,7 +898,9 @@ begin
     'profes_sin', coalesce((select json_agg(json_build_object('nombre', p.nombre, 'tel', p.telefono, 'cuenta', p.user_id is not null) order by p.nombre)
                             from profesores p where p.activo and not exists (select 1 from push_subs s where s.user_id = p.user_id)), '[]'::json),
     'alumnos', (select count(*) from alumnos a where a.estado = 'activo' and a.user_id is not null),
-    'alumnos_con', (select count(*) from alumnos a where a.estado = 'activo' and exists (select 1 from push_subs s where s.user_id = a.user_id)));
+    'alumnos_con', (select count(*) from alumnos a where a.estado = 'activo' and exists (select 1 from push_subs s where s.user_id = a.user_id)),
+    'oficina', (select count(*) from perfiles pf where pf.rol = 'oficina' and pf.activo),
+    'oficina_con', (select count(*) from perfiles pf where pf.rol = 'oficina' and pf.activo and exists (select 1 from push_subs s where s.user_id = pf.id)));
 end $$;
 
 -- marca un aviso programado como enviado; devuelve false si ya se había mandado
@@ -911,7 +913,8 @@ end $$;
 
 -- Arma los avisos a mandar (uno por celular). Lo usa la función "push" con la clave de servicio.
 --   noche: clases de f (la llama la noche anterior) · manana: clases de f (ese mismo día)
---   publicado: horario de la semana sem · disp: disponibilidad pendiente de la semana siguiente a f
+--   publicado: horario de la semana sem · disp: disponibilidad pendiente de la semana siguiente a f (profes y oficina)
+--   oficina: turnos de oficina de la semana que empieza el lunes f
 -- Qué se manda se configura en Ajustes (config.general.push).
 create or replace function public.push_mensajes(tipo text, f date, sem uuid default null, actualizado boolean default false)
 returns table (endpoint text, keys jsonb, titulo text, cuerpo text)
@@ -961,6 +964,33 @@ begin
              else cl.txt || (case when cl.ex then '. ¡Éxitos! No te olvides tus materiales.' else '. No te olvides tus materiales. ¡Te esperamos!' end) end
       from cl join push_subs s on s.user_id = cl.user_id;
     end if;
+    -- oficina: su turno de ese día (los que le asignó la dirección)
+    if coalesce((cfg->>(case when tipo = 'noche' then 'ofNoche' else 'ofManana' end))::boolean, true) then
+      return query
+      with ot as (
+        select t.user_id, string_agg('de la ' || lower(t.turno), ' y ' order by array_position(array['Mañana', 'Tarde', 'Noche'], t.turno)) as ts
+        from oficina_turnos t join perfiles pf on pf.id = t.user_id and pf.activo
+        where t.fecha = f and t.estado = 'asignado'
+        group by t.user_id)
+      select s.endpoint, s.keys,
+        case when tipo = 'noche' then 'Mañana te toca la oficina 🏢' else 'Hoy te toca la oficina ☀️' end,
+        case when tipo = 'noche' then dia || ': turno ' || ot.ts || '. Acordate de marcar tu turno en la app cuando llegues.'
+             else 'Turno ' || ot.ts || '. No te olvides de marcar tu turno en la app. ¡Buen día!' end
+      from ot join push_subs s on s.user_id = ot.user_id;
+    end if;
+  elsif tipo = 'oficina' then
+    -- turnos de la semana para cada persona de la oficina (lo manda la dirección desde Turnos oficina)
+    return query
+      select s.endpoint, s.keys,
+        case when actualizado then 'Se actualizaron tus turnos 🏢' else 'Tus turnos en la oficina 🏢' end,
+        'Semana del ' || to_char(f, 'FMDD/FMMM') || ' al ' || to_char(f + 6, 'FMDD/FMMM') || ': '
+          || coalesce(x.ts || '. Miralos en Mis turnos.', 'esta semana no tenés turnos asignados.')
+      from (select pf.id as user_id,
+              (select string_agg(lower(left((array['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'])[extract(dow from t.fecha)::int + 1], 3)) || ' ' || lower(t.turno), ' · '
+                                 order by t.fecha, array_position(array['Mañana', 'Tarde', 'Noche'], t.turno))
+               from oficina_turnos t where t.user_id = pf.id and t.fecha between f and f + 6 and t.estado = 'asignado') as ts
+            from perfiles pf where pf.rol = 'oficina' and pf.activo) x
+      join push_subs s on s.user_id = x.user_id;
   elsif tipo = 'publicado' then
     select * into w from semanas where id = sem;
     if not found then return; end if;
@@ -984,8 +1014,20 @@ begin
       where a.estado = 'activo'
         and exists (select 1 from clases c where c.grupo_id = a.grupo_id and c.fecha between w.lunes and w.lunes + 6 and coalesce(c.materia, '') <> '');
   elsif tipo = 'disp' then
-    if not coalesce((cfg->>'disp')::boolean, true) then return; end if;
     l := f - (extract(isodow from f)::int - 1) + 7;
+    -- oficina: misma fecha límite que los profes
+    if coalesce((cfg->>'ofDisp')::boolean, true) then
+      return query
+        select s.endpoint, s.keys, 'Tu disponibilidad para la oficina 🗓️',
+          case extract(isodow from f)::int
+            when 3 then 'Ya podés cargar tus turnos disponibles para la semana del ' || to_char(l, 'FMDD/FMMM') || ' en Mis turnos. Tenés tiempo hasta el sábado a las 17:00.'
+            when 6 then '¡Último aviso! Hoy a las 17:00 cierra la carga de disponibilidad de la oficina para la semana del ' || to_char(l, 'FMDD/FMMM') || '.'
+            else 'Te falta cargar tu disponibilidad para la oficina (semana del ' || to_char(l, 'FMDD/FMMM') || '). Cierra el sábado a las 17:00.' end
+        from perfiles pf join push_subs s on s.user_id = pf.id
+        where pf.rol = 'oficina' and pf.activo
+          and not exists (select 1 from oficina_disp d join semanas sm on sm.id = d.semana_id where sm.lunes = l and d.user_id = pf.id and d.enviado);
+    end if;
+    if not coalesce((cfg->>'disp')::boolean, true) then return; end if;
     return query
       select s.endpoint, s.keys, 'Tu disponibilidad 🗓️',
         case extract(isodow from f)::int

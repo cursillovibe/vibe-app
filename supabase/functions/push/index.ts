@@ -2,8 +2,10 @@
 //   tipo "clave":     devuelve la clave pública para que el celular se anote (la crea sola la primera vez).
 //   tipo "prueba":    manda un aviso de prueba a los celulares de quien lo pide.
 //   tipo "publicado": la dirección publicó el horario → avisa a profes y alumnos.
+//   tipo "oficina":   la dirección manda a cada persona de la oficina sus turnos de la semana.
 //   tipo "auto":      lo llama el cron cada 15 minutos. Manda el recordatorio de la noche, el de la mañana
-//                     y el de disponibilidad (mié a sáb), cada uno una sola vez por día y solo en su horario.
+//                     (profes, alumnos y oficina) y el de disponibilidad (mié a sáb), cada uno una sola vez
+//                     por día y solo en su horario.
 // No usa secretos propios: las claves VAPID se generan solas y quedan en config_privada (solo la base las lee).
 // Se despliega con "Verify JWT" apagado (igual que invitar y notificar): el código valida usuario y rol.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -109,6 +111,19 @@ Deno.serve(async (req) => {
       const { data: msgs, error } = await db.rpc('push_mensajes', { tipo: 'publicado', f: null, sem: body.sem, actualizado: !!body.actualizado });
       if (error) throw error;
       return json({ ok: true, ...(await mandar(db, (await claves(db)).v, (msgs || []) as Msg[], appUrl, 'horario', 24 * 3600)) });
+    }
+
+    if (tipo === 'oficina') {
+      const u = await quien();
+      if (!u) return json({ error: 'Tenés que iniciar sesión.' }, 401);
+      const { data: p } = await db.from('perfiles').select('rol, activo').eq('id', u.id).maybeSingle();
+      if (!p || p.rol !== 'admin' || !p.activo) return json({ error: 'Solo la dirección manda los turnos de la oficina.' }, 403);
+      const lunes = String(body.lunes || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(lunes)) return json({ error: 'Falta la semana.' }, 400);
+      const { data: primera } = await db.rpc('push_tomar', { k: 'oficina|' + lunes }); // la segunda vez dice "se actualizaron"
+      const { data: msgs, error } = await db.rpc('push_mensajes', { tipo: 'oficina', f: lunes, sem: null, actualizado: !primera });
+      if (error) throw error;
+      return json({ ok: true, ...(await mandar(db, (await claves(db)).v, (msgs || []) as Msg[], appUrl, 'oficina', 24 * 3600)) });
     }
 
     // auto (cron): qué toca mandar ahora, según los horarios de Ajustes
