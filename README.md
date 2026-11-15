@@ -46,6 +46,25 @@ En **Turnos oficina** (solo la dirección): turnos Mañana, Tarde y Noche.
 - **Pago por turno**: por mes, cuenta cada turno asignado (o pedido y aprobado) que la persona marcó el mismo día. El monto por turno solo lo ve la dirección.
 - **Imagen para el grupo** (Turnos oficina): una columna por día y una fila por turno (mañana, tarde, noche) con quiénes trabajan, y "SIN NADIE" donde falta cubrir. Mismo estilo que la imagen del horario de los profes.
 
+## Tareas de la oficina y la librería
+
+En **Tareas** (dirección y oficina; también en el Inicio de las dos):
+
+- Cualquiera anota lo que hay que hacer: qué, detalle, tipo (Oficina, Librería, Compras, Recordar a Guido), para quién (una persona de la oficina o cualquiera), para cuándo y si es urgente.
+- Se marca como hecha con el cuadradito (o desde el detalle, con una nota). Queda **quién la anotó, quién la editó y quién la hizo, con día y hora** (lo pone la base, no se puede falsear). Una tarea hecha se puede volver a abrir.
+- Se actualizan en vivo para todas. Solo la dirección borra. Las hechas se ven 45 días.
+- La dirección ve primero las de "Recordar a Guido". El menú muestra cuántas le tocan a cada una.
+
+## Registro de actividad (solo dirección)
+
+En **Actividad** queda anotado todo lo que cada persona hace con su cuenta: cobros y anulaciones, alumnos nuevos o editados (qué dato cambió, antes → después), listas, notas y exámenes, grupos, links de inscripción, turnos de oficina, tareas, pedidos de cambio, disponibilidades, cuentas y roles, plantel y ajustes.
+
+- Se filtra por día (o 7 días o el mes), persona (o toda la oficina / todos los profes), tipo, y se busca por texto. Tocando un movimiento se ve el detalle.
+- Las listas y las notas se agrupan: una fila por lista o examen y persona ("Llamó lista de CPI 2 · 14/11 mañana: 25 alumnos (22 P · 2 A · 1 T)").
+- En la ficha de cada alumno, pestaña **Movimientos**: quién le cargó o cambió algo (datos y pagos).
+- Nadie lo puede editar ni borrar desde la app, ni la dirección. Los cambios hechos directo en la base (SQL) no se anotan.
+- Base: tabla `actividad` + trigger `actividad_anotar` en las tablas principales (`supabase/tareas-actividad.sql`, también al final de `schema.sql`).
+
 ## Archivos
 
 ```
@@ -55,6 +74,7 @@ manifest.webmanifest    para instalarla en el celular
 img/                    logo oficial (y versión para modo oscuro)
 icons/                  íconos de la app con el √iβε
 supabase/schema.sql     base de datos y permisos (se puede volver a correr)
+supabase/tareas-actividad.sql  tareas de la oficina y registro de actividad (también está en schema.sql)
 supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
 supabase/functions/     invitar (manda invitaciones), notificar (avisa fichas nuevas) y push (avisos al celular)
 supabase/cron-push.sql  avisos programados: llama a la función push cada 15 minutos
