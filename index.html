@@ -1925,10 +1925,24 @@ function vHorDisp() {
   if (S.miProf && w.lunes === lunesSig()) h += cardMiDisp();
   h += `<div class="card"><div class="card-h"><div><h2>${ps.length - pend.length} de ${ps.length} profes cargaron</h2><small>${est === 'abierta' ? (reab ? 'Carga reabierta hasta el domingo a la noche' : 'Carga abierta · cierra el sábado a las 17:00') : est === 'antes' ? 'La carga abre el miércoles' : 'Carga cerrada'}</small></div>
     <div class="actions">${est === 'cerrada' ? `<button class="btn sm" data-act="carga-reabrir">Reabrir hasta el domingo</button>` : ''}${reab ? `<button class="btn sm ghost danger" data-act="carga-cerrar">Cerrar ahora</button>` : ''}<button class="btn sm wa ${pend.length ? '' : 'disabled'}" data-act="carga-wa">${ic('wa')}Avisar a los que faltan</button></div></div>
-    <div class="tw"><table class="dispg"><thead><tr><th>Profe</th><th>Estado</th>${DK.map(k => `<th>${k}<br><small>${dm(fDia(w.lunes, k))}</small></th>`).join('')}</tr></thead><tbody>${ps.map(p => { const r = S.dispRows.find(x => x.profesor_id === p.id); const d = r?.dias || {};
-      return `<tr><td><b>${esc(p.nombre)}</b>${p.user_id ? '' : '<br><small class="muted">todavía no entró a la app</small>'}</td><td>${r?.enviado ? pill('Cargó', 'ok') : pill('Pendiente', 'pend')}</td>${DK.map(k => `<td><span class="dots" title="Mañana / Tarde"><i class="${d[k]?.['Mañana'] ? 'm' : ''}"></i><i class="${d[k]?.['Tarde'] ? 't' : ''}"></i></span></td>`).join('')}</tr>`; }).join('') || '<tr><td colspan="9" class="muted">Todavía no hay profes en el plantel.</td></tr>'}</tbody></table></div>
-    <div class="card-b"><small class="muted">Cada día tiene dos puntos: arriba mañana, abajo tarde. Pintado = libre.</small></div></div>`;
+    <div class="tw"><table class="dispg"><thead><tr><th>Profe</th><th>Estado</th>${DK.map(k => `<th>${k}<br><small>${dm(fDia(w.lunes, k))}</small></th>`).join('')}${isAdmin() ? '<th></th>' : ''}</tr></thead><tbody>${ps.map(p => { const r = S.dispRows.find(x => x.profesor_id === p.id); const d = r?.dias || {};
+      return `<tr><td><b>${esc(p.nombre)}</b>${p.user_id ? '' : '<br><small class="muted">todavía no entró a la app</small>'}</td><td>${r?.enviado ? pill('Cargó', 'ok') : pill('Pendiente', 'pend')}</td>${DK.map(k => `<td><span class="dots" title="Mañana / Tarde"><i class="${d[k]?.['Mañana'] ? 'm' : ''}"></i><i class="${d[k]?.['Tarde'] ? 't' : ''}"></i></span></td>`).join('')}${isAdmin() ? `<td><button class="btn sm ghost" data-act="disp-editar" data-tipo="profe" data-id="${esc(p.id)}" aria-label="Editar la disponibilidad de ${esc(p.nombre)}">${ic('edit')}Editar</button></td>` : ''}</tr>`; }).join('') || '<tr><td colspan="10" class="muted">Todavía no hay profes en el plantel.</td></tr>'}</tbody></table></div>
+    <div class="card-b"><small class="muted">Cada día tiene dos puntos: arriba mañana, abajo tarde. Pintado = libre.${isAdmin() ? ' Con <b>Editar</b> corregís lo que marcó un profe (por ejemplo, si te avisa a última hora que marcó mal), aunque la carga esté cerrada.' : ''}</small></div></div>`;
   return h;
+}
+// la dirección corrige la disponibilidad de un profe o de alguien de la oficina (aunque la carga esté cerrada)
+let DE = null;
+function openDispEditar(tipo, id) {
+  const w = tipo === 'profe' ? S.sem : S.oSem; if (!w) return;
+  const r = tipo === 'profe' ? S.dispRows.find(x => x.profesor_id === id) : S.oDisp.find(x => x.user_id === id);
+  const filas = tipo === 'profe' ? DK.map(k => [k, TURNOS]) : DK.filter(k => ofiAbre(k).length).map(k => [k, ofiAbre(k)]);
+  const ts = tipo === 'profe' ? TURNOS : OTURNOS.filter(t => filas.some(([, x]) => x.includes(t)));
+  DE = { tipo, id, w, dias: JSON.parse(JSON.stringify(r?.dias || {})) };
+  const D = DE.dias, nombre = tipo === 'profe' ? profN(id) : nomP(id);
+  openModal(`Disponibilidad de ${esc(nombre)}`, `<p class="muted" style="margin:0 0 10px">Semana del ${rangoSem(w.lunes)}${r?.enviado ? '' : ' · todavía no la había cargado'}. Marcá con una <b>X</b> los turnos en los que ${tipo === 'profe' ? 'puede dar clase' : 'puede trabajar'}. Al guardar queda como enviada.</p>
+    <table class="dispg"><thead><tr><th>Día</th>${ts.map(t => `<th>${t}${tipo === 'profe' ? `<br><small>${t === 'Mañana' ? '8 a 12' : '13:30 a 17:30'}</small>` : ''}</th>`).join('')}</tr></thead><tbody>${filas.map(([k, abre]) => `<tr><td><b>${DK_FULL[DK.indexOf(k)]}</b> <small class="muted">${dm(fDia(w.lunes, k))}</small></td>${ts.map(t => `<td>${abre.includes(t) ? `<button class="xb" data-act="de-x" data-d="${k}" data-t="${t}" aria-pressed="${!!D[k]?.[t]}" aria-label="${DK_FULL[DK.indexOf(k)]} ${t}">X</button>` : ''}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    ${tipo === 'profe' && S.borr ? '<p class="muted" style="margin:12px 0 0">El horario de esta semana ya está armado: para que use esta disponibilidad, tocá <b>Volver a armar</b> (lo que fijaste a mano se respeta).</p>' : ''}`,
+    `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="de-guardar">Guardar</button>`);
 }
 function cardMiDisp() {
   const w = S.semProf; if (!w) return '';
@@ -2147,9 +2161,9 @@ function vOfiDisp() {
   const w = S.oSem, ps = ofiPersonas(), est = estadoCarga(w); const env = new Set(S.oDisp.filter(r => r.enviado).map(r => r.user_id));
   let h = ofiWkh();
   h += `<div class="card"><div class="card-h"><div><h2>${ps.filter(p => env.has(p.id)).length} de ${ps.length} cargaron</h2><small>${est === 'abierta' ? 'Carga abierta · cierra el sábado a las 17:00 (igual que los profes)' : est === 'antes' ? 'La carga abre el miércoles' : 'Carga cerrada'}</small></div></div>
-    <div class="tw"><table class="dispg"><thead><tr><th>Persona</th><th>Estado</th>${DK.map(k => `<th>${k}<br><small>${dm(fDia(w.lunes, k))}</small></th>`).join('')}</tr></thead><tbody>${ps.map(p => { const d = S.oDisp.find(r => r.user_id === p.id)?.dias || {};
-      return `<tr><td><b>${esc(nomP(p.id))}</b></td><td>${env.has(p.id) ? pill('Cargó', 'ok') : pill('Pendiente', 'pend')}</td>${DK.map(k => `<td><small>${OTURNOS.filter(tt => d[k]?.[tt]).map(tt => tt[0]).join(' ') || '<span class="muted">—</span>'}</small></td>`).join('')}</tr>`; }).join('')}</tbody></table></div>
-    <div class="card-b"><small class="muted">M = mañana · T = tarde · N = noche. La reapertura de la carga se maneja desde Horario → Disponibilidad.</small></div></div>`;
+    <div class="tw"><table class="dispg"><thead><tr><th>Persona</th><th>Estado</th>${DK.map(k => `<th>${k}<br><small>${dm(fDia(w.lunes, k))}</small></th>`).join('')}<th></th></tr></thead><tbody>${ps.map(p => { const d = S.oDisp.find(r => r.user_id === p.id)?.dias || {};
+      return `<tr><td><b>${esc(nomP(p.id))}</b></td><td>${env.has(p.id) ? pill('Cargó', 'ok') : pill('Pendiente', 'pend')}</td>${DK.map(k => `<td><small>${OTURNOS.filter(tt => d[k]?.[tt]).map(tt => tt[0]).join(' ') || '<span class="muted">—</span>'}</small></td>`).join('')}<td><button class="btn sm ghost" data-act="disp-editar" data-tipo="ofi" data-id="${esc(p.id)}" aria-label="Editar la disponibilidad de ${esc(nomP(p.id))}">${ic('edit')}Editar</button></td></tr>`; }).join('')}</tbody></table></div>
+    <div class="card-b"><small class="muted">M = mañana · T = tarde · N = noche. Con <b>Editar</b> corregís lo que marcó cada persona, aunque la carga esté cerrada. La reapertura de la carga se maneja desde Horario → Disponibilidad.</small></div></div>`;
   return h;
 }
 function ofiPagoMes(mes) {
@@ -2990,6 +3004,18 @@ const A = {
     if (f === hoy()) { const { error: e2 } = await S.sb.rpc('marcar_turno', { tid: id }); if (e2) toast(errText(e2), 'error'); }
     closeModal(); toast(f === hoy() ? 'Turno pedido y marcado. Falta que la dirección lo apruebe.' : 'Turno pedido a la dirección.'); await load(['ofi']);
   },
+  'disp-editar': el => openDispEditar(el.dataset.tipo, el.dataset.id),
+  'de-x': el => { const D = DE.dias, k = el.dataset.d, t = el.dataset.t; D[k] = D[k] || {}; D[k][t] = !D[k][t]; if (!D[k][t]) delete D[k][t]; el.setAttribute('aria-pressed', !!D[k][t]); },
+  'de-guardar': async el => {
+    if (!DE) return; const { tipo, id, w } = DE; const nombre = tipo === 'profe' ? profN(id) : nomP(id); el.classList.add('disabled');
+    let r;
+    if (tipo === 'profe') { const dias = {}; DK.forEach(k => (dias[k] = { 'Mañana': !!DE.dias[k]?.['Mañana'], 'Tarde': !!DE.dias[k]?.['Tarde'] }));
+      r = await run(S.sb.from('disponibilidad').upsert({ semana_id: w.id, profesor_id: id, dias, enviado: true, act: new Date().toISOString() }, { onConflict: 'semana_id,profesor_id' }), `Disponibilidad de ${nombre.split(' ')[0]} guardada`); }
+    else { const dias = {}; Object.entries(DE.dias).forEach(([k, v]) => { const x = {}; Object.entries(v || {}).forEach(([t, on]) => { if (on) x[t] = true; }); if (Object.keys(x).length) dias[k] = x; });
+      r = await run(S.sb.from('oficina_disp').upsert({ semana_id: w.id, user_id: id, dias, enviado: true, act: new Date().toISOString() }, { onConflict: 'semana_id,user_id' }), `Disponibilidad de ${nombre.split(' ')[0]} guardada`); }
+    if (r === false || r == null) { el.classList.remove('disabled'); return; }
+    closeModal(); DE = null; await load(tipo === 'profe' ? ['semana'] : ['ofi']);
+  },
   'odisp-x': el => { const D = S.oDispDraft.dias; const k = el.dataset.d, t = el.dataset.t; D[k] = D[k] || {}; if (D[k][t]) delete D[k][t]; else D[k][t] = true; el.setAttribute('aria-pressed', !!D[k][t]); },
   'odisp-enviar': async el => { el.classList.add('disabled');
     const r = await run(S.sb.from('oficina_disp').upsert({ semana_id: S.oSem.id, user_id: S.session.user.id, dias: S.oDispDraft.dias, enviado: true, act: new Date().toISOString() }).select().single(), 'Disponibilidad enviada');
@@ -3072,7 +3098,7 @@ const A = {
     el.classList.add('disabled'); const { data, error } = await S.sb.rpc('publicar_horario', { sem });
     if (error) { toast(errText(error), 'error'); el.classList.remove('disabled'); return; }
     let extra = '';
-    if (avisar) { const r = await invocar('push', { tipo: 'publicado', sem, actualizado: antes }); extra = r.error ? ' No se pudo mandar el aviso al celular.' : ` Aviso enviado a ${r.enviados || 0} celular${r.enviados === 1 ? '' : 'es'}.`; }
+    if (avisar) { const r = await invocar('push', { tipo: 'publicado', sem, actualizado: antes }); extra = r.error ? ' No se pudo mandar el aviso al celular.' : r.enviados ? ` Aviso enviado a ${r.enviados} celular${r.enviados === 1 ? '' : 'es'}.` : ' (Nadie activó todavía los avisos al celular.)'; }
     toast(`Horario publicado: ${data} clase${data === 1 ? '' : 's'}. Ya lo ven profes y alumnos.${extra}`); await load(['semana', 'clases']);
   },
   'push-activar': el => pushActivar(el),
