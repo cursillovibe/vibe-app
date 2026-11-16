@@ -42,9 +42,28 @@ En **Turnos oficina** (solo la dirección): turnos Mañana, Tarde y Noche.
 
 - Cada persona de oficina carga su disponibilidad de la semana siguiente (mismo plazo que los profes) desde **Mis turnos**. La dirección la corrige con **Editar** en Turnos oficina → Disponibilidad.
 - La dirección arma la semana tocando nombres (en verde, los que pueden) o con "Completar con disponibles", y manda el mensaje al grupo por WhatsApp. En "Horario de la oficina" se eligen los turnos que abre cada día (por defecto lunes a viernes mañana, tarde y noche; sábado y domingo mañana y tarde).
-- Cada persona **marca su turno** el día que trabaja (desde Inicio o Mis turnos). Si trabaja un turno que no tenía, lo pide y la dirección lo aprueba.
-- **Pago por turno**: por mes, cuenta cada turno asignado (o pedido y aprobado) que la persona marcó el mismo día. El monto por turno solo lo ve la dirección.
+- Cada persona **marca su entrada y su salida** el día que trabaja (desde Inicio o Mis turnos; ver "Entrada y salida"). Si trabaja un turno que no tenía, lo pide y la dirección lo aprueba.
+- **Pago por turno**: por mes, cuenta cada turno asignado (o pedido y aprobado) con la entrada marcada (o cargada después: la dirección lo ve). El monto por turno solo lo ve la dirección.
 - **Imagen para el grupo** (Turnos oficina): una columna por día y una fila por turno (mañana, tarde, noche) con quiénes trabajan, y "SIN NADIE" donde falta cubrir. Mismo estilo que la imagen del horario de los profes.
+
+## Entrada y salida (oficina y profes)
+
+- **Oficina**: en Inicio ("Tu turno de hoy") y en Mis turnos, botón **Marcar entrada** al llegar y **Marcar salida** al irse, por cada turno del día. Marcar la entrada también marca el turno para el pago.
+- **Profes**: en Inicio ("Tu entrada y salida") por cada turno en que tienen clase (horario o cambio pedido). No cambia el pago por clase (sigue contando la lista).
+- **Si se olvidan o marcan mal**: en "Tus entradas y salidas" (Mis turnos / Horario) corrigen o cargan la hora de los **últimos 7 días**, con un motivo. Queda guardada la hora que marcaron con el botón, la corrección, quién y cuándo. Para algo más viejo, la dirección.
+- **Dirección**: en Inicio, "Entradas y salidas de hoy" (quién marcó y quién no). En **Entradas y salidas** (menú): por mes, resumen por persona (turnos, horas, sin marcar, sin salida, corregidas), filtro "Solo para revisar" y exportar a Excel (CSV). Tocando una fila corrige o borra (borrar deja el turno de oficina como no trabajado). En el pago a profes se ve a qué hora entró y salió el que dio cada clase.
+- Base: tabla `marcaciones` y funciones `marcar_hora`, `corregir_hora`, `borrar_marcacion` (`supabase/horas-caja.sql`, también al final de `schema.sql`). Nadie escribe directo en la tabla: todo pasa por esas funciones.
+
+## Caja chica de la oficina
+
+En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la plata que se aparta de las cuotas para los gastos de la oficina.
+
+- **Apartar de cuotas**: cuántos alumnos × cuánto por alumno (25.000 / 50.000 o lo que sea). La app sugiere cuántos alumnos pagaron desde el último apartado. También "Otro ingreso" (p. ej. la dirección repone la caja).
+- **Anotar gasto**: qué se pagó, monto y tipo (impresiones y hojas, pizarra, librería y útiles, limpieza, otros, retiro de la dirección). Muestra cuánto queda en la caja.
+- **Contar la caja** (arqueo): se pone lo que hay en efectivo; si no coincide con la app queda anotado "faltaban / sobraban" y la caja sigue desde lo contado. Un conteo no se edita.
+- Saldo, lo que entró y se gastó en el mes, gastos por tipo, el último conteo, cada movimiento con quién lo anotó y el saldo después. Exportar por mes.
+- Cada una corrige lo que anotó el mismo día; solo la dirección borra. Todo queda en Actividad. Los profes no la ven.
+- Base: tabla `caja_movs` (`supabase/horas-caja.sql`).
 
 ## Tareas de la oficina y la librería
 
@@ -57,7 +76,7 @@ En **Tareas** (dirección y oficina; también en el Inicio de las dos):
 
 ## Registro de actividad (solo dirección)
 
-En **Actividad** queda anotado todo lo que cada persona hace con su cuenta: cobros y anulaciones, alumnos nuevos o editados (qué dato cambió, antes → después), listas, notas y exámenes, grupos, links de inscripción, turnos de oficina, tareas, pedidos de cambio, disponibilidades, cuentas y roles, plantel y ajustes.
+En **Actividad** queda anotado todo lo que cada persona hace con su cuenta: cobros y anulaciones, alumnos nuevos o editados (qué dato cambió, antes → después), listas, notas y exámenes, grupos, links de inscripción, turnos de oficina, entradas y salidas, caja chica, tareas, pedidos de cambio, disponibilidades, cuentas y roles, plantel y ajustes.
 
 - Se filtra por día (o 7 días o el mes), persona (o toda la oficina / todos los profes), tipo, y se busca por texto. Tocando un movimiento se ve el detalle.
 - Las listas y las notas se agrupan: una fila por lista o examen y persona ("Llamó lista de CPI 2 · 14/11 mañana: 25 alumnos (22 P · 2 A · 1 T)").
@@ -75,6 +94,7 @@ img/                    logo oficial (y versión para modo oscuro)
 icons/                  íconos de la app con el √iβε
 supabase/schema.sql     base de datos y permisos (se puede volver a correr)
 supabase/tareas-actividad.sql  tareas de la oficina y registro de actividad (también está en schema.sql)
+supabase/horas-caja.sql  entrada y salida (oficina y profes) y caja chica (también está en schema.sql)
 supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
 supabase/functions/     invitar (manda invitaciones), notificar (avisa fichas nuevas) y push (avisos al celular)
 supabase/cron-push.sql  avisos programados: llama a la función push cada 15 minutos

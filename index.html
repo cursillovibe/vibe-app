@@ -521,6 +521,8 @@ const ICONS = {
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.8c2 .7 3.2 2.4 3.6 5.2"/>',
   layers:'<path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="m2.5 12.5 9.5 5 9.5-5"/><path d="m2.5 17 9.5 5 9.5-5"/>',
   check:'<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2.5h6v3H9z"/><path d="m8.5 13 2.5 2.5 4.5-5"/>',
+  entrar:'<path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M9 16l4-4-4-4"/><path d="M13 12H3"/>',
+  cash:'<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v.01M18 14.5v.01"/>',
   wallet:'<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M16 15h2"/><path d="M6 6V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
   award:'<circle cx="12" cy="9" r="5.5"/><path d="M8.5 13.5 7 21l5-2.5 5 2.5-1.5-7.5"/>',
   gear:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -563,7 +565,7 @@ const S = {
         horTab: 'semana', horLunes: '', armLunes: '', pagoMes: hoy().slice(0, 7), pagoVer: '' },
   draftAsis: null, draftExam: null,
   // horario
-  prof: {}, punt: {}, clases: {}, clRango: null, tareas: {}, act: [], actKey: null, actAl: {}, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: []
+  prof: {}, punt: {}, clases: {}, clRango: null, tareas: {}, act: [], actKey: null, actAl: {}, marcas: {}, mRango: null, caja: {}, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: []
 };
 const rol = () => S.perfil?.rol || '';
 const isAdmin = () => rol() === 'admin';
@@ -581,7 +583,7 @@ const mapG = r => ({ id: r.id, nombre: r.nombre, programa: r.programa || '', hor
 const mapA = r => ({ id: r.id, userId: r.user_id, email: r.email || '', nombre: r.nombre || '', apellido: r.apellido || '', ci: r.ci || '', fechaNac: r.fecha_nac || '', tel: r.tel || '', ciudad: r.ciudad || '', colegio: r.colegio || '',
   encargado: r.encargado || '', encargadoTel: r.encargado_tel || '', programa: r.programa || '', linkId: r.link_id || '', ficha: r.ficha || {}, fichaCompleta: !!r.ficha_completa, fichaFecha: r.ficha_fecha || '', grupoId: r.grupo_id || '', estado: r.estado,
   desc: num(r.descuento), cuotaEsp: r.cuota_especial, matExon: !!r.mat_exonerada, obs: r.obs || '', inscripcion: (r.creado || '').slice(0, 10) });
-const mapP = r => ({ id: r.id, nro: r.nro, alumnoId: r.alumno_id, grupoId: r.grupo_id, itemId: r.item, concepto: r.concepto, monto: num(r.monto), fecha: r.fecha, metodo: r.metodo, obs: r.obs || '', por: r.registrado_por });
+const mapP = r => ({ id: r.id, nro: r.nro, alumnoId: r.alumno_id, grupoId: r.grupo_id, itemId: r.item, concepto: r.concepto, monto: num(r.monto), fecha: r.fecha, metodo: r.metodo, obs: r.obs || '', por: r.registrado_por, creado: r.creado });
 
 /* ---------- índices y cálculos ---------- */
 function rebuild(which) {
@@ -933,11 +935,19 @@ const LOADERS = {
     const { data, error } = await q; if (error) { console.warn('actividad', error); S.act = []; return; }
     if (S.actKey === k) S.act = data || [];
   },
+  // entrada y salida: cada uno las suyas, la dirección todas (desde el mes pasado; la pantalla de horas pide más si hace falta)
+  marcas: async () => {
+    if (!S.mRango) S.mRango = [addMonths(hoy().slice(0, 7) + '-01', -1), hoy()];
+    try { const rows = await fetchAll('marcaciones', '*', q => q.gte('fecha', S.mRango[0]).order('fecha')); S.marcas = Object.fromEntries(rows.map(m => [mKey(m.user_id, m.fecha, m.turno), m])); }
+    catch (e) { console.warn('marcas', e); S.marcas = S.marcas || {}; }
+  },
+  // caja chica (oficina y dirección)
+  caja: async () => { try { S.caja = idx(await fetchAll('caja_movs', '*', q => q.order('creado'))); } catch (e) { console.warn('caja', e); S.caja = S.caja || {}; } },
   miHor: async () => { const l = lunesDe(hoy()); const { data, error } = await S.sb.rpc('mi_horario', { desde: l, hasta: addDays(l, 13) }); if (error) throw error; S.miHor = data || []; }
 };
-const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'punt', 'clases', 'semana', 'cambios', 'ofi', 'tareas', 'act'],
-  oficina: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'clases', 'cambios', 'ofi', 'tareas'],
-  profe: ['cfg', 'grupos', 'alumnos', 'asis', 'exams', 'prof', 'clases', 'semana', 'cambios'], alumno: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'resultados', 'miHor'] };
+const KEYS = { admin: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'punt', 'clases', 'semana', 'cambios', 'ofi', 'tareas', 'act', 'marcas', 'caja'],
+  oficina: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'perfiles', 'links', 'prof', 'clases', 'cambios', 'ofi', 'tareas', 'marcas', 'caja'],
+  profe: ['cfg', 'grupos', 'alumnos', 'asis', 'exams', 'prof', 'clases', 'semana', 'cambios', 'marcas'], alumno: ['cfg', 'grupos', 'alumnos', 'pagos', 'asis', 'exams', 'resultados', 'miHor'] };
 async function load(keys) {
   keys = keys || KEYS[rol()] || [];
   try {
@@ -991,7 +1001,7 @@ async function entrar() {
   } finally { entrando = false; }
 }
 function limpiar() { if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) { } } S.rt = null; S.push = null; S.pushRes = null; if (S.rtPend) S.rtPend.clear(); Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
-  prof: {}, punt: {}, clases: {}, clRango: null, tareas: {}, act: [], actKey: null, actAl: {}, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
+  prof: {}, punt: {}, clases: {}, clRango: null, tareas: {}, act: [], actKey: null, actAl: {}, marcas: {}, mRango: null, caja: {}, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !ocupado()) load(); else if (document.visibilityState === 'visible') aplicarRemoto(); if (document.visibilityState === 'visible' && S.perfil) pushRevisar(); });
 
 /* ---------- UI base ---------- */
@@ -1049,6 +1059,8 @@ const NAV = [
   { id: 'oficina', l: 'Turnos oficina', i: 'team', r: ['admin'] },
   { id: 'mis-turnos', l: 'Mis turnos', i: 'check', r: ['oficina'] },
   { id: 'tareas', l: 'Tareas', i: 'tasks', r: ['admin', 'oficina'] },
+  { id: 'caja', l: 'Caja chica', i: 'cash', r: ['admin', 'oficina'] },
+  { id: 'horas', l: 'Entradas y salidas', i: 'entrar', r: ['admin'] },
   { id: 'equipo', l: 'Equipo', i: 'team', r: ['admin'] },
   { id: 'actividad', l: 'Actividad', i: 'activity', r: ['admin'] },
   { id: 'ajustes', l: 'Ajustes', i: 'gear', r: ['admin', 'oficina'] },
@@ -1068,7 +1080,7 @@ function hasDraft() { return (S.draftAsis && S.draftAsis.dirty) || (S.draftExam 
 // tabla que cambió en la base → datos a recargar. Supabase Realtime solo avisa lo que cada uno tiene permiso de ver.
 const RT_KEYS = { asistencia: ['asis'], clases: ['clases'], cambios: ['cambios'], oficina_turnos: ['ofi'], oficina_disp: ['ofi'], pagos: ['pagos'],
   alumnos: ['alumnos'], grupos: ['grupos'], examenes: ['exams'], notas: ['exams'], disponibilidad: ['semana'], semanas: ['semana'],
-  materias_semana: ['semana'], horarios: ['semana'], profesores: ['prof'], profesores_puntajes: ['punt'], perfiles: ['perfiles'], config: ['cfg'], links_inscripcion: ['links'], tareas: ['tareas'], actividad: ['act'] };
+  materias_semana: ['semana'], horarios: ['semana'], profesores: ['prof'], profesores_puntajes: ['punt'], perfiles: ['perfiles'], config: ['cfg'], links_inscripcion: ['links'], tareas: ['tareas'], actividad: ['act'], marcaciones: ['marcas'], caja_movs: ['caja'] };
 // no se refresca mientras alguien está escribiendo o tiene algo sin guardar: se aplica apenas termine
 function ocupado() {
   const ae = document.activeElement; const main = $('#main');
@@ -1339,18 +1351,295 @@ async function tareaHecha(id, extra) {
   toast('Tarea hecha ✓'); load(['tareas']); return true;
 }
 
+/* ---------- entrada y salida (oficina y profes) ---------- */
+const mKey = (u, f, t) => u + '|' + f + '|' + t;
+const marcaDe = (u, f, t) => (u && (S.marcas || {})[mKey(u, f, t)]) || null;
+const hhmm = ts => ts ? horaDe(ts) : '';
+const durMin = m => m && m.entrada && m.salida ? Math.max(0, Math.round((new Date(m.salida) - new Date(m.entrada)) / 60000)) : 0;
+const durTxt = n => n ? Math.floor(n / 60) + ' h' + (n % 60 ? ' ' + (n % 60) + ' min' : '') : '0 h';
+const rolDe = uid => uid === S.session?.user?.id ? rol() : S.perfiles?.[uid]?.rol;
+const profDeUser = uid => Object.values(S.prof || {}).find(p => p.user_id === uid) || null;
+const puedeCorregir = (uid, f) => f <= hoy() && (isAdmin() || (uid === S.session.user.id && f >= addDays(hoy(), -7)));
+const corrTxt = m => m && m.corregido_en ? (m.entrada_marcada || m.salida_marcada ? 'corregida' : 'cargada después') : '';
+// lo que una persona tiene que marcar entre dos días: sus turnos de oficina o los turnos en que da clase (y lo que ya marcó)
+function aMarcar(uid, d0, d1) {
+  const out = {}; const en = f => f >= d0 && f <= d1;
+  const add = (f, t, info) => { const x = (out[f + '|' + t] ||= { uid, f, t, info: [] }); if (info) x.info.push(info); };
+  const r = rolDe(uid);
+  if (r === 'oficina') Object.values(S.oTurnos || {}).forEach(x => { if (x.user_id === uid && x.estado !== 'rechazado' && en(x.fecha)) add(x.fecha, x.turno, x.estado === 'pendiente' ? 'pedido, falta aprobar' : ''); });
+  if (r === 'profe') {
+    const p = profDeUser(uid);
+    if (p) {
+      Object.values(S.clases || {}).forEach(c => { if ((c.profesor_id === p.id || c.dictada_por === p.id) && en(c.fecha)) add(c.fecha, c.turno, gName(c.grupo_id)); });
+      Object.values(S.cambios || {}).forEach(x => { if (x.profesor_id === p.id && x.estado !== 'rechazado' && en(x.fecha)) add(x.fecha, x.turno, gName(x.grupo_id)); });
+    }
+  }
+  Object.values(S.marcas || {}).forEach(m => { if (m.user_id === uid && en(m.fecha)) add(m.fecha, m.turno); });
+  return Object.values(out).map(x => ({ ...x, info: [...new Set(x.info.filter(Boolean))], m: marcaDe(uid, x.f, x.t) }))
+    .sort((a, b) => a.f.localeCompare(b.f) || OTURNOS.indexOf(a.t) - OTURNOS.indexOf(b.t));
+}
+// todas las personas (oficina y profes) con algo que marcar entre dos días
+function filasHoras(d0, d1) {
+  const uids = new Set(); const en = f => f >= d0 && f <= d1; const deProf = id => id && S.prof?.[id]?.user_id;
+  Object.values(S.oTurnos || {}).forEach(x => { if (en(x.fecha) && x.estado !== 'rechazado') uids.add(x.user_id); });
+  Object.values(S.clases || {}).forEach(c => { if (en(c.fecha)) [c.profesor_id, c.dictada_por].forEach(id => { const u = deProf(id); if (u) uids.add(u); }); });
+  Object.values(S.cambios || {}).forEach(x => { if (en(x.fecha) && x.estado !== 'rechazado') { const u = deProf(x.profesor_id); if (u) uids.add(u); } });
+  Object.values(S.marcas || {}).forEach(m => { if (en(m.fecha)) uids.add(m.user_id); });
+  return [...uids].filter(u => ['oficina', 'profe'].includes(rolDe(u))).flatMap(u => aMarcar(u, d0, d1));
+}
+function txtHora(x, yo) {
+  const m = x.m;
+  if (!m || !m.entrada) return x.f < hoy() ? (yo ? 'No marcaste' : 'No marcó') : (yo ? 'Todavía no marcaste la entrada' : 'Todavía no marcó');
+  let s = (yo ? 'Entraste ' : 'Entró ') + hhmm(m.entrada);
+  if (m.salida) s += ' · ' + (yo ? 'saliste ' : 'salió ') + hhmm(m.salida) + ' (' + durTxt(durMin(m)) + ')';
+  else if (x.f < hoy()) s += ' · sin salida';
+  return s + (m.corregido_en ? ' · ' + corrTxt(m) : '');
+}
+function pillHora(x) {
+  const m = x.m; const corr = m && m.corregido_en ? pill(m.entrada_marcada || m.salida_marcada ? 'Corregida' : 'Cargada después', 'pend') : '';
+  if (!m || !m.entrada) return x.f < hoy() ? pill('Sin marcar', 'bad') : x.f === hoy() ? pill('Sin marcar') : '';
+  if (!m.salida) return (x.f < hoy() ? pill(hhmm(m.entrada) + ' – sin salida', 'bad') : pill('Entró ' + hhmm(m.entrada), 'acc')) + corr;
+  return pill(hhmm(m.entrada) + '–' + hhmm(m.salida), 'ok') + corr;
+}
+// fila propia: marcar hoy y corregir los últimos 7 días
+function rowMiHora(x) {
+  const m = x.m, esHoy = x.f === hoy(); let btn = '';
+  if (esHoy && !m?.entrada) btn = `<button class="btn sm primary" data-act="hora-marcar" data-t="${esc(x.t)}" data-k="entrada">${ic('entrar')}Marcar entrada</button>`;
+  else if (esHoy && !m.salida) btn = `<button class="btn sm primary" data-act="hora-marcar" data-t="${esc(x.t)}" data-k="salida">${ic('logout')}Marcar salida</button>`;
+  const corr = puedeCorregir(x.uid, x.f) ? `<button class="btn sm ghost" data-act="hora-corregir" data-f="${x.f}" data-t="${esc(x.t)}" title="Corregir la hora" aria-label="Corregir la hora">${ic('edit')}${btn ? '' : m?.entrada ? 'Corregir' : 'Cargar horas'}</button>` : '';
+  const est = !btn && m?.entrada && m?.salida ? pill(hhmm(m.entrada) + '–' + hhmm(m.salida), 'ok') : !btn && x.f < hoy() && !m?.entrada ? pill('Sin marcar', 'bad') : '';
+  return `<div class="row"><div class="t">${esHoy ? '<b>Hoy</b>' : dkDe(x.f) + ' ' + dm(x.f)} · ${esc(x.t)}${x.info.length ? ' · ' + esc(x.info.join(', ')) : ''}<small>${esc(txtHora(x, true))}</small></div><div class="r">${est}${btn}${corr}</div></div>`;
+}
+function rowHoraAdmin(x, conFecha) {
+  const m = x.m; const sub = [ROLE_LBL[rolDe(x.uid)] || '', ...x.info].filter(Boolean).join(' · ');
+  return `<div class="row click" data-act="hora-corregir" data-u="${esc(x.uid)}" data-f="${x.f}" data-t="${esc(x.t)}"><div class="t">${conFecha ? dkDe(x.f) + ' ' + dm(x.f) + ' · ' : ''}${esc(x.t)} · ${esc(nomP(x.uid))}<small>${esc(sub)}${m && m.salida ? ' · ' + esc(durTxt(durMin(m))) : ''}${m && m.motivo ? ' · “' + esc(m.motivo) + '”' : ''}</small></div><div class="r">${pillHora(x)}</div></div>`;
+}
+// Inicio del profe
+function cardHoraHoy() {
+  if (!S.loaded.marcas) return '';
+  const L = aMarcar(S.session.user.id, hoy(), hoy()); if (!L.length) return '';
+  return `<div class="card"><div class="card-h"><div><h2>Tu entrada y salida</h2><small>${fmtF(hoy())} · marcá al llegar y al irte</small></div></div><div class="rows">${L.map(rowMiHora).join('')}</div></div>`;
+}
+// los últimos 7 días, para corregir si se olvidó o marcó mal
+function cardMisHoras() {
+  if (!S.loaded.marcas) return '';
+  const L = aMarcar(S.session.user.id, addDays(hoy(), -7), hoy()).reverse();
+  return `<div class="card"><div class="card-h"><div><h2>Tus entradas y salidas</h2><small>Últimos 7 días. Si te olvidaste de marcar o marcaste mal, corregilo acá: la dirección ve que lo corregiste.</small></div></div><div class="rows">${L.map(rowMiHora).join('') || `<div class="empty">No tuviste ${isProfe() ? 'clases' : 'turnos'} en los últimos 7 días.</div>`}</div></div>`;
+}
+// Inicio de la dirección
+function cardHorasHoy() {
+  if (!S.loaded.marcas || !S.loaded.ofi || !S.loaded.clases) return '';
+  const L = filasHoras(hoy(), hoy()).sort((a, b) => OTURNOS.indexOf(a.t) - OTURNOS.indexOf(b.t) || nomP(a.uid).localeCompare(nomP(b.uid), 'es'));
+  if (!L.length) return '';
+  const n = L.filter(x => x.m && x.m.entrada).length;
+  return `<div class="card"><div class="card-h"><div><h2>Entradas y salidas de hoy</h2><small>${n} de ${L.length} marcaron la entrada</small></div><button class="btn sm ghost" data-act="nav" data-v="horas">Ver todo</button></div><div class="rows">${L.map(x => rowHoraAdmin(x)).join('')}</div></div>`;
+}
+VIEWS.horas = () => {
+  const u = S.ui; if (!u.hMes) u.hMes = hoy().slice(0, 7);
+  const d0 = u.hMes + '-01', fin = addDays(addMonths(d0, 1), -1), d1 = fin < hoy() ? fin : hoy();
+  const gente = Object.values(S.perfiles || {}).filter(p => ['oficina', 'profe'].includes(p.rol) && p.activo).sort((a, b) => ['oficina', 'profe'].indexOf(a.rol) - ['oficina', 'profe'].indexOf(b.rol) || String(a.nombre || a.email).localeCompare(String(b.nombre || b.email), 'es'));
+  let h = ph('Entradas y salidas', 'A qué hora entró y salió cada uno (oficina y profes). Tocá una fila para corregirla.', `<button class="btn" data-act="horas-exp">${ic('download')}Exportar</button>`);
+  h += `<div class="filters"><input type="month" class="inp" data-ch="hMes" value="${esc(u.hMes)}" max="${hoy().slice(0, 7)}" style="width:auto" aria-label="Mes">
+    <select class="inp" data-ch="hQuien" style="width:auto" aria-label="Persona"><option value="">Todas las personas</option><option value="rol:oficina" ${u.hQuien === 'rol:oficina' ? 'selected' : ''}>Toda la oficina</option><option value="rol:profe" ${u.hQuien === 'rol:profe' ? 'selected' : ''}>Todos los profes</option>${gente.map(p => `<option value="${esc(p.id)}" ${u.hQuien === p.id ? 'selected' : ''}>${esc((p.nombre || p.email) + ' · ' + ROLE_LBL[p.rol])}</option>`).join('')}</select>
+    <div class="chips"><button class="chip" data-act="hprob" aria-pressed="${!!u.hProb}">Solo para revisar</button></div></div>`;
+  if (!ready('marcas', 'ofi', 'clases', 'perfiles', 'prof', 'cambios')) return h + loadingView();
+  if (d0 < S.mRango[0] || d0 < S.clRango[0] || d0 < S.oRango[0]) {
+    if (!S.hCargando) {
+      S.hCargando = true; const mn = (a, b) => a < b ? a : b;
+      S.mRango = [mn(d0, S.mRango[0]), S.mRango[1]]; S.clRango = [mn(d0, S.clRango[0]), S.clRango[1]]; S.oRango = [mn(d0, S.oRango[0]), S.oRango[1]];
+      Promise.all([LOADERS.marcas(), LOADERS.clases(), LOADERS.ofi()]).then(() => { S.hCargando = false; render(); }).catch(e => { S.hCargando = false; toast(errText(e), 'error'); });
+    }
+    return h + loadingView();
+  }
+  let L = d0 <= d1 ? filasHoras(d0, d1) : [];
+  if (u.hQuien) L = L.filter(x => u.hQuien.startsWith('rol:') ? rolDe(x.uid) === u.hQuien.slice(4) : x.uid === u.hQuien);
+  const porP = {}; L.forEach(x => { const p = (porP[x.uid] ||= { uid: x.uid, n: 0, min: 0, sin: 0, sinSal: 0, corr: 0 }); p.n++; p.min += durMin(x.m);
+    if (!x.m?.entrada) { if (x.f < hoy()) p.sin++; } else if (!x.m.salida && x.f < hoy()) p.sinSal++; if (x.m?.corregido_en) p.corr++; });
+  const filas = Object.values(porP).sort((a, b) => ['oficina', 'profe'].indexOf(rolDe(a.uid)) - ['oficina', 'profe'].indexOf(rolDe(b.uid)) || nomP(a.uid).localeCompare(nomP(b.uid), 'es'));
+  if (!filas.length) return h + `<div class="card"><div class="empty"><b>Nada en ${MESES[+u.hMes.slice(5) - 1]}</b>No hay turnos ni clases con esos filtros.</div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Resumen de ${MESES[+u.hMes.slice(5) - 1]}</h2><small>hasta ${fmtF(d1).slice(0, 5)}</small></div><div class="tw"><table><thead><tr><th>Persona</th><th class="n">Turnos</th><th class="n">Horas</th><th class="n">Sin marcar</th><th class="n">Sin salida</th><th class="n">Corregidas</th></tr></thead><tbody>${filas.map(f => `<tr class="click" data-act="hquien" data-v="${esc(f.uid)}"><td><b>${esc(nomP(f.uid))}</b><br><small>${esc(ROLE_LBL[rolDe(f.uid)] || '')}</small></td><td class="n num">${f.n}</td><td class="n num">${esc(durTxt(f.min))}</td><td class="n ${f.sin ? 'bad-t' : ''}">${f.sin || '—'}</td><td class="n ${f.sinSal ? 'bad-t' : ''}">${f.sinSal || '—'}</td><td class="n">${f.corr || '—'}</td></tr>`).join('')}</tbody></table></div><div class="card-b"><small class="muted">Horas: solo de los turnos con entrada y salida. Tocá una persona para ver solo lo suyo.</small></div></div>`;
+  const revisar = x => x.f < hoy() && (!x.m || !x.m.entrada || !x.m.salida) || !!x.m?.corregido_en;
+  const V = (u.hProb ? L.filter(revisar) : L).sort((a, b) => b.f.localeCompare(a.f) || OTURNOS.indexOf(a.t) - OTURNOS.indexOf(b.t) || nomP(a.uid).localeCompare(nomP(b.uid), 'es'));
+  const dias = {}; V.forEach(x => (dias[x.f] ||= []).push(x));
+  h += Object.entries(dias).map(([f, l]) => `<div class="card"><div class="card-h"><h2>${esc(fechaLarga(f))}</h2></div><div class="rows">${l.map(x => rowHoraAdmin(x)).join('')}</div></div>`).join('') || `<div class="card"><div class="empty"><b>Nada para revisar</b>Todos marcaron entrada y salida y nadie corrigió horas.</div></div>`;
+  return h;
+};
+let HF = null;
+function openHora(uid, f, t) {
+  const me = S.session.user.id; uid = uid || me; const m = marcaDe(uid, f, t); HF = { uid, f, t, otro: uid !== me };
+  if (!puedeCorregir(uid, f)) { toast('Solo se pueden corregir los últimos 7 días. Para algo más viejo, avisale a la dirección.', 'error'); return; }
+  const quien = id => id === me ? 'vos' : S.perfiles?.[id] ? nomP(id) : 'la dirección';
+  const hist = m ? [m.entrada_marcada ? `Marcó la entrada a las <b>${esc(hhmm(m.entrada_marcada))}</b>` : '', m.salida_marcada ? `Marcó la salida a las <b>${esc(hhmm(m.salida_marcada))}</b>` : '',
+    m.corregido_en ? `${m.entrada_marcada || m.salida_marcada ? 'Corregida' : 'Cargada'} por <b>${esc(quien(m.corregido_por))}</b> · ${esc(fechaHora(m.corregido_en))}${m.motivo ? ` · “${esc(m.motivo)}”` : ''}` : ''].filter(Boolean) : [];
+  const tit = HF.otro ? 'Horas de ' + nomP(uid) : m && m.entrada ? 'Corregir tus horas' : 'Cargar tus horas';
+  openModal(tit, `<p class="muted" style="margin:0 0 12px">${esc(DK_FULL[DK.indexOf(dkDe(f))] + ' ' + fmtF(f))} · ${esc(t)}${HF.otro ? ' · ' + esc(ROLE_LBL[rolDe(uid)] || '') : ''}</p><div class="form">
+    <div class="fld"><label for="hf-e">Entrada <span class="req">*</span></label><input type="time" class="inp" id="hf-e" value="${esc(hhmm(m?.entrada))}"></div>
+    <div class="fld"><label for="hf-s">Salida</label><input type="time" class="inp" id="hf-s" value="${esc(hhmm(m?.salida))}"><span class="hint">${f === hoy() ? 'Dejala vacía si todavía no saliste.' : 'Dejala vacía si no sabés.'}</span></div>
+    <div class="fld full"><label for="hf-m">Motivo${isAdmin() ? '' : ' <span class="req">*</span>'}</label><input class="inp" id="hf-m" maxlength="300" value="${esc(m?.motivo || '')}" placeholder="${HF.otro ? 'Ej: me avisó que llegó 7:45' : 'Ej: me olvidé de marcar al llegar'}"></div>
+    ${hist.length ? `<div class="full tinfo">${hist.join('<br>')}</div>` : ''}
+    ${HF.otro ? '' : `<div class="full"><small class="muted">La dirección ve la hora que marcaste con el botón y la corrección.</small></div>`}
+    <div class="full err" id="hf-err"></div></div>`,
+    `${isAdmin() && m ? `<button class="btn ghost danger" data-act="hora-borrar" data-id="${esc(m.id)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="hora-guardar">Guardar</button>`, 'narrow');
+}
+function exportHoras() {
+  const u = S.ui; const d0 = u.hMes + '-01', fin = addDays(addMonths(d0, 1), -1), d1 = fin < hoy() ? fin : hoy();
+  let L = filasHoras(d0, d1); if (u.hQuien) L = L.filter(x => u.hQuien.startsWith('rol:') ? rolDe(x.uid) === u.hQuien.slice(4) : x.uid === u.hQuien);
+  L.sort((a, b) => a.f.localeCompare(b.f) || OTURNOS.indexOf(a.t) - OTURNOS.indexOf(b.t) || nomP(a.uid).localeCompare(nomP(b.uid), 'es'));
+  const rows = [['Fecha', 'Día', 'Turno', 'Persona', 'Rol', 'Grupo', 'Entrada', 'Salida', 'Minutos', 'Estado', 'Hora del botón (entrada)', 'Hora del botón (salida)', 'Motivo']];
+  L.forEach(x => { const m = x.m; rows.push([fmtF(x.f), DK_FULL[DK.indexOf(dkDe(x.f))], x.t, nomP(x.uid), ROLE_LBL[rolDe(x.uid)] || '', x.info.join(', '), hhmm(m?.entrada), hhmm(m?.salida), durMin(m) || '',
+    !m || !m.entrada ? (x.f < hoy() ? 'Sin marcar' : 'Todavía no') : !m.salida ? 'Sin salida' : corrTxt(m) ? cap(corrTxt(m)) : 'OK', hhmm(m?.entrada_marcada), hhmm(m?.salida_marcada), m?.motivo || '']); });
+  guardarArchivo(`Entradas y salidas ${u.hMes}.csv`, csv(rows));
+}
+// en el pago de profes: a qué hora entró y salió el que dio la clase
+const horasDeClase = c => { const m = marcaDe(S.prof?.[c.dictada_por]?.user_id, c.fecha, c.turno); return m && m.entrada ? 'entró ' + hhmm(m.entrada) + (m.salida ? ', salió ' + hhmm(m.salida) : '') : ''; };
+// en los turnos de oficina: estado de la entrada/salida (si todavía no cargó, lo de antes)
+const pillOT = x => S.loaded.marcas ? pillHora({ uid: x.user_id, f: x.fecha, t: x.turno, m: marcaDe(x.user_id, x.fecha, x.turno) }) || (x.marcado_en ? pill('✓ ' + horaDe(x.marcado_en), 'ok') : '') : (x.marcado_en ? pill('✓ ' + horaDe(x.marcado_en), 'ok') : '');
+
+/* ---------- caja chica de la oficina ---------- */
+const CAJA_CAT = { cuotas: 'De las cuotas', aporte: 'Otro ingreso', impresion: 'Impresiones y hojas', pizarra: 'Pizarra (marcadores, pinceles)', libreria: 'Librería y útiles', limpieza: 'Limpieza', otros: 'Otros gastos', retiro: 'Retiro de la dirección' };
+const GASTO_CAT = ['impresion', 'pizarra', 'libreria', 'limpieza', 'otros', 'retiro'];
+const cajaSigno = m => m.tipo === 'gasto' ? -num(m.monto) : num(m.monto);
+const cajaSaldo = () => sum(Object.values(S.caja || {}).map(cajaSigno));
+function cajaMovs() { let s = 0; return Object.values(S.caja || {}).sort((a, b) => new Date(a.creado) - new Date(b.creado)).map(m => { s += cajaSigno(m); return { ...m, saldo: s }; }); }
+const puedeEditarCaja = m => m.tipo !== 'arqueo' && (isAdmin() || (m.creado_por === S.session.user.id && dPY(m.creado) === hoy()));
+// para apartar: cuántos alumnos pagaron desde el último apartado (o en el mes, si nunca se apartó)
+function cajaSugerencia() {
+  const ult = Object.values(S.caja || {}).filter(m => m.tipo === 'ingreso' && m.categoria === 'cuotas').sort((a, b) => new Date(b.creado) - new Date(a.creado))[0] || null;
+  const ps = Object.values(S.pagos || {}).filter(p => ult ? p.creado && new Date(p.creado) > new Date(ult.creado) : (p.fecha || '').startsWith(hoy().slice(0, 7)));
+  return { ult, n: new Set(ps.map(p => p.alumnoId)).size, np: ps.length, tot: sum(ps.map(p => p.monto)), porA: num(ult?.por_alumno) || 25000 };
+}
+function cardCaja() {
+  if (!S.loaded.caja) return '';
+  const s = cajaSaldo(); const g = Object.values(S.caja).filter(m => m.tipo === 'gasto' && m.fecha === hoy());
+  return `<div class="card"><div class="card-h"><div><h2>Caja chica</h2><small>${g.length ? `Hoy: ${g.length} gasto${g.length === 1 ? '' : 's'} por ${money(sum(g.map(m => m.monto)))}` : 'Hoy no se anotaron gastos'}</small></div><div class="actions"><button class="btn sm" data-act="caja-gasto">${ic('plus')}Anotar gasto</button><button class="btn sm ghost" data-act="nav" data-v="caja">Ver caja</button></div></div>
+    <div class="card-b" style="padding-top:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span class="num ${s < 0 ? 'bad-t' : ''}" style="font-size:24px;font-weight:800">${money(s)}</span><small class="muted">en la caja, según lo anotado</small></div></div>`;
+}
+function rowCaja(m) {
+  let tit, val;
+  if (m.tipo === 'arqueo') { tit = 'Contaron la caja: había ' + money(m.contado); val = m.monto === 0 ? pill('Coincide ✓', 'ok') : pill((m.monto < 0 ? 'Faltaban ' : 'Sobraban ') + money(Math.abs(m.monto)), 'bad'); }
+  else { tit = m.concepto; val = `<b class="num ${m.tipo === 'gasto' ? 'bad-t' : 'ok-t'}">${m.tipo === 'gasto' ? '−' : '+'} ${money(m.monto)}</b>`; }
+  const meta = [m.tipo === 'arqueo' ? 'Arqueo' : CAJA_CAT[m.categoria] || '', m.fecha !== dPY(m.creado) ? 'del ' + fmtF(m.fecha).slice(0, 5) : '', `${nomP(m.creado_por)} · ${cuandoCorto(m.creado)}`, m.editado ? 'editado' : ''].filter(Boolean).join(' · ');
+  return `<div class="row click" data-act="caja-ver" data-id="${esc(m.id)}"><div class="t">${esc(tit)}<small>${esc(meta)}${m.detalle ? ' · “' + esc(m.detalle) + '”' : ''}</small></div><div class="r" style="flex-direction:column;align-items:flex-end;gap:2px">${val}<small class="muted">Saldo ${money(m.saldo)}</small></div></div>`;
+}
+VIEWS.caja = () => {
+  if (!ready('caja', 'perfiles')) return loadingView();
+  const u = S.ui; if (!u.cajaMes) u.cajaMes = hoy().slice(0, 7);
+  const todos = cajaMovs(); const saldo = todos.length ? todos[todos.length - 1].saldo : 0; const nomMes = MESES[+u.cajaMes.slice(5) - 1];
+  const mes = todos.filter(m => m.fecha.startsWith(u.cajaMes));
+  const ing = sum(mes.filter(m => m.tipo === 'ingreso').map(m => m.monto)), gas = mes.filter(m => m.tipo === 'gasto');
+  const ultA = [...todos].reverse().find(m => m.tipo === 'arqueo');
+  let h = ph('Caja chica', 'La plata que se aparta de las cuotas para los gastos de la oficina. Cada movimiento queda con quién lo anotó.',
+    `<button class="btn primary" data-act="caja-gasto">${ic('plus')}Anotar gasto</button><button class="btn" data-act="caja-ingreso">${ic('plus')}Apartar de cuotas</button><button class="btn" data-act="caja-contar">${ic('check')}Contar la caja</button>`);
+  h += `<div class="kpis">${kpi('En la caja', money(saldo), 'según lo anotado', saldo < 0 ? 'bad' : '')}${kpi('Entró en ' + nomMes, money(ing), mes.filter(m => m.tipo === 'ingreso').length + ' apartado' + (mes.filter(m => m.tipo === 'ingreso').length === 1 ? '' : 's'))}${kpi('Se gastó en ' + nomMes, money(sum(gas.map(m => m.monto))), gas.length + ' gasto' + (gas.length === 1 ? '' : 's'))}${kpi('Último conteo', ultA ? fmtF(dPY(ultA.creado)).slice(0, 5) : '—', ultA ? (ultA.monto === 0 ? 'coincidió' : (ultA.monto < 0 ? 'faltaban ' : 'sobraban ') + money(Math.abs(ultA.monto))) : 'nunca se contó', ultA && ultA.monto !== 0 ? 'bad' : '')}</div>`;
+  if (saldo < 0) h += `<div class="banner bad" style="margin-bottom:12px">La caja da negativo: se anotaron más gastos que lo apartado. Apartá plata de las cuotas o revisá los gastos.</div>`;
+  h += `<div class="filters"><input type="month" class="inp" data-ch="cajaMes" value="${esc(u.cajaMes)}" max="${hoy().slice(0, 7)}" style="width:auto" aria-label="Mes"><div class="chips">${[['', 'Todo'], ['ingreso', 'Entradas'], ['gasto', 'Gastos'], ['arqueo', 'Conteos']].map(([k, l]) => `<button class="chip" data-act="cajatipo" data-v="${k}" aria-pressed="${(u.cajaTipo || '') === k}">${l}</button>`).join('')}</div><button class="btn sm ghost" data-act="caja-exp">${ic('download')}Exportar</button></div>`;
+  if (gas.length) { const pc = {}; gas.forEach(m => pc[m.categoria] = (pc[m.categoria] || 0) + num(m.monto));
+    h += `<div class="card"><div class="card-h"><h2>Gastos de ${nomMes} por tipo</h2></div><div class="rows">${Object.entries(pc).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row"><div class="t">${esc(CAJA_CAT[k] || k)}</div><div class="r"><b class="num">${money(v)}</b></div></div>`).join('')}</div></div>`; }
+  const V = mes.filter(m => !u.cajaTipo || m.tipo === u.cajaTipo).sort((a, b) => b.fecha.localeCompare(a.fecha) || new Date(b.creado) - new Date(a.creado));
+  const dias = {}; V.forEach(m => (dias[m.fecha] ||= []).push(m));
+  h += Object.entries(dias).map(([f, l]) => `<div class="card"><div class="card-h"><h2>${esc(fechaLarga(f))}</h2></div><div class="rows">${l.map(rowCaja).join('')}</div></div>`).join('')
+    || `<div class="card"><div class="empty"><b>Sin movimientos en ${nomMes}</b>${todos.length ? 'Elegí otro mes o anotá un movimiento.' : 'Empezá apartando la plata de las cuotas que ya está en la caja (“Apartar de cuotas”), o contá la caja para arrancar con lo que hay.'}</div></div>`;
+  return h;
+};
+let CJ = null;
+function openCaja(tipo, id) {
+  const m = id ? S.caja[id] : null;
+  if (m && !puedeEditarCaja(m)) return verCaja(m);
+  CJ = { id: m ? m.id : null, tipo: m ? m.tipo : tipo, cat: m ? m.categoria : tipo === 'ingreso' ? 'cuotas' : tipo === 'gasto' ? '' : null, v: {} };
+  renderCajaForm();
+}
+function cajaLeer() { ['cj-c', 'cj-m', 'cj-cat', 'cj-f', 'cj-d', 'cj-n', 'cj-pa'].forEach(k => { const el = $('#' + k); if (el) CJ.v[k] = el.value; }); }
+function renderCajaForm() {
+  const m = CJ.id ? S.caja[CJ.id] : null, t = CJ.tipo, V = CJ.v; const val = (k, d) => esc(V[k] !== undefined ? V[k] : d);
+  const fecha = `<div class="fld"><label for="cj-f">Fecha</label><input type="date" class="inp" id="cj-f" value="${val('cj-f', m?.fecha || hoy())}" max="${hoy()}"></div>`;
+  const nota = ph0 => `<div class="fld full"><label for="cj-d">Nota <span class="muted" style="font-weight:400">(opcional)</span></label><input class="inp" id="cj-d" maxlength="1000" value="${val('cj-d', m?.detalle || '')}" placeholder="${ph0}"></div>`;
+  let tit, body;
+  if (t === 'gasto') {
+    tit = m ? 'Gasto de la caja chica' : 'Anotar gasto';
+    body = `<div class="fld full"><label for="cj-c">¿Qué se pagó? <span class="req">*</span></label><input class="inp" id="cj-c" maxlength="200" value="${val('cj-c', m?.concepto || '')}" placeholder="Ej: 2 resmas de hojas A4"></div>
+      <div class="fld"><label for="cj-m">Monto (Gs.) <span class="req">*</span></label><input class="inp money" id="cj-m" inputmode="numeric" data-in="cj-prev" value="${val('cj-m', m ? fmtN(m.monto) : '')}" placeholder="0"></div>
+      <div class="fld"><label for="cj-cat">Tipo de gasto</label><select class="inp" id="cj-cat"><option value="" ${!(V['cj-cat'] ?? CJ.cat) ? 'selected' : ''} disabled>Elegí…</option>${GASTO_CAT.map(k => `<option value="${k}" ${(V['cj-cat'] ?? CJ.cat) === k ? 'selected' : ''}>${esc(CAJA_CAT[k])}</option>`).join('')}</select></div>
+      ${fecha}${nota('Ej: en la librería de la esquina, con factura')}`;
+  } else if (t === 'ingreso') {
+    tit = m ? 'Entrada a la caja chica' : 'Poner plata en la caja';
+    const sg = cajaSugerencia();
+    body = `<div class="fld full"><div class="chips">${[['cuotas', 'Apartar de las cuotas'], ['aporte', 'Otro ingreso']].map(([k, l]) => `<button class="chip" data-act="cj-cat" data-v="${k}" aria-pressed="${CJ.cat === k}">${l}</button>`).join('')}</div></div>`;
+    if (CJ.cat === 'cuotas') {
+      body += `${m ? '' : `<div class="full tinfo">${sg.ult ? `Desde el último apartado (${esc(cuandoCorto(sg.ult.creado))})` : `En ${MESES[+hoy().slice(5, 7) - 1]}`} pagaron <b>${sg.n} alumno${sg.n === 1 ? '' : 's'}</b> (${sg.np} pago${sg.np === 1 ? '' : 's'} · ${money(sg.tot)}).</div>`}
+        <div class="fld"><label for="cj-n">Alumnos <span class="req">*</span></label><input class="inp" id="cj-n" type="number" min="1" max="5000" inputmode="numeric" data-in="cj-calc" value="${val('cj-n', m?.alumnos || sg.n || '')}"></div>
+        <div class="fld"><label for="cj-pa">Por alumno (Gs.) <span class="req">*</span></label><input class="inp money" id="cj-pa" inputmode="numeric" data-in="cj-calc" value="${val('cj-pa', fmtN(m?.por_alumno || sg.porA))}"><span class="hint"><button class="chip" data-act="cj-pa" data-v="25000">25.000</button> <button class="chip" data-act="cj-pa" data-v="50000">50.000</button></span></div>
+        <div class="fld"><label for="cj-m">Total que se aparta (Gs.) <span class="req">*</span></label><input class="inp money" id="cj-m" inputmode="numeric" data-in="cj-prev" value="${val('cj-m', m ? fmtN(m.monto) : fmtN((m?.alumnos || sg.n) * (m?.por_alumno || sg.porA)))}"></div>
+        ${fecha}${nota('Ej: cuotas de noviembre de CPI 1 y 2')}`;
+    } else {
+      body += `<div class="fld full"><label for="cj-c">¿De dónde viene? <span class="req">*</span></label><input class="inp" id="cj-c" maxlength="200" value="${val('cj-c', m?.categoria === 'aporte' ? m.concepto : '')}" placeholder="Ej: la dirección repuso la caja"></div>
+        <div class="fld"><label for="cj-m">Monto (Gs.) <span class="req">*</span></label><input class="inp money" id="cj-m" inputmode="numeric" data-in="cj-prev" value="${val('cj-m', m ? fmtN(m.monto) : '')}" placeholder="0"></div>${fecha}${nota('')}`;
+    }
+  } else {
+    tit = 'Contar la caja';
+    body = `<p class="full" style="margin:0">Contá los billetes y monedas que hay en la caja chica y poné el total. Si no coincide con la app, queda anotada la diferencia y la caja sigue desde lo que contaste.</p>
+      <div class="fld"><label for="cj-m">¿Cuánto hay en la caja? (Gs.) <span class="req">*</span></label><input class="inp money" id="cj-m" inputmode="numeric" data-in="cj-prev" value="${val('cj-m', '')}" placeholder="0"></div>
+      <div class="fld"><label>Según la app</label><div class="num" style="font-weight:800;font-size:18px;padding:9px 0">${money(cajaSaldo())}</div></div>${nota('Ej: faltan 5.000 de un vuelto')}`;
+  }
+  const hist = m ? `<div class="full tinfo">Anotó <b>${esc(nomP(m.creado_por))}</b> · ${esc(fechaHora(m.creado))}${m.editado ? `<br>Editó <b>${esc(nomP(m.editado_por))}</b> · ${esc(fechaHora(m.editado))}` : ''}</div>` : '';
+  openModal(tit, `<div class="form">${body}<div class="full" id="cj-prev"></div>${hist}<div class="full err" id="cj-err"></div></div>`,
+    `${m && isAdmin() ? `<button class="btn ghost danger" data-act="caja-borrar" data-id="${esc(m.id)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="caja-guardar">${t === 'arqueo' ? 'Guardar conteo' : 'Guardar'}</button>`, 'narrow');
+  cajaPrev();
+}
+function cajaPrev() {
+  const el = $('#cj-prev'); if (!el || !CJ) return; const m = CJ.id ? S.caja[CJ.id] : null; const v = parseMoney($('#cj-m')?.value); const s = cajaSaldo() - (m ? cajaSigno(m) : 0);
+  if (CJ.tipo === 'arqueo') { if (!$('#cj-m').value.trim()) { el.innerHTML = ''; return; } const d = v - cajaSaldo(); el.innerHTML = d === 0 ? `<span class="ok-t"><b>Coincide con la app ✓</b></span>` : `<span class="bad-t"><b>${d < 0 ? 'Faltan' : 'Sobran'} ${money(Math.abs(d))}</b> respecto de lo anotado.</span>`; return; }
+  const q = CJ.tipo === 'gasto' ? s - v : s + v;
+  el.innerHTML = v ? `<small class="${q < 0 ? 'bad-t' : 'muted'}">${q < 0 ? `La caja quedaría en <b>${money(q)}</b>: no alcanza lo apartado. Revisá el monto o apartá plata primero.` : `En la caja quedan <b>${money(q)}</b>.`}</small>` : '';
+}
+function cajaForm() {
+  const err = t => { $('#cj-err').textContent = t; return null; }; $('#cj-err').textContent = '';
+  const t = CJ.tipo, monto = parseMoney($('#cj-m')?.value), detalle = $('#cj-d')?.value.trim() || null, fecha = $('#cj-f')?.value || hoy();
+  if (t === 'arqueo') { if (!$('#cj-m').value.trim()) return err('Poné cuánta plata hay en la caja (aunque sea 0).'); return { tipo: 'arqueo', concepto: 'Conteo de la caja', contado: monto, monto: 0, detalle }; }
+  if (fecha > hoy()) return err('La fecha no puede ser de un día que todavía no llegó.');
+  if (t === 'gasto') {
+    const concepto = $('#cj-c').value.trim(), categoria = $('#cj-cat').value;
+    if (!concepto) return err('Escribí qué se pagó.'); if (!monto) return err('Poné el monto.'); if (!categoria) return err('Elegí el tipo de gasto.');
+    return { tipo: 'gasto', concepto, monto, categoria, fecha, detalle };
+  }
+  if (CJ.cat === 'cuotas') {
+    const n = Math.round(num($('#cj-n').value)), pa = parseMoney($('#cj-pa').value);
+    if (n < 1) return err('Poné de cuántos alumnos se aparta.'); if (!pa) return err('Poné cuánto se aparta por alumno.'); if (!monto) return err('Poné el total.');
+    return { tipo: 'ingreso', categoria: 'cuotas', concepto: `De las cuotas: ${n} alumno${n === 1 ? '' : 's'} × ${money(pa)}`, alumnos: n, por_alumno: pa, monto, fecha, detalle };
+  }
+  const concepto = $('#cj-c').value.trim(); if (!concepto) return err('Escribí de dónde viene la plata.'); if (!monto) return err('Poné el monto.');
+  return { tipo: 'ingreso', categoria: 'aporte', concepto, monto, fecha, detalle, alumnos: null, por_alumno: null };
+}
+function verCaja(m) {
+  const mv = cajaMovs().find(x => x.id === m.id) || m;
+  const f = [['Movimiento', m.tipo === 'arqueo' ? 'Conteo de la caja' : m.tipo === 'gasto' ? 'Gasto' : 'Entrada'], m.tipo !== 'arqueo' ? ['Tipo', CAJA_CAT[m.categoria] || ''] : null,
+    m.tipo !== 'arqueo' ? ['Concepto', m.concepto] : null, m.tipo !== 'arqueo' ? ['Monto', money(m.monto)] : null,
+    m.tipo === 'arqueo' ? ['Contaron', money(m.contado)] : null, m.tipo === 'arqueo' ? ['Según la app', money(m.saldo_antes)] : null,
+    m.tipo === 'arqueo' ? ['Diferencia', m.monto === 0 ? 'Coincide' : (m.monto < 0 ? 'Faltaban ' : 'Sobraban ') + money(Math.abs(m.monto))] : null,
+    ['Fecha', fmtF(m.fecha)], ['Saldo después', money(mv.saldo)], ['Anotó', nomP(m.creado_por) + ' · ' + fechaHora(m.creado)], m.editado ? ['Editó', nomP(m.editado_por) + ' · ' + fechaHora(m.editado)] : null, m.detalle ? ['Nota', m.detalle] : null].filter(Boolean);
+  openModal('Movimiento de la caja chica', `<div class="tw"><table><tbody>${f.map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`).join('')}</tbody></table></div>${m.tipo !== 'arqueo' && !isAdmin() ? `<p class="muted" style="margin:12px 0 0"><small>Solo se puede corregir el mismo día y quien lo anotó. Si hay un error, avisale a la dirección.</small></p>` : ''}`,
+    `${isAdmin() ? `<button class="btn ghost danger" data-act="caja-borrar" data-id="${esc(m.id)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cerrar</button>`, 'narrow');
+}
+function exportCaja() {
+  const u = S.ui; const L = cajaMovs().filter(m => m.fecha.startsWith(u.cajaMes)).sort((a, b) => a.fecha.localeCompare(b.fecha) || new Date(a.creado) - new Date(b.creado));
+  const rows = [['Fecha', 'Movimiento', 'Tipo', 'Concepto', 'Entra (Gs.)', 'Sale (Gs.)', 'Saldo (Gs.)', 'Anotó', 'Cuándo', 'Nota']];
+  L.forEach(m => rows.push([fmtF(m.fecha), m.tipo === 'arqueo' ? 'Conteo' : m.tipo === 'gasto' ? 'Gasto' : 'Entrada', m.tipo === 'arqueo' ? (m.monto === 0 ? 'Coincide' : (m.monto < 0 ? 'Faltaban ' : 'Sobraban ') + fmtN(Math.abs(m.monto))) : CAJA_CAT[m.categoria] || '',
+    m.tipo === 'arqueo' ? 'Contaron ' + fmtN(m.contado) : m.concepto, m.tipo === 'ingreso' || (m.tipo === 'arqueo' && m.monto > 0) ? Math.abs(m.monto) : '', m.tipo === 'gasto' || (m.tipo === 'arqueo' && m.monto < 0) ? Math.abs(m.monto) : '', m.saldo, nomP(m.creado_por), fechaHora(m.creado), m.detalle || '']));
+  guardarArchivo(`Caja chica ${u.cajaMes}.csv`, csv(rows));
+}
+
 /* ---------- registro de actividad (solo dirección) ---------- */
 const ACT_MAX = 1000;
 const ACT_TIPOS = { cobros: ['Cobros', ['pagos']], alumnos: ['Alumnos', ['alumnos']], listas: ['Listas', ['asistencia']], notas: ['Notas y exámenes', ['notas', 'examenes']],
   grupos: ['Grupos', ['grupos']], inscripciones: ['Links de inscripción', ['links_inscripcion']], oficina: ['Turnos de oficina', ['oficina_turnos', 'oficina_disp', 'oficina_montos']],
-  tareas: ['Tareas', ['tareas']], profes: ['Profes (cambios, disponibilidad, plantel)', ['cambios', 'disponibilidad', 'profesores']], equipo: ['Cuentas y roles', ['perfiles']], ajustes: ['Ajustes', ['config']] };
+  tareas: ['Tareas', ['tareas']], horas: ['Entradas y salidas', ['marcaciones']], caja: ['Caja chica', ['caja_movs']], profes: ['Profes (cambios, disponibilidad, plantel)', ['cambios', 'disponibilidad', 'profesores']], equipo: ['Cuentas y roles', ['perfiles']], ajustes: ['Ajustes', ['config']] };
 const ACT_LBL = { nombre: 'Nombre', apellido: 'Apellido', ci: 'Cédula', fecha_nac: 'Fecha de nacimiento', tel: 'Teléfono', ciudad: 'Ciudad', colegio: 'Colegio', encargado: 'Encargado',
   encargado_tel: 'Tel. del encargado', programa: 'Curso', ficha: 'Ficha', ficha_completa: 'Ficha completa', grupo_id: 'Grupo', estado: 'Estado', descuento: 'Descuento %',
   cuota_especial: 'Cuota especial', mat_exonerada: 'Matrícula exonerada', obs: 'Observaciones', email: 'Correo', user_id: 'Persona', link_id: 'Link de inscripción', alumno_id: 'Alumno',
   item: 'Ítem', concepto: 'Concepto', monto: 'Monto', fecha: 'Fecha', metodo: 'Forma de pago', horario: 'Horario', inicio: 'Inicio', fin: 'Fin', activo: 'Activo', plan: 'Plan de pagos',
   dias: 'Días', prioridad: 'Prioridad', orden: 'Orden', descripcion: 'Descripción', materia: 'Materia', maximo: 'Puntaje máximo', codigo: 'Código', titulo: 'Título', turno: 'Turno',
   motivo: 'Motivo', marcado_en: 'Marcado', detalle: 'Detalle', categoria: 'Tipo', urgente: 'Urgente', vence: 'Para cuándo', para: 'Para', hecha: 'Hecha', nota_cierre: 'Nota',
-  rol: 'Rol', profesor_id: 'Profe', profe_antes: 'Profe antes', monto_turno: 'Pago por turno', valor: 'Ajustes', enviado: 'Enviada', semana_id: 'Semana', tema: 'Tema', nota: 'Nota', marca: 'Marca' };
+  rol: 'Rol', profesor_id: 'Profe', profe_antes: 'Profe antes', monto_turno: 'Pago por turno', valor: 'Ajustes', enviado: 'Enviada', semana_id: 'Semana', tema: 'Tema', nota: 'Nota', marca: 'Marca',
+  entrada: 'Entrada', salida: 'Salida', tipo: 'Movimiento', alumnos: 'Alumnos', por_alumno: 'Por alumno', contado: 'Contado', saldo_antes: 'Según la app' };
 const actRango = () => { const u = S.ui, d = u.actDia || hoy(); if (u.actRango === '7d') return [addDays(d, -6), d]; if (u.actRango === 'mes') { const m0 = d.slice(0, 7) + '-01'; return [m0, addDays(addMonths(m0, 1), -1)]; } return [d, d]; };
 const actClave = () => [S.ui.actDia || hoy(), S.ui.actRango || 'dia', S.ui.actQuien || ''].join('|');
 const actCampo = k => { const [a, b] = String(k).split('.'); if (b === undefined) return ACT_LBL[a] || a; if (a === 'valor') return 'Ajustes · ' + b; return (ACT_LBL[a] || a) + ' · ' + b; };
@@ -1358,7 +1647,7 @@ function actVal(k, v, agrup) {
   if (v === null || v === undefined || v === '') return '<span class="muted">—</span>';
   if (agrup && typeof v === 'string' && /^[PATJ]$/.test(v)) return esc({ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[v]);
   if (typeof v === 'boolean') return v ? 'Sí' : 'No';
-  if (typeof v === 'number' && /monto|cuota_especial/.test(k)) return esc(money(v));
+  if (typeof v === 'number' && /monto|cuota_especial|contado|saldo_antes|por_alumno/.test(k)) return esc(money(v));
   if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return esc(fmtF(v));
   if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return esc(fechaHora(v));
   if (typeof v === 'object') { const j = JSON.stringify(v); return `<code class="aj">${esc(j.length > 160 ? j.slice(0, 160) + '…' : j)}</code>`; }
@@ -1498,8 +1787,8 @@ VIEWS.inicio = () => {
   if (isStaff()) {
     const pend = pendientes();
     if (isOficina()) h += cardPush() + cardTurnoHoy();
-    h += cardTareas();
-    if (isAdmin()) h += bannerActividad();
+    if (isAdmin()) h += bannerActividad() + cardHorasHoy();
+    h += cardTareas() + cardCaja();
     const op = oPend().length;
     if (isAdmin() && op) h += `<div class="banner click" data-act="nav" data-v="oficina"><span><b>${op} turno${op === 1 ? '' : 's'} de oficina</b> pedido${op === 1 ? '' : 's'} esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
     const csf = isAdmin() && S.loaded.prof && S.loaded.perfiles ? cuentasSinFila().length : 0;
@@ -1521,7 +1810,7 @@ VIEWS.inicio = () => {
       <div class="card"><div class="card-h"><h2>Cuotas vencidas</h2>${deud.length ? `<button class="btn sm ghost" data-act="nav" data-v="cobros">Ver todas</button>` : ''}</div>
       <div class="rows">${deud.length ? deud.slice(0, 6).map(x => rowDeuda(x.a, x.c)).join('') : `<div class="empty"><b>Nadie con cuotas vencidas</b>Todo al día por ahora.</div>`}</div></div></div>`;
   } else {
-    h += cardPush();
+    h += cardPush() + cardHoraHoy();
     h += `<div class="grid2">${cardListasHoy()}${cardExamenesRecientes()}</div>`;
     h += cardEvalHoy();
   }
@@ -2251,24 +2540,25 @@ function vHorEval() {
 
 /* ---------- turnos de la oficina ---------- */
 function cardTurnoHoy() {
-  if (!S.loaded.ofi) return '';
-  const me = S.session.user.id, t = hoy(); const mios = oTurnosDe(t).filter(x => x.user_id === me && x.estado !== 'rechazado').sort((a, b) => OTURNOS.indexOf(a.turno) - OTURNOS.indexOf(b.turno));
-  return `<div class="card"><div class="card-h"><h2>Tu turno de hoy</h2><small>${fmtF(t)}</small></div><div class="rows">${mios.map(x => `<div class="row"><div class="t">${esc(x.turno)}<small>${x.estado === 'pendiente' ? 'Lo pediste vos · falta que la dirección lo apruebe' : 'Te toca según el horario de la oficina'}</small></div><div class="r">${x.marcado_en ? pill('✓ Marcado ' + horaDe(x.marcado_en), 'ok') : `<button class="btn sm primary" data-act="oturno-marcar" data-id="${esc(x.id)}">${ic('check')}Marcar turno</button>`}</div></div>`).join('') || `<div class="empty">Hoy no tenés turno en el horario.</div>`}</div>
-    <div class="card-b" style="padding-top:0"><button class="btn sm ghost" data-act="oturno-nuevo" data-f="${t}">${ic('plus')}Trabajé un turno que no estaba en mi horario</button></div></div>`;
+  if (!S.loaded.ofi || !S.loaded.marcas) return '';
+  const L = aMarcar(S.session.user.id, hoy(), hoy());
+  return `<div class="card"><div class="card-h"><div><h2>Tu turno de hoy</h2><small>${fmtF(hoy())} · marcá tu entrada al llegar y tu salida al irte</small></div></div><div class="rows">${L.map(rowMiHora).join('') || `<div class="empty">Hoy no tenés turno en el horario.</div>`}</div>
+    <div class="card-b" style="padding-top:0"><button class="btn sm ghost" data-act="oturno-nuevo" data-f="${hoy()}">${ic('plus')}Trabajé un turno que no estaba en mi horario</button></div></div>`;
 }
 VIEWS['mis-turnos'] = () => {
   if (!ready('ofi', 'perfiles')) return loadingView();
   const me = S.session.user.id, l = lunesDe(hoy());
-  let h = ph('Mis turnos', 'Marcá tu turno cada día que trabajás', `<button class="btn" data-act="oturno-nuevo">${ic('plus')}Pedir turno</button>`);
+  let h = ph('Mis turnos', 'Marcá tu entrada y tu salida cada día que trabajás', `<button class="btn" data-act="oturno-nuevo">${ic('plus')}Pedir turno</button>`);
   h += cardTurnoHoy();
   const mios = Object.values(S.oTurnos).filter(x => x.user_id === me && x.fecha >= l && x.fecha <= addDays(l, 13)).sort((a, b) => a.fecha.localeCompare(b.fecha) || OTURNOS.indexOf(a.turno) - OTURNOS.indexOf(b.turno));
-  h += `<div class="card"><div class="card-h"><h2>Tus turnos</h2><small>Esta semana y la que viene</small></div><div class="rows">${mios.map(x => `<div class="row"><div class="t">${x.fecha === hoy() ? '<b>Hoy</b>' : dkDe(x.fecha) + ' ' + dm(x.fecha)} · ${esc(x.turno)}${x.motivo ? `<small>${esc(x.motivo)}</small>` : ''}</div><div class="r">${x.estado === 'pendiente' ? pill('Falta aprobar', 'pend') : x.estado === 'rechazado' ? pill('Rechazado', 'bad') : ''}${x.marcado_en ? pill('✓ ' + horaDe(x.marcado_en), 'ok') : x.fecha < hoy() && x.estado !== 'rechazado' ? pill('Sin marcar', 'bad') : ''}</div></div>`).join('') || '<div class="empty">La dirección todavía no te armó turnos para estas dos semanas.</div>'}</div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Tus turnos</h2><small>Esta semana y la que viene</small></div><div class="rows">${mios.map(x => `<div class="row"><div class="t">${x.fecha === hoy() ? '<b>Hoy</b>' : dkDe(x.fecha) + ' ' + dm(x.fecha)} · ${esc(x.turno)}${x.motivo ? `<small>${esc(x.motivo)}</small>` : ''}</div><div class="r">${x.estado === 'pendiente' ? pill('Falta aprobar', 'pend') : x.estado === 'rechazado' ? pill('Rechazado', 'bad') : ''}${x.estado !== 'rechazado' && x.fecha <= hoy() ? pillOT(x) : ''}</div></div>`).join('') || '<div class="empty">La dirección todavía no te armó turnos para estas dos semanas.</div>'}</div></div>`;
+  h += cardMisHoras();
   h += cardMiDispOfi();
   const sem = Object.values(S.oTurnos).filter(x => x.fecha >= l && x.fecha <= addDays(l, 6) && x.estado !== 'rechazado');
   if (sem.length) h += `<div class="card"><div class="card-h"><h2>Quién está en la oficina esta semana</h2></div><div class="rows">${DK.map(k => { const f = fDia(l, k); const xs = sem.filter(x => x.fecha === f); if (!xs.length) return ''; return `<div class="row"><div class="t">${dkDe(f)} ${dm(f)}<small>${OTURNOS.filter(t => xs.some(x => x.turno === t)).map(t => `${t}: ${xs.filter(x => x.turno === t).map(x => esc(primerP(x.user_id))).join(', ')}`).join(' · ')}</small></div></div>`; }).join('')}</div></div>`;
   const mes = hoy().slice(0, 7); const dados = Object.values(S.oTurnos).filter(x => x.user_id === me && x.fecha.startsWith(mes) && x.marcado_en);
   const n = dados.filter(oCuenta).length, np = dados.filter(x => x.estado === 'pendiente').length;
-  h += `<div class="card"><div class="card-h"><h2>Turnos marcados en ${MESES[+mes.slice(5) - 1]}</h2>${pill(n + ' turno' + (n === 1 ? '' : 's'), 'acc')}</div><div class="card-b"><small class="muted">${np ? `${np} turno${np === 1 ? '' : 's'} más esperan la aprobación de la dirección. ` : ''}Solo cuentan los turnos que marcaste el mismo día.</small></div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Turnos marcados en ${MESES[+mes.slice(5) - 1]}</h2>${pill(n + ' turno' + (n === 1 ? '' : 's'), 'acc')}</div><div class="card-b"><small class="muted">${np ? `${np} turno${np === 1 ? '' : 's'} más esperan la aprobación de la dirección. ` : ''}Cuentan los turnos con la entrada marcada. Si te olvidaste, cargala en “Tus entradas y salidas”: la dirección lo ve.</small></div></div>`;
   return h;
 };
 function cardMiDispOfi() {
@@ -2287,7 +2577,7 @@ function cardMiDispOfi() {
 let OT = null;
 function openPedirTurno(f) {
   OT = { f: f || hoy() };
-  openModal('Pedir turno', `<p class="muted" style="margin:0 0 12px">Para un turno que no está en tu horario (cubrir a alguien, un día con mucho movimiento). Si es hoy, queda marcado al toque. Cuenta para el pago cuando la dirección lo aprueba.</p><div class="form">
+  openModal('Pedir turno', `<p class="muted" style="margin:0 0 12px">Para un turno que no está en tu horario (cubrir a alguien, un día con mucho movimiento). Después marcá tu entrada y tu salida (o cargá las horas si ya pasaron). Cuenta para el pago cuando la dirección lo aprueba.</p><div class="form">
     <div class="fld"><label for="ot-f">Día</label><input type="date" class="inp" id="ot-f" value="${esc(OT.f)}" min="${hoy()}" max="${addDays(hoy(), 21)}"></div>
     <div class="fld"><label for="ot-t">Turno</label><select class="inp" id="ot-t">${OTURNOS.map(t => `<option>${t}</option>`).join('')}</select></div>
     <div class="fld full"><label for="ot-m">Motivo</label><input class="inp" id="ot-m" maxlength="300" placeholder="Ej: cubrí a Ana, que estaba enferma"></div>
@@ -2318,7 +2608,7 @@ function vOfiSemana() {
   const pend = oPend();
   if (pend.length) h += `<div class="card"><div class="card-h"><h2>Turnos pedidos para aprobar</h2>${pill(pend.length, 'pend')}</div><div class="rows">${pend.map(filaOPend).join('')}</div></div>`;
   const hoyT = oTurnosDe(t).filter(x => x.estado !== 'rechazado');
-  if (hoyT.length) h += `<div class="card"><div class="card-h"><h2>Hoy en la oficina</h2><small>${fmtF(t)}</small></div><div class="rows">${OTURNOS.flatMap(tt => hoyT.filter(x => x.turno === tt)).map(x => `<div class="row"><div class="t">${esc(x.turno)} · ${esc(nomP(x.user_id))}</div><div class="r">${x.estado === 'pendiente' ? pill('Pedido', 'pend') : ''}${x.marcado_en ? pill('✓ Marcó ' + horaDe(x.marcado_en), 'ok') : pill('Sin marcar', '')}</div></div>`).join('')}</div></div>`;
+  if (hoyT.length) h += `<div class="card"><div class="card-h"><h2>Hoy en la oficina</h2><small>${fmtF(t)}</small></div><div class="rows">${OTURNOS.flatMap(tt => hoyT.filter(x => x.turno === tt)).map(x => `<div class="row"><div class="t">${esc(x.turno)} · ${esc(nomP(x.user_id))}</div><div class="r">${x.estado === 'pendiente' ? pill('Pedido', 'pend') : ''}${pillOT(x) || pill('Sin marcar', '')}</div></div>`).join('')}</div></div>`;
   const vacios = DK.reduce((n, k) => n + ofiAbre(k).filter(tt => !oTurnosDe(fDia(l, k), tt).some(x => x.estado !== 'rechazado')).length, 0);
   h += `<div class="card"><div class="card-h"><div><h2>Turnos de la semana</h2><small>Tocá un nombre para asignarle o sacarle el turno. En verde, los que dijeron que pueden.</small></div><div class="actions"><button class="btn sm" data-act="oturno-auto" ${vacios ? '' : 'disabled'}>Completar con disponibles</button><button class="btn sm wa" data-act="oturno-msg">${ic('wa')}Mensaje para el grupo</button><button class="btn sm" data-act="ofi-png">${ic('download')}Imagen para el grupo</button><button class="btn sm" data-act="ofi-avisar">${ic('bell')}Avisar al celular</button></div></div>`;
   h += DK.map(k => {
@@ -2362,7 +2652,7 @@ function vOfiPago() {
   h += `<div class="kpis">${kpi('Total a pagar', money(sum(filas.map(f => f.tot))), cap(MESES[+mes.slice(5) - 1]) + ' ' + mes.slice(0, 4))}${kpi('Turnos trabajados', fmtN(sum(filas.map(f => f.n))), filas.length + ' persona' + (filas.length === 1 ? '' : 's'))}${kpi('Sin aprobar', sum(filas.map(f => f.pend)), 'turnos pedidos y marcados', sum(filas.map(f => f.pend)) ? 'bad' : '')}${kpi('Sin marcar', sum(filas.map(f => f.sin)), 'turnos asignados que ya pasaron', sum(filas.map(f => f.sin)) ? 'bad' : '')}</div>`;
   h += `<div class="card"><div class="tw"><table><thead><tr><th>Persona</th><th class="n">Turnos</th><th class="n">Sin marcar</th><th class="n">Por turno (Gs.)</th><th class="n">Total</th></tr></thead><tbody>${filas.map(f => `<tr><td><b>${esc(nomP(f.p.id))}</b>${f.pend ? `<br><small class="bad-t">${f.pend} sin aprobar</small>` : ''}</td><td class="n num">${f.n}</td><td class="n">${f.sin || '—'}</td><td class="n"><input class="inp money" style="width:120px;text-align:right" inputmode="numeric" data-ch="omonto" data-u="${esc(f.p.id)}" value="${f.m ? fmtN(f.m) : ''}" placeholder="0" aria-label="Pago por turno de ${esc(nomP(f.p.id))}"></td><td class="n num"><b>${money(f.tot)}</b></td></tr>`).join('')}</tbody></table></div><div class="card-b"><small class="muted">El pago por turno solo lo ves vos.</small></div></div>`;
   const det = xs.filter(x => x.marcado_en || (x.estado === 'asignado' && x.fecha < hoy())).sort((a, b) => a.fecha.localeCompare(b.fecha) || OTURNOS.indexOf(a.turno) - OTURNOS.indexOf(b.turno));
-  if (det.length) h += `<div class="card"><div class="card-h"><h2>Detalle del mes</h2></div><div class="rows">${det.map(x => `<div class="row"><div class="t">${dkDe(x.fecha)} ${dm(x.fecha)} · ${esc(x.turno)} · ${esc(nomP(x.user_id))}${x.motivo ? `<small>${esc(x.motivo)}</small>` : ''}</div><div class="r">${x.estado === 'pendiente' ? pill('Falta aprobar', 'pend') : x.estado === 'rechazado' ? pill('Rechazado', 'bad') : ''}${x.marcado_en ? pill('✓ ' + horaDe(x.marcado_en), 'ok') : pill('Sin marcar', 'bad')}</div></div>`).join('')}</div></div>`;
+  if (det.length) h += `<div class="card"><div class="card-h"><h2>Detalle del mes</h2></div><div class="rows">${det.map(x => `<div class="row"><div class="t">${dkDe(x.fecha)} ${dm(x.fecha)} · ${esc(x.turno)} · ${esc(nomP(x.user_id))}${x.motivo ? `<small>${esc(x.motivo)}</small>` : ''}</div><div class="r">${x.estado === 'pendiente' ? pill('Falta aprobar', 'pend') : x.estado === 'rechazado' ? pill('Rechazado', 'bad') : ''}${pillOT(x) || pill('Sin marcar', 'bad')}</div></div>`).join('')}</div></div>`;
   return h;
 }
 const OT_COL = { 'Mañana': { bg: '#FFF1D6', fg: '#8A5300' }, 'Tarde': { bg: '#FFE2CC', fg: '#A33B00' }, 'Noche': { bg: '#E3E8FF', fg: '#3236A8' } };
@@ -2398,7 +2688,7 @@ async function oficinaPNG() {
     ns.forEach((n, j) => { let tx = n; while (ctx.measureText(tx).width > cellW - 16 && tx.length > 1) tx = tx.slice(0, -2) + '…'; ctx.fillText(tx, x + cellW / 2, yy + 44 + j * 18); });
   }));
   y += filas.length * cellH + (filas.length - 1) * gap + 18;
-  ctx.textAlign = 'left'; ctx.fillStyle = '#68625A'; ctx.font = '12px Figtree, sans-serif'; ctx.fillText('Acordate de marcar tu turno en la app cada día que trabajás.', padX, y); y += 22;
+  ctx.textAlign = 'left'; ctx.fillStyle = '#68625A'; ctx.font = '12px Figtree, sans-serif'; ctx.fillText('Marcá tu entrada y tu salida en la app cada día que trabajás.', padX, y); y += 22;
   ctx.fillStyle = '#b8b2a8'; ctx.font = '11px Figtree, sans-serif'; ctx.fillText((S.cfg.nombre || 'Cursillo VIBE') + (S.cfg.tel ? ' · ' + S.cfg.tel : ''), padX, y);
   return await new Promise(res => cv.toBlob(res, 'image/png'));
 }
@@ -2406,7 +2696,7 @@ function ofiMensaje() {
   const l = S.oSem.lunes; const lines = [`*Turnos de oficina* · semana del ${rangoSem(l)}`, ''];
   DK.forEach(k => { const f = fDia(l, k); const ts = OTURNOS.map(tt => [tt, oTurnosDe(f, tt).filter(x => x.estado !== 'rechazado')]).filter(([, xs]) => xs.length);
     if (ts.length) lines.push(`*${DK_FULL[DK.indexOf(k)]} ${dm(f)}*: ` + ts.map(([tt, xs]) => `${tt}: ${xs.map(x => primerP(x.user_id)).join(', ')}`).join(' · ')); });
-  lines.push('', 'Acordate de marcar tu turno en la app cada día que trabajás.');
+  lines.push('', 'Marcá tu entrada y tu salida en la app cada día que trabajás.');
   return lines.join('\n');
 }
 
@@ -2516,7 +2806,7 @@ function vHorPago() {
   const { filas, sinLista, sinAprobar } = pagoDelMes(mes);
   h += `<div class="kpis">${kpi('Total a pagar', money(sum(filas.map(f => f.tot))), cap(MESES[+mes.slice(5) - 1]) + ' ' + mes.slice(0, 4))}${kpi('Clases dadas', fmtN(sum(filas.map(f => f.n))), filas.length + ' profe' + (filas.length === 1 ? '' : 's'))}${kpi('Sin aprobar', sinAprobar.length, 'cambios que todavía no aprobaste', sinAprobar.length ? 'bad' : '')}${kpi('Clases sin lista', sinLista.length, 'ya pasaron y nadie llamó lista', sinLista.length ? 'bad' : '')}</div>`;
   if (sinAprobar.length) h += `<div class="card"><div class="card-h"><h2>Clases dadas con cambio sin aprobar</h2><button class="btn sm" data-act="hortab" data-v="cambios">Ir a Cambios</button></div><div class="rows">${sinAprobar.map(c => { const x = cambioDe(c); return `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>La dio ${esc(profN(c.dictada_por))}${c.profesor_id ? ' · le tocaba a ' + esc(primerN(c.profesor_id)) : ' · sin profe en el horario'}</small></div><div class="r">${x ? pill(ESTADO_CAMBIO[x.estado][0], ESTADO_CAMBIO[x.estado][1]) : ''}${x?.estado === 'pendiente' ? `<button class="btn sm primary" data-act="cambio-resolver" data-id="${esc(x.id)}" data-v="1">Aprobar</button>` : ''}</div></div>`; }).join('')}</div><div class="card-b"><small class="muted">No suman al total hasta que las apruebes.</small></div></div>`;
-  h += `<div class="card"><div class="card-h"><h2>Por profe</h2><button class="btn sm" data-act="pago-exp">${ic('download')}Exportar detalle</button></div><div class="tw"><table><thead><tr><th>Profe</th><th class="n">Clases</th><th class="n">Exámenes</th><th class="n">Por clase</th><th class="n">Total</th></tr></thead><tbody>${filas.map(f => `<tr class="click" data-act="pago-ver" data-id="${esc(f.pid)}"><td><b>${esc(profN(f.pid))}</b></td><td class="n num">${f.n}</td><td class="n">${f.ex || '—'}</td><td class="n">${f.m ? money(f.m) : '<span class="bad-t">sin cargar</span>'}</td><td class="n num"><b>${money(f.tot)}</b></td></tr>${S.ui.pagoVer === f.pid ? `<tr><td colspan="5" style="padding:0 0 10px"><div class="rows">${f.l.map(c => `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>Lista a las ${horaDe(c.dictada_en) || '—'}${cambioDe(c)?.estado === 'aprobado' && cambioDe(c).profe_antes ? ' · reemplazo de ' + esc(primerN(cambioDe(c).profe_antes)) : ''}${!c.materia ? ' · fuera del horario' : ''}${c.materia === 'examen' ? ' · examen, no suma' : ''}${c.obs ? ' · ' + esc(c.obs) : ''}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></td></tr>` : ''}`).join('') || '<tr><td colspan="5" class="muted">Ningún profe llamó lista en este mes.</td></tr>'}</tbody></table></div><div class="card-b"><small class="muted">Tocá un profe para ver sus clases. Los exámenes que cuidó se ven, pero no suman al pago.</small></div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Por profe</h2><button class="btn sm" data-act="pago-exp">${ic('download')}Exportar detalle</button></div><div class="tw"><table><thead><tr><th>Profe</th><th class="n">Clases</th><th class="n">Exámenes</th><th class="n">Por clase</th><th class="n">Total</th></tr></thead><tbody>${filas.map(f => `<tr class="click" data-act="pago-ver" data-id="${esc(f.pid)}"><td><b>${esc(profN(f.pid))}</b></td><td class="n num">${f.n}</td><td class="n">${f.ex || '—'}</td><td class="n">${f.m ? money(f.m) : '<span class="bad-t">sin cargar</span>'}</td><td class="n num"><b>${money(f.tot)}</b></td></tr>${S.ui.pagoVer === f.pid ? `<tr><td colspan="5" style="padding:0 0 10px"><div class="rows">${f.l.map(c => `<div class="row"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>Lista a las ${horaDe(c.dictada_en) || '—'}${horasDeClase(c) ? ' · ' + horasDeClase(c) : ''}${cambioDe(c)?.estado === 'aprobado' && cambioDe(c).profe_antes ? ' · reemplazo de ' + esc(primerN(cambioDe(c).profe_antes)) : ''}${!c.materia ? ' · fuera del horario' : ''}${c.materia === 'examen' ? ' · examen, no suma' : ''}${c.obs ? ' · ' + esc(c.obs) : ''}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></td></tr>` : ''}`).join('') || '<tr><td colspan="5" class="muted">Ningún profe llamó lista en este mes.</td></tr>'}</tbody></table></div><div class="card-b"><small class="muted">Tocá un profe para ver sus clases. Los exámenes que cuidó se ven, pero no suman al pago.</small></div></div>`;
   if (sinLista.length) h += `<div class="card"><div class="card-h"><h2>Clases sin lista</h2><small>Si el profe vino y firmó en papel, tocá la clase y marcá quién la dio</small></div><div class="rows">${sinLista.map(c => `<div class="row click" data-act="clase-editar" data-id="${esc(c.id)}"><div class="t">${dkDe(c.fecha)} ${dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${esc(matL(c.materia))}${c.profesor_id ? ' · le tocaba a ' + esc(profN(c.profesor_id)) : ' · sin cobertura'}</small></div><div class="r">${pill('Sin lista', 'bad')}</div></div>`).join('')}</div></div>`;
   return h;
 }
@@ -2533,6 +2823,7 @@ function vHorProfe() {
     .map(x => ({ ...(claseDe(x.grupo_id, x.fecha, x.turno) || {}), grupo_id: x.grupo_id, fecha: x.fecha, turno: x.turno, _pedido: x }));
   const todas = [...mias, ...pc].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
   h += `<div class="card"><div class="card-h"><h2>Tus clases</h2><small>Esta semana y la que viene</small></div><div class="rows">${todas.map(rowClaseProfe).join('') || '<div class="empty">No tenés clases publicadas en estas dos semanas.</div>'}</div></div>`;
+  h += cardMisHoras();
   const mp = Object.values(S.cambios || {}).filter(x => x.profesor_id === me).sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 12);
   if (mp.length) h += `<div class="card"><div class="card-h"><h2>Tus pedidos de cambio</h2></div><div class="rows">${mp.map(x => `<div class="row"><div class="t">${dkDe(x.fecha)} ${dm(x.fecha)} · ${esc(x.turno)} · ${esc(gName(x.grupo_id) || 'Grupo')}<small>${x.motivo ? esc(x.motivo) : 'Sin motivo'}${x.profe_antes ? ' · le tocaba a ' + esc(primerN(x.profe_antes)) : ''}</small></div><div class="r">${pill(...ESTADO_CAMBIO[x.estado])}</div></div>`).join('')}</div></div>`;
   h += cardMiDisp();
@@ -3177,6 +3468,40 @@ const A = {
   'oturno-marcar': async el => { el.classList.add('disabled');
     if (await run(S.sb.rpc('marcar_turno', { tid: el.dataset.id }), 'Turno marcado')) await load(['ofi']); else el.classList.remove('disabled'); },
   'oturno-nuevo': el => openPedirTurno(el.dataset.f),
+  'hora-marcar': async el => { el.classList.add('disabled'); const k = el.dataset.k;
+    const r = await run(S.sb.rpc('marcar_hora', { t: el.dataset.t, tipo: k }));
+    if (r) { toast((k === 'entrada' ? 'Entrada marcada: ' : 'Salida marcada: ') + horaDe(r)); await load(isOficina() ? ['marcas', 'ofi'] : ['marcas']); } else el.classList.remove('disabled'); },
+  'hora-corregir': el => openHora(el.dataset.u, el.dataset.f, el.dataset.t),
+  'hora-guardar': async el => {
+    const e = $('#hf-e').value, s2 = $('#hf-s').value, mot = $('#hf-m').value.trim(); const err = $('#hf-err'); err.textContent = '';
+    if (!e) { err.textContent = 'Poné la hora de entrada.'; return; }
+    if (s2 && s2 <= e) { err.textContent = 'La salida tiene que ser después de la entrada.'; return; }
+    if (!isAdmin() && !mot) { err.textContent = 'Contá brevemente por qué (ej: me olvidé de marcar al llegar).'; $('#hf-m').focus(); return; }
+    el.classList.add('disabled');
+    const { error } = await S.sb.rpc('corregir_hora', { f: HF.f, t: HF.t, e, s: s2 || null, motivo: mot || null, uid: HF.otro ? HF.uid : null });
+    if (error) { err.textContent = errText(error); el.classList.remove('disabled'); return; }
+    closeModal(); toast('Horas guardadas'); await load(rolDe(HF.uid) === 'oficina' ? ['marcas', 'ofi'] : ['marcas']);
+  },
+  'hora-borrar': el => { const id = el.dataset.id; confirmDlg('¿Borrar la entrada y la salida de ese día? Si es de la oficina, el turno deja de contar como trabajado.', 'Borrar', async () => { if (await run(S.sb.rpc('borrar_marcacion', { mid: id }), 'Horas borradas')) { closeModal(); await load(['marcas', 'ofi']); } }); },
+  hquien: el => { S.ui.hQuien = el.dataset.v; render(); window.scrollTo(0, 0); },
+  hprob: () => { S.ui.hProb = !S.ui.hProb; render(); },
+  'horas-exp': () => exportHoras(),
+  'caja-gasto': () => openCaja('gasto'),
+  'caja-ingreso': () => openCaja('ingreso'),
+  'caja-contar': () => openCaja('arqueo'),
+  'caja-ver': el => openCaja(null, el.dataset.id),
+  'cj-cat': el => { cajaLeer(); CJ.cat = el.dataset.v; renderCajaForm(); },
+  'cj-pa': el => { const i = $('#cj-pa'); if (i) { i.value = fmtN(+el.dataset.v); cajaCalc(); } },
+  cajatipo: el => { S.ui.cajaTipo = el.dataset.v; render(); },
+  'caja-exp': () => exportCaja(),
+  'caja-guardar': async el => {
+    const d = cajaForm(); if (!d) return; el.classList.add('disabled');
+    const { data, error } = await (CJ.id ? S.sb.from('caja_movs').update(d).eq('id', CJ.id).select() : S.sb.from('caja_movs').insert(d).select());
+    if (error || !data || !data.length) { $('#cj-err').textContent = error ? errText(error) : 'No se pudo guardar: solo se corrige el mismo día y quien lo anotó.'; el.classList.remove('disabled'); return; }
+    closeModal(); toast(d.tipo === 'arqueo' ? (data[0].monto === 0 ? 'Conteo guardado: coincide ✓' : 'Conteo guardado: ' + (data[0].monto < 0 ? 'faltan ' : 'sobran ') + money(Math.abs(data[0].monto))) : CJ.id ? 'Cambios guardados' : d.tipo === 'gasto' ? 'Gasto anotado' : 'Entrada anotada');
+    await load(['caja']);
+  },
+  'caja-borrar': el => { const id = el.dataset.id; confirmDlg('¿Borrar este movimiento de la caja chica? El saldo se recalcula y queda anotado en Actividad.', 'Borrar', async () => { if (await run(S.sb.from('caja_movs').delete().eq('id', id), 'Movimiento borrado')) { closeModal(); await load(['caja']); } }); },
   'tarea-nueva': () => openTarea(),
   'tarea-ver': el => openTarea(el.dataset.id),
   'tarea-check': el => { el.disabled = true; tareaHecha(el.dataset.id); },
@@ -3200,8 +3525,7 @@ const A = {
     const f = $('#ot-f').value || hoy(), t = $('#ot-t').value, motivo = $('#ot-m').value.trim(); el.classList.add('disabled'); $('#ot-err').textContent = '';
     const { data: id, error } = await S.sb.rpc('pedir_turno', { f, t, motivo });
     if (error) { $('#ot-err').textContent = errText(error); el.classList.remove('disabled'); return; }
-    if (f === hoy()) { const { error: e2 } = await S.sb.rpc('marcar_turno', { tid: id }); if (e2) toast(errText(e2), 'error'); }
-    closeModal(); toast(f === hoy() ? 'Turno pedido y marcado. Falta que la dirección lo apruebe.' : 'Turno pedido a la dirección.'); await load(['ofi']);
+    closeModal(); toast(f === hoy() ? 'Turno pedido. Ahora marcá tu entrada (o cargá la hora si ya llegaste antes).' : 'Turno pedido a la dirección.'); await load(['ofi']);
   },
   'disp-editar': el => openDispEditar(el.dataset.tipo, el.dataset.id),
   'de-x': el => { const D = DE.dias, k = el.dataset.d, t = el.dataset.t; D[k] = D[k] || {}; D[k][t] = !D[k][t]; if (!D[k][t]) delete D[k][t]; el.setAttribute('aria-pressed', !!D[k][t]); },
@@ -3366,9 +3690,9 @@ const A = {
   'prof-invitar': async el => { el.classList.add('disabled'); if (await invitarProfe(el.dataset.id)) { closeModal(); await load(['prof']); } else el.classList.remove('disabled'); },
   'pago-ver': el => { S.ui.pagoVer = S.ui.pagoVer === el.dataset.id ? '' : el.dataset.id; render(); },
   'pago-exp': () => { const mes = S.ui.pagoMes; const { filas, sinLista } = pagoDelMes(mes);
-    const rows = [['Fecha', 'Día', 'Turno', 'Grupo', 'Materia', 'Tema', 'Dio la clase', 'Le tocaba a', 'Hora de lista', 'Cuenta para el pago', 'Pago por clase', 'Observación']];
-    filas.forEach(f => f.l.forEach(c => rows.push([fmtF(c.fecha), DK_FULL[DK.indexOf(dkDe(c.fecha))], c.turno, gName(c.grupo_id), matL(c.materia) || 'fuera del horario', c.tema || '', profN(c.dictada_por), c.profesor_id ? profN(c.profesor_id) : '', horaDe(c.dictada_en), c.materia === 'examen' ? 'No (examen)' : 'Sí', f.m, c.obs || ''])));
-    sinLista.forEach(c => rows.push([fmtF(c.fecha), DK_FULL[DK.indexOf(dkDe(c.fecha))], c.turno, gName(c.grupo_id), matL(c.materia), c.tema || '', 'SIN LISTA', c.profesor_id ? profN(c.profesor_id) : '', '', 'No', '', c.obs || '']));
+    const rows = [['Fecha', 'Día', 'Turno', 'Grupo', 'Materia', 'Tema', 'Dio la clase', 'Le tocaba a', 'Hora de lista', 'Entrada', 'Salida', 'Cuenta para el pago', 'Pago por clase', 'Observación']];
+    filas.forEach(f => f.l.forEach(c => rows.push([fmtF(c.fecha), DK_FULL[DK.indexOf(dkDe(c.fecha))], c.turno, gName(c.grupo_id), matL(c.materia) || 'fuera del horario', c.tema || '', profN(c.dictada_por), c.profesor_id ? profN(c.profesor_id) : '', horaDe(c.dictada_en), hhmm(marcaDe(S.prof?.[c.dictada_por]?.user_id, c.fecha, c.turno)?.entrada), hhmm(marcaDe(S.prof?.[c.dictada_por]?.user_id, c.fecha, c.turno)?.salida), c.materia === 'examen' ? 'No (examen)' : 'Sí', f.m, c.obs || ''])));
+    sinLista.forEach(c => rows.push([fmtF(c.fecha), DK_FULL[DK.indexOf(dkDe(c.fecha))], c.turno, gName(c.grupo_id), matL(c.materia), c.tema || '', 'SIN LISTA', c.profesor_id ? profN(c.profesor_id) : '', '', '', '', 'No', '', c.obs || '']));
     rows.push([]); rows.push(['Resumen']); rows.push(['Profe', 'Clases', 'Exámenes', 'Pago por clase', 'Total']); filas.forEach(f => rows.push([profN(f.pid), f.n, f.ex, f.m, f.tot]));
     guardarArchivo(`Pago a profes ${mes}.csv`, csv(rows)); },
   cobtab: el => { S.ui.cobTab = el.dataset.v; render(); },
@@ -3478,8 +3802,11 @@ const IN = {
   nota: el => { const D = S.draftExam; if (!D) return; D.notas[el.dataset.id] = el.value; D.dirty = true; const sb = el.closest('.card').querySelector('.savebar'); if (sb) { sb.querySelector('small').textContent = 'Hay cambios sin guardar'; sb.querySelector('.btn').classList.remove('disabled'); } },
   'wa-msg': () => { $('#wa-btn').innerHTML = waBtn(); },
   'asis-nota': el => { const D = S.draftAsis; if (!D) return; D.nota = el.value; asisDirty(); },
-  'ev-com': el => { (S.evR[el.dataset.c] ||= {}).comentario = el.value; }
+  'ev-com': el => { (S.evR[el.dataset.c] ||= {}).comentario = el.value; },
+  'cj-prev': () => cajaPrev(),
+  'cj-calc': () => cajaCalc()
 };
+function cajaCalc() { const n = num($('#cj-n')?.value), pa = parseMoney($('#cj-pa')?.value); if (n > 0 && pa > 0 && $('#cj-m')) $('#cj-m').value = fmtN(Math.round(n) * pa); cajaPrev(); }
 // marca la lista como modificada sin re-renderizar (para no perder el foco del cuadro de texto)
 function asisDirty() { const D = S.draftAsis; if (!D) return; D.dirty = true; const b = $('[data-act="asis-guardar"]'); if (b) { b.classList.remove('disabled'); b.textContent = 'Guardar lista'; } }
 const CH = {
@@ -3496,6 +3823,9 @@ const CH = {
   'cb-sel': el => { CB.sel = el.value; },
   ofiMes: el => { S.ui.ofiMes = el.value || hoy().slice(0, 7); render(); },
   actDia: el => { S.ui.actDia = el.value || hoy(); render(); },
+  hMes: el => { S.ui.hMes = el.value || hoy().slice(0, 7); render(); },
+  hQuien: el => { S.ui.hQuien = el.value; render(); },
+  cajaMes: el => { S.ui.cajaMes = el.value || hoy().slice(0, 7); render(); },
   actRango: el => { S.ui.actRango = el.value; render(); },
   actQuien: el => { S.ui.actQuien = el.value; render(); },
   actTipo: el => { S.ui.actTipo = el.value; render(); },
