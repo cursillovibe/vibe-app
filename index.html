@@ -583,7 +583,7 @@ const mapG = r => ({ id: r.id, nombre: r.nombre, programa: r.programa || '', hor
 const mapA = r => ({ id: r.id, userId: r.user_id, email: r.email || '', nombre: r.nombre || '', apellido: r.apellido || '', ci: r.ci || '', fechaNac: r.fecha_nac || '', tel: r.tel || '', ciudad: r.ciudad || '', colegio: r.colegio || '',
   encargado: r.encargado || '', encargadoTel: r.encargado_tel || '', programa: r.programa || '', linkId: r.link_id || '', ficha: r.ficha || {}, fichaCompleta: !!r.ficha_completa, fichaFecha: r.ficha_fecha || '', grupoId: r.grupo_id || '', estado: r.estado,
   desc: num(r.descuento), cuotaEsp: r.cuota_especial, matExon: !!r.mat_exonerada, obs: r.obs || '', inscripcion: (r.creado || '').slice(0, 10) });
-const mapP = r => ({ id: r.id, nro: r.nro, alumnoId: r.alumno_id, grupoId: r.grupo_id, itemId: r.item, concepto: r.concepto, monto: num(r.monto), fecha: r.fecha, metodo: r.metodo, obs: r.obs || '', por: r.registrado_por, creado: r.creado });
+const mapP = r => ({ id: r.id, nro: r.nro, alumnoId: r.alumno_id, grupoId: r.grupo_id, itemId: r.item, concepto: r.concepto, monto: num(r.monto), fecha: r.fecha, metodo: r.metodo, obs: r.obs || '', por: r.registrado_por, creado: r.creado, paraCaja: num(r.para_caja) });
 
 /* ---------- índices y cálculos ---------- */
 function rebuild(which) {
@@ -1501,11 +1501,11 @@ const GASTO_CAT = ['impresion', 'pizarra', 'libreria', 'limpieza', 'otros', 'ret
 const cajaSigno = m => m.tipo === 'gasto' ? -num(m.monto) : num(m.monto);
 const cajaSaldo = () => sum(Object.values(S.caja || {}).map(cajaSigno));
 function cajaMovs() { let s = 0; return Object.values(S.caja || {}).sort((a, b) => new Date(a.creado) - new Date(b.creado)).map(m => { s += cajaSigno(m); return { ...m, saldo: s }; }); }
-const puedeEditarCaja = m => m.tipo !== 'arqueo' && (isAdmin() || (m.creado_por === S.session.user.id && dPY(m.creado) === hoy()));
+const puedeEditarCaja = m => m.tipo !== 'arqueo' && !m.pago_id && (isAdmin() || (m.creado_por === S.session.user.id && dPY(m.creado) === hoy()));
 // para apartar: cuántos alumnos pagaron desde el último apartado (o en el mes, si nunca se apartó)
 function cajaSugerencia() {
-  const ult = Object.values(S.caja || {}).filter(m => m.tipo === 'ingreso' && m.categoria === 'cuotas').sort((a, b) => new Date(b.creado) - new Date(a.creado))[0] || null;
-  const ps = Object.values(S.pagos || {}).filter(p => ult ? p.creado && new Date(p.creado) > new Date(ult.creado) : (p.fecha || '').startsWith(hoy().slice(0, 7)));
+  const ult = Object.values(S.caja || {}).filter(m => m.tipo === 'ingreso' && m.categoria === 'cuotas' && !m.pago_id).sort((a, b) => new Date(b.creado) - new Date(a.creado))[0] || null;
+  const ps = Object.values(S.pagos || {}).filter(p => !p.paraCaja && (ult ? p.creado && new Date(p.creado) > new Date(ult.creado) : (p.fecha || '').startsWith(hoy().slice(0, 7))));
   return { ult, n: new Set(ps.map(p => p.alumnoId)).size, np: ps.length, tot: sum(ps.map(p => p.monto)), porA: num(ult?.por_alumno) || 25000 };
 }
 function cardCaja() {
@@ -1562,8 +1562,9 @@ function renderCajaForm() {
       ${fecha}${nota('Ej: en la librería de la esquina, con factura')}`;
   } else if (t === 'ingreso') {
     tit = m ? 'Entrada a la caja chica' : 'Poner plata en la caja';
+    if (!m) body = `<div class="full"><small class="muted">Lo más fácil: al registrar cada pago, poné ahí lo que va a la caja (queda anotado solo). Esto es para apartar de varios cobros juntos.</small></div>`;
     const sg = cajaSugerencia();
-    body = `<div class="fld full"><div class="chips">${[['cuotas', 'Apartar de las cuotas'], ['aporte', 'Otro ingreso']].map(([k, l]) => `<button class="chip" data-act="cj-cat" data-v="${k}" aria-pressed="${CJ.cat === k}">${l}</button>`).join('')}</div></div>`;
+    body = (body || '') + `<div class="fld full"><div class="chips">${[['cuotas', 'Apartar de las cuotas'], ['aporte', 'Otro ingreso']].map(([k, l]) => `<button class="chip" data-act="cj-cat" data-v="${k}" aria-pressed="${CJ.cat === k}">${l}</button>`).join('')}</div></div>`;
     if (CJ.cat === 'cuotas') {
       body += `${m ? '' : `<div class="full tinfo">${sg.ult ? `Desde el último apartado (${esc(cuandoCorto(sg.ult.creado))})` : `En ${MESES[+hoy().slice(5, 7) - 1]}`} pagaron <b>${sg.n} alumno${sg.n === 1 ? '' : 's'}</b> (${sg.np} pago${sg.np === 1 ? '' : 's'} · ${money(sg.tot)}).</div>`}
         <div class="fld"><label for="cj-n">Alumnos <span class="req">*</span></label><input class="inp" id="cj-n" type="number" min="1" max="5000" inputmode="numeric" data-in="cj-calc" value="${val('cj-n', m?.alumnos || sg.n || '')}"></div>
@@ -1612,11 +1613,11 @@ function cajaForm() {
 function verCaja(m) {
   const mv = cajaMovs().find(x => x.id === m.id) || m;
   const f = [['Movimiento', m.tipo === 'arqueo' ? 'Conteo de la caja' : m.tipo === 'gasto' ? 'Gasto' : 'Entrada'], m.tipo !== 'arqueo' ? ['Tipo', CAJA_CAT[m.categoria] || ''] : null,
-    m.tipo !== 'arqueo' ? ['Concepto', m.concepto] : null, m.tipo !== 'arqueo' ? ['Monto', money(m.monto)] : null,
+    m.tipo !== 'arqueo' ? ['Concepto', m.concepto] : null, m.tipo !== 'arqueo' ? ['Monto', money(m.monto)] : null, m.pago_id ? ['Viene de', 'Un cobro: se saca anulando ese pago'] : null,
     m.tipo === 'arqueo' ? ['Contaron', money(m.contado)] : null, m.tipo === 'arqueo' ? ['Según la app', money(m.saldo_antes)] : null,
     m.tipo === 'arqueo' ? ['Diferencia', m.monto === 0 ? 'Coincide' : (m.monto < 0 ? 'Faltaban ' : 'Sobraban ') + money(Math.abs(m.monto))] : null,
     ['Fecha', fmtF(m.fecha)], ['Saldo después', money(mv.saldo)], ['Anotó', nomP(m.creado_por) + ' · ' + fechaHora(m.creado)], m.editado ? ['Editó', nomP(m.editado_por) + ' · ' + fechaHora(m.editado)] : null, m.detalle ? ['Nota', m.detalle] : null].filter(Boolean);
-  openModal('Movimiento de la caja chica', `<div class="tw"><table><tbody>${f.map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`).join('')}</tbody></table></div>${m.tipo !== 'arqueo' && !isAdmin() ? `<p class="muted" style="margin:12px 0 0"><small>Solo se puede corregir el mismo día y quien lo anotó. Si hay un error, avisale a la dirección.</small></p>` : ''}`,
+  openModal('Movimiento de la caja chica', `<div class="tw"><table><tbody>${f.map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`).join('')}</tbody></table></div>${m.pago_id ? `<p class="muted" style="margin:12px 0 0"><small>Se anotó al registrar el pago. Si estuvo mal, se anula el pago y se vuelve a cobrar.</small></p>` : m.tipo !== 'arqueo' && !isAdmin() ? `<p class="muted" style="margin:12px 0 0"><small>Solo se puede corregir el mismo día y quien lo anotó. Si hay un error, avisale a la dirección.</small></p>` : ''}`,
     `${isAdmin() ? `<button class="btn ghost danger" data-act="caja-borrar" data-id="${esc(m.id)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cerrar</button>`, 'narrow');
 }
 function exportCaja() {
@@ -1946,7 +1947,7 @@ function vAlumno(a) {
   if (tab === 'cuenta') {
     h += `<div class="card"><div class="card-h"><h2>Estado de cuenta</h2><small>${esc(gName(a.grupoId))}${a.desc ? ' · ' + num(a.desc) + '% de descuento' : ''}${a.cuotaEsp ? ' · cuota especial ' + money(a.cuotaEsp) : ''}${a.matExon ? ' · matrícula exonerada' : ''}</small></div>
       ${c.items.length ? `<div class="tw"><table><thead><tr><th>Concepto</th><th>Vence</th><th class="n">Monto</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th><th></th></tr></thead><tbody>${c.items.map(i => `<tr><td>${esc(i.concepto)}</td><td>${fmtF(i.venc)}</td><td class="n">${money(i.deb)}</td><td class="n">${i.pag ? money(i.pag) : '—'}</td><td class="n num ${i.est === 'vencido' ? 'bad-t' : ''}">${i.saldo ? money(i.saldo) : '—'}</td><td>${estItem(i)}</td><td class="n">${i.saldo && a.estado === 'activo' ? `<button class="btn sm" data-act="pago-nuevo" data-id="${esc(a.id)}" data-item="${esc(i.id)}">Cobrar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${a.grupoId ? 'El grupo no tiene plan de pagos cargado.' : 'Todavía no tiene grupo asignado.'}</div>`}</div>`;
-    h += `<div class="card"><div class="card-h"><h2>Pagos registrados</h2></div><div class="rows">${pagos.length ? pagos.map(p => `<div class="row click" data-act="recibo" data-id="${esc(p.id)}"><div class="t">${esc(p.concepto)}<small>${fmtF(p.fecha)} · ${esc(p.metodo || '')} · Recibo N° ${String(p.nro || '').padStart(5, '0')}${p.grupoId !== a.grupoId ? ' · ' + esc(gName(p.grupoId)) : ''}</small></div><div class="r"><span class="num">${money(p.monto)}</span>${ic('receipt')}</div></div>`).join('') : '<div class="empty">Sin pagos todavía.</div>'}</div></div>`;
+    h += `<div class="card"><div class="card-h"><h2>Pagos registrados</h2></div><div class="rows">${pagos.length ? pagos.map(p => `<div class="row click" data-act="recibo" data-id="${esc(p.id)}"><div class="t">${esc(p.concepto)}<small>${fmtF(p.fecha)} · ${esc(p.metodo || '')} · Recibo N° ${String(p.nro || '').padStart(5, '0')}${p.grupoId !== a.grupoId ? ' · ' + esc(gName(p.grupoId)) : ''}${p.paraCaja ? ' · ' + money(p.paraCaja) + ' a la caja' : ''}</small></div><div class="r"><span class="num">${money(p.monto)}</span>${ic('receipt')}</div></div>`).join('') : '<div class="empty">Sin pagos todavía.</div>'}</div></div>`;
   } else if (tab === 'asistencia') {
     h += `<div class="card"><div class="card-h"><h2>Asistencia</h2><div class="cnt"><span><i class="dot d-P"></i>${as.P} presente</span><span><i class="dot d-T"></i>${as.T} tarde</span><span><i class="dot d-A"></i>${as.A} ausente</span><span><i class="dot d-J"></i>${as.J} justificada</span></div></div>
       <div class="card-b">${as.marcas.length ? `<div class="strip" aria-label="Últimas clases">${as.marcas.slice(-60).map(m => `<i class="d-${m.m}" title="${fmtF(m.f)}: ${{ P: 'Presente', A: 'Ausente', T: 'Tarde', J: 'Justificada' }[m.m]}"></i>`).join('')}</div>
@@ -2051,7 +2052,7 @@ function vPagos() {
   let h = `<div class="filters"><div class="actions" style="align-items:center"><button class="btn sm" data-act="mes" data-v="-1" aria-label="Mes anterior">${ic('chevL')}</button><b style="min-width:150px;text-align:center" class="num">${cap(MESES[m - 1])} ${y}</b><button class="btn sm" data-act="mes" data-v="1" aria-label="Mes siguiente">${ic('chevR')}</button></div>
     <select class="inp" id="cobGrupo2" data-ch="cobGrupo" aria-label="Grupo">${optGrupos(u.cobGrupo, 'Todos los grupos')}</select><button class="btn" data-act="exp-pagos">${ic('download')}Exportar pagos</button></div>`;
   h += `<div class="kpis">${kpi('Total del mes', money(sum(ps.map(p => p.monto))), ps.length + ' pago(s)')}${Object.entries(porMet).slice(0, 3).map(([k, v]) => kpi(k, money(v), '')).join('')}</div>`;
-  h += `<div class="card">${ps.length ? `<div class="tw"><table><thead><tr><th>Fecha</th><th>N°</th><th>Alumno</th><th>Concepto</th><th>Forma</th><th class="n">Monto</th><th>Registró</th></tr></thead><tbody>${ps.map(p => { const a = S.alumnos[p.alumnoId]; return `<tr class="click" data-act="recibo" data-id="${esc(p.id)}"><td>${fmtF(p.fecha)}</td><td>${String(p.nro || '').padStart(5, '0')}</td><td><b>${esc(a ? nombreA(a) : 'Alumno borrado')}</b><br><small>${esc(gName(p.grupoId))}</small></td><td>${esc(p.concepto)}</td><td>${esc(p.metodo || '')}</td><td class="n num">${money(p.monto)}</td><td><small>${esc(who(p.por))}</small></td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">No hay pagos en este mes.</div>'}</div>`;
+  h += `<div class="card">${ps.length ? `<div class="tw"><table><thead><tr><th>Fecha</th><th>N°</th><th>Alumno</th><th>Concepto</th><th>Forma</th><th class="n">Monto</th><th>Registró</th></tr></thead><tbody>${ps.map(p => { const a = S.alumnos[p.alumnoId]; return `<tr class="click" data-act="recibo" data-id="${esc(p.id)}"><td>${fmtF(p.fecha)}</td><td>${String(p.nro || '').padStart(5, '0')}</td><td><b>${esc(a ? nombreA(a) : 'Alumno borrado')}</b><br><small>${esc(gName(p.grupoId))}</small></td><td>${esc(p.concepto)}</td><td>${esc(p.metodo || '')}${p.paraCaja ? `<br><small class="muted">${money(p.paraCaja)} a la caja</small>` : ''}</td><td class="n num">${money(p.monto)}</td><td><small>${esc(who(p.por))}</small></td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">No hay pagos en este mes.</div>'}</div>`;
   return h;
 }
 function vResumen() {
@@ -3032,6 +3033,9 @@ function pagoBody() {
     <div class="fld"><label for="pg-fecha">Fecha</label><input type="date" class="inp" id="pg-fecha" value="${t}"></div>
     <div class="fld"><label for="pg-met">Forma de pago</label><select class="inp" id="pg-met"><option>Efectivo</option><option>Transferencia</option><option>Giro</option><option>Otro</option></select></div>
     <div class="fld"><label for="pg-obs">Observación</label><input class="inp" id="pg-obs" placeholder="Opcional"></div>
+    <div class="fld full"><label for="pg-caja">Para la caja de la oficina <span class="muted" style="font-weight:400">(opcional)</span></label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="inp money" id="pg-caja" inputmode="numeric" data-in="pg-caja" value="${PG.caja ? fmtN(PG.caja) : ''}" placeholder="0" style="max-width:150px">${[25000, 50000].map(v => `<button class="chip" data-act="pg-caja" data-v="${v}" aria-pressed="${PG.caja === v}">${fmtN(v)}</button>`).join('')}<button class="chip" data-act="pg-caja" data-v="0">Nada</button></div>
+      <span class="hint">Lo que se saca de este cobro para los gastos de la oficina. Queda anotado en la caja chica; el recibo no cambia.</span></div>
     <div class="full err" id="pg-err"></div></div>`;
 }
 
@@ -3361,13 +3365,16 @@ const A = {
     const c = cuenta(a); const it = c.items.find(i => i.id === PG.itemId);
     const concepto = PG.itemId === 'otro' ? ($('#pg-conc').value.trim() || 'Otro concepto') : (it ? it.concepto : 'Pago');
     if (it && monto > it.saldo) { $('#pg-err').textContent = `El monto supera el saldo de ${it.concepto} (${money(it.saldo)}). Registrá el resto en otra cuota.`; return; }
+    const caja = parseMoney($('#pg-caja')?.value);
+    if (caja > monto) { $('#pg-err').textContent = `Lo de la caja (${money(caja)}) no puede ser más que el pago (${money(monto)}).`; $('#pg-caja').focus(); return; }
     el.classList.add('disabled');
-    const r = await run(S.sb.from('pagos').insert({ alumno_id: a.id, grupo_id: a.grupoId || null, item: PG.itemId, concepto, monto, fecha: $('#pg-fecha').value || hoy(), metodo: $('#pg-met').value, obs: $('#pg-obs').value.trim() || null }).select().single(), 'Pago registrado');
+    const r = await run(S.sb.from('pagos').insert({ alumno_id: a.id, grupo_id: a.grupoId || null, item: PG.itemId, concepto, monto, fecha: $('#pg-fecha').value || hoy(), metodo: $('#pg-met').value, obs: $('#pg-obs').value.trim() || null, para_caja: caja || null }).select().single(), caja ? `Pago registrado · ${money(caja)} a la caja chica` : 'Pago registrado');
     if (!r) { el.classList.remove('disabled'); return; }
-    S.pagos[r.id] = mapP(r); rebuild('pagos'); render(); openRecibo(r.id);
+    S.pagos[r.id] = mapP(r); rebuild('pagos'); render(); openRecibo(r.id); if (caja && S.loaded.caja) load(['caja']);
   },
   recibo: el => openRecibo(el.dataset.id),
-  'pago-anular': el => { const id = el.dataset.id; confirmDlg('¿Anular este pago? Se borra del historial y la cuota vuelve a quedar pendiente.', 'Anular pago', async () => { if (await run(S.sb.from('pagos').delete().eq('id', id), 'Pago anulado')) { delete S.pagos[id]; rebuild('pagos'); render(); } }); },
+  'pago-anular': el => { const id = el.dataset.id; const pc = S.pagos[id]?.paraCaja; confirmDlg('¿Anular este pago? Se borra del historial y la cuota vuelve a quedar pendiente.' + (pc ? ` También se saca de la caja chica lo apartado (${money(pc)}).` : ''), 'Anular pago', async () => { if (await run(S.sb.from('pagos').delete().eq('id', id), 'Pago anulado')) { delete S.pagos[id]; rebuild('pagos'); render(); if (pc && S.loaded.caja) load(['caja']); } }); },
+  'pg-caja': el => { const i = $('#pg-caja'); if (!i) return; i.value = +el.dataset.v ? fmtN(+el.dataset.v) : ''; IN['pg-caja'](i); },
   'copiar-recibo': async () => { try { await navigator.clipboard.writeText(reciboTexto(RC)); toast('Recibo copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
   'png-recibo': async () => { toast('Generando imagen…'); const b = await reciboPNG(RC); if (b) guardarArchivo(`Recibo ${String(RC.nro).padStart(5, '0')} - ${nombreA(S.alumnos[RC.alumnoId] || {})}.png`, b); },
   imprimir: () => { document.body.classList.add('print-rcb'); window.print(); setTimeout(() => document.body.classList.remove('print-rcb'), 500); },
@@ -3804,6 +3811,7 @@ const IN = {
   'asis-nota': el => { const D = S.draftAsis; if (!D) return; D.nota = el.value; asisDirty(); },
   'ev-com': el => { (S.evR[el.dataset.c] ||= {}).comentario = el.value; },
   'cj-prev': () => cajaPrev(),
+  'pg-caja': el => { PG.caja = parseMoney(el.value); document.querySelectorAll('[data-act="pg-caja"]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === PG.caja && PG.caja > 0))); },
   'cj-calc': () => cajaCalc()
 };
 function cajaCalc() { const n = num($('#cj-n')?.value), pa = parseMoney($('#cj-pa')?.value); if (n > 0 && pa > 0 && $('#cj-m')) $('#cj-m').value = fmtN(Math.round(n) * pa); cajaPrev(); }

@@ -58,12 +58,13 @@ En **Turnos oficina** (solo la dirección): turnos Mañana, Tarde y Noche.
 
 En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la plata que se aparta de las cuotas para los gastos de la oficina.
 
-- **Apartar de cuotas**: cuántos alumnos × cuánto por alumno (25.000 / 50.000 o lo que sea). La app sugiere cuántos alumnos pagaron desde el último apartado. También "Otro ingreso" (p. ej. la dirección repone la caja).
+- **Desde el cobro** (lo normal): al registrar un pago, el campo **"Para la caja de la oficina"** (botones 25.000 / 50.000 o cualquier monto) anota esa plata en la caja chica en el mismo momento. El recibo no cambia. Si se anula el pago, sale de la caja sola. Lo que viene de un cobro no se edita desde la caja.
+- **Apartar de cuotas** (varios cobros juntos): cuántos alumnos × cuánto por alumno. La app sugiere cuántos alumnos pagaron desde el último apartado sin haber puesto nada para la caja. También "Otro ingreso" (p. ej. la dirección repone la caja).
 - **Anotar gasto**: qué se pagó, monto y tipo (impresiones y hojas, pizarra, librería y útiles, limpieza, otros, retiro de la dirección). Muestra cuánto queda en la caja.
 - **Contar la caja** (arqueo): se pone lo que hay en efectivo; si no coincide con la app queda anotado "faltaban / sobraban" y la caja sigue desde lo contado. Un conteo no se edita.
 - Saldo, lo que entró y se gastó en el mes, gastos por tipo, el último conteo, cada movimiento con quién lo anotó y el saldo después. Exportar por mes.
 - Cada una corrige lo que anotó el mismo día; solo la dirección borra. Todo queda en Actividad. Los profes no la ven.
-- Base: tabla `caja_movs` (`supabase/horas-caja.sql`).
+- Base: tabla `caja_movs` (`supabase/horas-caja.sql`); `pagos.para_caja` y el trigger `pagos_a_caja` (`supabase/caja-cobros.sql`).
 
 ## Tareas de la oficina y la librería
 
@@ -95,6 +96,7 @@ icons/                  íconos de la app con el √iβε
 supabase/schema.sql     base de datos y permisos (se puede volver a correr)
 supabase/tareas-actividad.sql  tareas de la oficina y registro de actividad (también está en schema.sql)
 supabase/horas-caja.sql  entrada y salida (oficina y profes) y caja chica (también está en schema.sql)
+supabase/caja-cobros.sql  parte del cobro para la caja chica (también está en schema.sql)
 supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
 supabase/functions/     invitar (manda invitaciones), notificar (avisa fichas nuevas) y push (avisos al celular)
 supabase/cron-push.sql  avisos programados: llama a la función push cada 15 minutos
