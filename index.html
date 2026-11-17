@@ -907,6 +907,7 @@ const LOADERS = {
     const [d, h] = S.clRango; S.clases = idx(await fetchAll('clases', '*', q => q.gte('fecha', d).lte('fecha', h).order('fecha').order('grupo_id').order('turno')));
   },
   semana: async () => {
+    S.dispSemC = {};   // "quién está libre" se vuelve a pedir
     // dirección: la semana que se está armando · profe: la semana siguiente (disponibilidad)
     if (isAdmin()) {
       if (!S.ui.armLunes) S.ui.armLunes = lunesSig();
@@ -2122,6 +2123,59 @@ VIEWS.horario = () => {
 };
 
 /* semana publicada (dirección y oficina) */
+/* quién está libre: lo que cada profe marcó en su disponibilidad, para cualquier semana (aunque ya haya empezado) */
+function dispSem(l) {
+  S.dispSemC ||= {}; const c = S.dispSemC[l];
+  if (c && c.ok) return c;
+  if (!c) {
+    S.dispSemC[l] = { cargando: true };
+    (async () => {
+      try {
+        const { data: w, error } = await S.sb.from('semanas').select('id, lunes').eq('lunes', l).maybeSingle(); if (error) throw error;
+        let rows = [];
+        if (w) { const r = await S.sb.from('disponibilidad').select('profesor_id, dias, enviado').eq('semana_id', w.id); if (r.error) throw r.error; rows = r.data || []; }
+        S.dispSemC[l] = { ok: true, rows };
+      } catch (e) { console.warn('disponibilidad de la semana', e); S.dispSemC[l] = { ok: true, rows: [], error: true }; }
+      render();
+      const el = $('#cl-libres'); if (el && S.clLibres && S.clases[S.clLibres]) el.outerHTML = libresClase(S.clases[S.clLibres]);
+    })();
+  }
+  return null;
+}
+// profes activos que marcaron libre ese día y turno; "ocupado" = ya tiene una clase a esa hora
+function libresEn(f, t, rows) {
+  const k = dkDe(f); const ocup = new Map();
+  Object.values(S.clases || {}).forEach(c => { if (c.fecha === f && c.turno === t) [c.profesor_id, c.dictada_por].forEach(id => { if (id && !ocup.has(id)) ocup.set(id, c); }); });
+  return profsActivos().map(p => { const r = rows.find(x => x.profesor_id === p.id); return r && r.dias?.[k]?.[t] ? { p, ocupado: ocup.get(p.id) || null } : null; }).filter(Boolean);
+}
+const diaTxt = f => `${dkDe(f)} ${dm(f)}${f === hoy() ? ' (hoy)' : ''}`;
+function cardLibres(l) {
+  if (S.ui.libresOff === undefined) { try { S.ui.libresOff = localStorage.getItem('vibe-libres-off') === '1'; } catch (e) { S.ui.libresOff = false; } }
+  if (S.ui.libresOff) return `<div class="actions" style="margin-bottom:12px"><button class="btn sm" data-act="libres-tog">${ic('users')}¿Quién está libre?</button></div>`;
+  const ds = dispSem(l), esta = l === lunesDe(hoy()), desde = esta ? hoy() : l;
+  const head = `<div class="card-h"><div><h2>¿Quién está libre?</h2><small>Lo que marcó cada profe en su disponibilidad${esta ? ', de hoy en adelante' : ''}. En verde: libre y sin clase a esa hora.</small></div><button class="btn sm ghost" data-act="libres-tog">Ocultar</button></div>`;
+  if (!ds) return `<div class="card">${head}<div class="card-b"><small class="muted">Cargando…</small></div></div>`;
+  if (!ds.rows.length) return `<div class="card">${head}<div class="empty">Ningún profe cargó disponibilidad para esta semana.</div></div>`;
+  const filas = [];
+  for (let i = 0; i < 7; i++) { const f = addDays(l, i); if (f < desde) continue; TURNOS.forEach(t => { const L = libresEn(f, t, ds.rows); if (L.length) filas.push({ f, t, L }); }); }
+  const sinCargar = profsActivos().filter(p => !ds.rows.some(r => r.profesor_id === p.id && r.enviado));
+  const chip = x => x.ocupado ? `<span class="pill" style="opacity:.6" title="Ya da clase a esa hora">${esc(x.p.nombre)} · da clase en ${esc(gName(x.ocupado.grupo_id))}</span>` : pill(x.p.nombre, 'ok');
+  return `<div class="card">${head}<div class="rows">${filas.map(({ f, t, L }) => { const n = L.filter(x => !x.ocupado).length;
+      return `<div class="row"><div class="t"><b>${esc(diaTxt(f))}</b> · ${esc(t)}<small>${n ? `${n} libre${n === 1 ? '' : 's'} sin clase` : 'Los que marcaron libre ya dan clase a esa hora'}</small><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${L.sort((a, b) => !!a.ocupado - !!b.ocupado || a.p.nombre.localeCompare(b.p.nombre, 'es')).map(chip).join('')}</div></div></div>`; }).join('') || `<div class="empty">Nadie marcó libre ${esta ? 'de hoy en adelante' : 'en esta semana'}.</div>`}</div>
+    ${sinCargar.length ? `<div class="card-b"><small class="muted">No cargaron disponibilidad esta semana: ${esc(sinCargar.map(p => p.nombre).join(', '))}.</small></div>` : ''}</div>`;
+}
+// en el detalle de una clase: quién marcó libre ese turno (con su puntaje en la materia)
+function libresClase(c) {
+  const ds = dispSem(lunesDe(c.fecha));
+  if (!ds) return `<div class="fld full" id="cl-libres"><label>Libres en ese turno</label><small class="muted">Buscando quién está libre…</small></div>`;
+  const sc = x => { const v = S.punt?.[x.p.id]?.scores?.[c.materia]; return typeof v === 'number' ? v : null; };
+  const L = libresEn(c.fecha, c.turno, ds.rows).filter(x => x.p.id !== c.profesor_id && x.p.id !== c.dictada_por)
+    .sort((a, b) => !!a.ocupado - !!b.ocupado || (sc(b) ?? -1) - (sc(a) ?? -1) || a.p.nombre.localeCompare(b.p.nombre, 'es'));
+  const mat = c.materia && c.materia !== 'examen' && MATS[c.materia] ? MATS[c.materia].l : '';
+  const chips = L.map(x => x.ocupado ? `<span class="pill" style="opacity:.6">${esc(x.p.nombre)} · da clase en ${esc(gName(x.ocupado.grupo_id))}</span>`
+    : `<button class="chip" data-act="cl-libre" data-id="${esc(x.p.id)}" aria-pressed="false">${esc(x.p.nombre)}${mat && sc(x) !== null ? ' · ' + sc(x) : ''}</button>`).join('');
+  return `<div class="fld full" id="cl-libres"><label>Libres en ese turno${mat ? ` <span class="muted" style="font-weight:400">(puntaje en ${esc(mat)})</span>` : ''}</label><div style="display:flex;flex-wrap:wrap;gap:6px">${chips || '<small class="muted">Nadie más marcó libre este turno.</small>'}</div>${L.some(x => !x.ocupado) ? '<span class="hint">Tocá un nombre para ponerlo como profe del horario y después Guardar.</span>' : ''}</div>`;
+}
 function vHorSemana() {
   if (!S.ui.horLunes) S.ui.horLunes = lunesDe(hoy());
   const l = S.ui.horLunes;
@@ -2134,6 +2188,7 @@ function vHorSemana() {
   const pasadas = cls.filter(c => c.materia && c.materia !== 'examen' && c.fecha < hoy());
   const sinL = pasadas.filter(c => !c.dictada_por).length;
   h += `<div class="kpis">${kpi('Clases', cls.filter(c => c.materia && c.materia !== 'examen').length, 'en la semana')}${kpi('Con lista', pasadas.length - sinL, 'de las que ya pasaron')}${kpi('Sin lista', sinL, 'pasaron y nadie llamó lista', sinL ? 'bad' : '')}${kpi('Sin cobertura', cls.filter(c => c.materia && c.materia !== 'examen' && !c.profesor_id).length, 'clases sin profe')}</div>`;
+  if (isAdmin() && addDays(l, 6) >= hoy()) h += cardLibres(l);
   const ids = [...new Set(cls.map(c => c.grupo_id))].map(id => S.grupos[id]).filter(Boolean).sort((a, b) => num(a.orden) - num(b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
   ids.forEach(g => {
     const cg = cls.filter(c => c.grupo_id === g.id).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
@@ -2159,12 +2214,13 @@ function celdaClase(c, seg) {
   return `<div class="wc ${isAdmin() ? 'click' : ''} ${c.fecha === t ? 'hoy' : ''}" ${isAdmin() ? `data-act="clase-editar" data-id="${esc(c.id)}"` : ''}>${seg ? '' : `<span class="d">${dkDe(c.fecha)} ${dm(c.fecha)}</span>`}<span class="t">${esc(c.turno)}</span>${mchip(c.materia)}${c.tema ? `<span class="tema">${esc(c.tema)}</span>` : ''}${prof}${est}${nt}</div>`;
 }
 function openClaseForm(id) {
-  const c = S.clases[id]; if (!c) return; const ps = profsActivos();
+  const c = S.clases[id]; if (!c) return; const ps = profsActivos(); S.clLibres = id;
   const opt = (sel, vacio) => `<option value="">${vacio}</option>` + ps.concat(sel && !S.prof[sel]?.activo && S.prof[sel] ? [S.prof[sel]] : []).map(p => `<option value="${esc(p.id)}" ${p.id === sel ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
   openModal('Clase', `<p class="muted" style="margin:0 0 12px">${esc(gName(c.grupo_id))} · ${fechaLarga(c.fecha)} · ${esc(c.turno)}</p><div class="form">
     <div class="fld"><label for="cl-mat">Materia</label><select class="inp" id="cl-mat"><option value="">—</option>${Object.keys(MATS).map(k => `<option value="${k}" ${c.materia === k ? 'selected' : ''}>${MATS[k].l}</option>`).join('')}</select></div>
     <div class="fld"><label for="cl-tema">Tema</label><input class="inp" id="cl-tema" value="${esc(c.tema || '')}"></div>
     <div class="fld"><label for="cl-prof">Profe del horario</label><select class="inp" id="cl-prof">${opt(c.profesor_id, 'Sin profe')}</select></div>
+    ${c.fecha >= hoy() ? libresClase(c) : ''}
     <div class="fld"><label for="cl-dict">Dio la clase (cuenta para el pago)</label><select class="inp" id="cl-dict">${opt(c.dictada_por, 'Nadie todavía')}</select><span class="hint">${c.dictada_en ? `Lista llamada a las ${horaDe(c.dictada_en)}. ` : ''}Si elegís a otro profe, la clase pasa a su nombre (cambio aprobado).</span></div>
     ${tieneNotas(c) ? `<div class="fld full"><label>Lo que anotó el profe al llamar lista</label>${notaHtml(c)}</div>` : ''}
     <div class="fld full"><label for="cl-obs">Observación de la oficina</label><input class="inp" id="cl-obs" value="${esc(c.obs || '')}" placeholder="Ej: firmó en papel, se cambió con otro profe"></div></div>`,
@@ -2397,7 +2453,7 @@ function vHorDisp() {
     <div class="actions">${est === 'cerrada' ? `<button class="btn sm" data-act="carga-reabrir">Reabrir hasta el domingo</button>` : ''}${reab ? `<button class="btn sm ghost danger" data-act="carga-cerrar">Cerrar ahora</button>` : ''}<button class="btn sm wa ${pend.length ? '' : 'disabled'}" data-act="carga-wa">${ic('wa')}Avisar a los que faltan</button></div></div>
     <div class="tw"><table class="dispg"><thead><tr><th>Profe</th><th>Estado</th>${DK.map(k => `<th>${k}<br><small>${dm(fDia(w.lunes, k))}</small></th>`).join('')}${isAdmin() ? '<th></th>' : ''}</tr></thead><tbody>${ps.map(p => { const r = S.dispRows.find(x => x.profesor_id === p.id); const d = r?.dias || {};
       return `<tr><td><b>${esc(p.nombre)}</b>${p.user_id ? '' : '<br><small class="muted">todavía no entró a la app</small>'}</td><td>${r?.enviado ? pill('Cargó', 'ok') : pill('Pendiente', 'pend')}</td>${DK.map(k => `<td><span class="dots" title="Mañana / Tarde"><i class="${d[k]?.['Mañana'] ? 'm' : ''}"></i><i class="${d[k]?.['Tarde'] ? 't' : ''}"></i></span></td>`).join('')}${isAdmin() ? `<td><button class="btn sm ghost" data-act="disp-editar" data-tipo="profe" data-id="${esc(p.id)}" aria-label="Editar la disponibilidad de ${esc(p.nombre)}">${ic('edit')}Editar</button></td>` : ''}</tr>`; }).join('') || '<tr><td colspan="10" class="muted">Todavía no hay profes en el plantel.</td></tr>'}</tbody></table></div>
-    <div class="card-b"><small class="muted">Cada día tiene dos puntos: arriba mañana, abajo tarde. Pintado = libre.${isAdmin() ? ' Con <b>Editar</b> corregís lo que marcó un profe (por ejemplo, si te avisa a última hora que marcó mal), aunque la carga esté cerrada.' : ''}</small></div></div>`;
+    <div class="card-b"><small class="muted">Cada día tiene dos puntos: arriba mañana, abajo tarde. Pintado = libre.${isAdmin() ? ' Con <b>Editar</b> corregís lo que marcó un profe (por ejemplo, si te avisa a última hora que marcó mal), aunque la carga esté cerrada. Para ver <b>quién está libre esta semana</b> (para cubrir a alguien), mirá <a href="#" data-act="hortab" data-v="semana">Semana</a> o tocá la clase.' : ''}</small></div></div>`;
   return h;
 }
 // la dirección corrige la disponibilidad de un profe o de alguien de la oficina (aunque la carga esté cerrada)
@@ -3418,6 +3474,8 @@ const A = {
   'hor-sem': el => { const d = +el.dataset.d; S.ui.horLunes = d ? addDays(S.ui.horLunes || lunesDe(hoy()), d) : lunesDe(hoy()); render(); },
   'arm-sem': async el => { const d = +el.dataset.d; S.ui.armLunes = d ? addDays(S.ui.armLunes || lunesSig(), d) : lunesSig(); S.loaded.semana = false; S.sem = null; render(); await load(['semana']); },
   'clase-editar': el => openClaseForm(el.dataset.id),
+  'cl-libre': el => { const s2 = $('#cl-prof'); if (!s2) return; s2.value = el.dataset.id; document.querySelectorAll('[data-act="cl-libre"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
+  'libres-tog': () => { S.ui.libresOff = !S.ui.libresOff; try { localStorage.setItem('vibe-libres-off', S.ui.libresOff ? '1' : '0'); } catch (e) { } render(); },
   'cambio-nuevo': el => openCambio(el.dataset.g, el.dataset.f, el.dataset.t),
   // --- evaluación anónima
   'eval-link': el => openEvalLink(el.dataset.g, el.dataset.f),
