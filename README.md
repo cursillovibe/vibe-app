@@ -13,7 +13,7 @@ App web del Cursillo VIBE para dirección, oficina, profes y alumnos. Se instala
 - **Link de inscripción** (el principal): la oficina crea en **Inscripciones** un link por curso o por grupo y se lo pasa por WhatsApp al alumno que pagó la matrícula → el alumno crea su cuenta con su correo → completa la ficha.
 - **Pedir acceso sin invitación** (desde la pantalla de entrada, sin link): "Soy alumno y no tengo cuenta" → nombre, apellido, cédula, celular, grupo en el que está o se quiere inscribir, correo y contraseña → confirma el correo. Nunca entra solo a un grupo (el pedido queda en `grupo_pedido`).
   - Si su cédula coincide con un alumno que la oficina ya había cargado sin cuenta, ve "¡Ya casi!" y en **Inscripciones → Ya estaban cargados** la oficina toca **Unir** (la cuenta pasa a su ficha, con sus pagos, notas y asistencia) o **No es** (sigue como alumno nuevo). Antes de unir, conviene comparar los celulares.
-  - Si no, completa su ficha en la app y aparece en "Fichas completas, sin grupo" con el grupo que pidió ya elegido.
+  - Si no, ve "Tu cuenta está lista": **no completa la ficha todavía** (cambia según el curso). La oficina le asigna el grupo con los datos básicos en **Inscripciones → Pedidos de acceso** (viene elegido el que pidió); al asignar, su curso pasa a ser el del grupo y al entrar le aparece la ficha de ese curso. Abajo de esa tarjeta quedan los que ya tienen grupo y todavía no completaron la ficha.
 - **Invitación por correo**: la oficina carga el correo del alumno y le llega un mail para crear su contraseña.
 
 En los dos casos, cuando completa la ficha le llega un correo a informacion@ y la oficina le asigna el grupo. Cerrar un link (desmarcar "activo") corta la inscripción por ese link.

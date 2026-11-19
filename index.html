@@ -598,7 +598,9 @@ const alumnosDe = (gid, bajas = false) => Object.values(S.alumnos).filter(a => a
 const activos = () => Object.values(S.alumnos).filter(a => a.estado === 'activo');
 const pendientes = () => Object.values(S.alumnos).filter(a => a.fichaCompleta && (a.estado === 'pendiente' || (a.estado === 'activo' && !a.grupoId))).sort((a, b) => (a.fichaFecha || '').localeCompare(b.fichaFecha || ''));
 const coincidencias = () => Object.values(S.alumnos).filter(a => a.coincideId && a.userId && S.alumnos[a.coincideId] && !S.alumnos[a.coincideId].userId).sort((a, b) => (a.pidioAcceso || '').localeCompare(b.pidioAcceso || ''));
-const invitados = () => Object.values(S.alumnos).filter(a => a.estado === 'invitado' && !coincidencias().includes(a)).sort(cmpA);
+const pedidosAcceso = () => Object.values(S.alumnos).filter(a => a.pidioAcceso && a.userId && !a.grupoId && !a.fichaCompleta && a.estado !== 'baja' && !coincidencias().includes(a)).sort((a, b) => (a.pidioAcceso || '').localeCompare(b.pidioAcceso || ''));
+const faltaFicha = () => Object.values(S.alumnos).filter(a => a.pidioAcceso && a.grupoId && !a.fichaCompleta && a.estado !== 'baja').sort(cmpA);
+const invitados = () => Object.values(S.alumnos).filter(a => a.estado === 'invitado' && !a.pidioAcceso).sort(cmpA);
 const gName = id => S.grupos[id]?.nombre || 'Sin grupo';
 
 function debido(a, it) {
@@ -1116,7 +1118,7 @@ function go(v, after) {
   doIt();
 }
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (S.perfil && v && v !== S.view && NAV.some(n => n.id === v)) go(v); });
-const badgeN = id => id === 'inscripciones' ? pendientes().length + coincidencias().length : id === 'tareas' ? (S.loaded.tareas ? misTareas().length : 0) : 0;
+const badgeN = id => id === 'inscripciones' ? pendientes().length + coincidencias().length + pedidosAcceso().length : id === 'tareas' ? (S.loaded.tareas ? misTareas().length : 0) : 0;
 
 function renderShell() {
   const app = $('#app'); const logged = S.perfil && S.perfil.activo && !S.needPassword && !(isAlumno() && yo() && !yo().fichaCompleta);
@@ -1158,6 +1160,7 @@ function pantalla() {
     const a = yo();
     if (!a) return authCard(`<div class="banner bad">Tu cuenta todavía no tiene una ficha asociada. Avisá a la oficina de VIBE.</div><button class="btn" data-act="salir">Salir</button>`);
     if (a.coincideId && !a.grupoId) return vEsperaUnir(a);
+    if (a.pidioAcceso && !a.grupoId && !a.fichaCompleta) return vEsperaGrupo(a);
     if (!a.fichaCompleta) return vOnboarding(a);
   }
   const fn = VIEWS[S.view] || VIEWS[startView()];
@@ -1188,7 +1191,7 @@ function vAuth() {
   if (S.registroEnviado && S.authView === 'pedido') return authCard(`<div><h1>Revisá tu correo</h1><p class="muted" style="margin:6px 0 0">Te mandamos un correo a <b>${esc(S.registroEnviado)}</b>. Abrilo y tocá <b>Confirmar</b>; después entrás a la app con tu correo y tu contraseña.</p></div><small>¿No llegó? Fijate en Spam o Promociones.</small><button class="linkbtn" data-act="auth-view" data-v="login">Ir a entrar</button>`);
   if (S.authView === 'pedido') {
     if (!S.gruposInsc) { cargarGruposInsc(); return authCard(`<div class="loading">Cargando…</div>`); }
-    return authCard(`<div><span class="pill acc">Alumnos</span><h1 style="margin-top:8px">Crear mi cuenta</h1><p class="muted" style="margin:6px 0 0">Completá tus datos. La oficina confirma tu grupo y después ves en la app tus cuotas, notas, asistencia y horario.</p></div>${msg}
+    return authCard(`<div><span class="pill acc">Alumnos</span><h1 style="margin-top:8px">Crear mi cuenta</h1><p class="muted" style="margin:6px 0 0">Completá tus datos básicos. La oficina te asigna a tu grupo, después completás tu ficha de inscripción y ya ves en la app tus cuotas, notas, asistencia y horario.</p></div>${msg}
       <form data-form="pedido"><div class="fld"><label for="p-nom">Nombre</label><input class="inp" id="p-nom" autocomplete="given-name" maxlength="80" required></div>
       <div class="fld"><label for="p-ape">Apellido</label><input class="inp" id="p-ape" autocomplete="family-name" maxlength="80" required></div>
       <div class="fld"><label for="p-ci">Cédula</label><input class="inp" id="p-ci" inputmode="numeric" maxlength="15" placeholder="Solo números" required></div>
@@ -1218,6 +1221,14 @@ async function cargarGruposInsc() {
 // pidió acceso y coincide con un alumno que ya estaba cargado: espera que la oficina confirme
 function vEsperaUnir(a) {
   return authCard(`<div><h1>¡Ya casi!</h1><p class="muted" style="margin:6px 0 0">Encontramos tus datos en VIBE${a.ci ? ' (cédula ' + esc(a.ci) + ')' : ''}. La oficina tiene que confirmar que sos vos; cuando lo haga, entrás directo con tus cuotas, notas y asistencia. No tenés que completar nada más.</p></div>
+    <small>Si tarda, escribile a la oficina por WhatsApp.</small><button class="btn primary block" data-act="recargar-datos">Actualizar</button><button class="linkbtn" data-act="salir">Salir</button>`);
+}
+// pidió acceso: la ficha (distinta según el curso) aparece cuando la oficina le asigna el grupo
+function vEsperaGrupo(a) {
+  // el alumno todavía no ve los grupos: el nombre sale de la lista pública
+  if (a.grupoPedido && !S.grupos[a.grupoPedido] && !S.gruposInsc) cargarGruposInsc();
+  const gp = a.grupoPedido ? (S.grupos[a.grupoPedido]?.nombre || (S.gruposInsc || []).find(g => g.id === a.grupoPedido)?.nombre || '') : '';
+  return authCard(`<div><h1>¡Tu cuenta está lista${a.nombre ? ', ' + esc(a.nombre) : ''}!</h1><p class="muted" style="margin:6px 0 0">En breve la oficina te asigna a tu grupo${gp ? ' (pediste <b>' + esc(gp) + '</b>)' : ''}. Cuando lo haga, al entrar acá te va a aparecer tu <b>ficha de inscripción</b> para completarla.</p></div>
     <small>Si tarda, escribile a la oficina por WhatsApp.</small><button class="btn primary block" data-act="recargar-datos">Actualizar</button><button class="linkbtn" data-act="salir">Salir</button>`);
 }
 function vNuevaClave() {
@@ -1253,7 +1264,7 @@ function leerFicha(pref = 'f', validar = true) {
 }
 function vOnboarding(a) {
   return `<div class="onb"><div class="brand">${LOGO()}</div>
-    ${ph('¡Bienvenido/a a VIBE!', 'Completá tu ficha de inscripción. Con esto la oficina te asigna a tu grupo' + (a.grupoPedido && gName(a.grupoPedido) ? ' (pediste ' + gName(a.grupoPedido) + ')' : '') + ' y ya vas a poder ver tus cuotas, notas y asistencia.')}
+    ${ph('¡Bienvenido/a a VIBE!', a.grupoId ? 'Ya estás en ' + (gName(a.grupoId) || 'tu grupo') + '. Completá tu ficha de inscripción y ya vas a poder ver tus cuotas, notas y asistencia.' : 'Completá tu ficha de inscripción. Con esto la oficina te asigna a tu grupo y ya vas a poder ver tus cuotas, notas y asistencia.')}
     <div class="card"><div class="card-b">${fichaForm(a)}<div class="err" id="f-err" style="margin-top:12px"></div></div>
     <div class="savebar" style="position:static"><small>${esc(a.email)}</small><div class="actions"><button class="btn ghost" data-act="salir">Salir</button><button class="btn primary" data-act="ficha-guardar">Enviar mi ficha</button></div></div></div></div>`;
 }
@@ -1825,7 +1836,8 @@ VIEWS.inicio = () => {
     if (csf) h += `<div class="banner click" data-act="hortab" data-v="plantel"><span><b>${csf} cuenta${csf === 1 ? '' : 's'} de profe sin vincular</b> al plantel: no ven su horario hasta que las vincules.</span><span class="btn sm primary">Vincular</span></div>`;
     const cp = cambiosPend().length;
     if (isAdmin() && cp) h += `<div class="banner click" data-act="hortab" data-v="cambios"><span><b>${cp} pedido${cp === 1 ? '' : 's'} de cambio</b> de profes esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
-    const co = coincidencias().length;
+    const co = coincidencias().length, pa = pedidosAcceso().length;
+    if (pa) h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span><b>${pa} alumno${pa === 1 ? '' : 's'}</b> pidi${pa === 1 ? 'ó' : 'eron'} acceso a la app: asigná${pa === 1 ? 'le' : 'les'} el grupo.</span><span class="btn sm primary">Asignar</span></div>`;
     if (co) h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span><b>${co} alumno${co === 1 ? '' : 's'} que ya estaba${co === 1 ? '' : 'n'} cargado${co === 1 ? '' : 's'}</b> crearon su cuenta: confirmá que son ellos.</span><span class="btn sm primary">Revisar</span></div>`;
     if (pend.length) h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span><b>${pend.length} alumno${pend.length === 1 ? '' : 's'}</b> completaron su ficha y esperan que les asignes grupo.</span><span class="btn sm primary">Asignar grupo</span></div>`;
     const mes = t.slice(0, 7); const pm = Object.values(S.pagos).filter(p => (p.fecha || '').startsWith(mes));
@@ -1888,11 +1900,14 @@ function rowDeuda(a, c) {
 /* --- inscripciones --- */
 VIEWS.inscripciones = () => {
   if (!ready('grupos', 'alumnos')) return loadingView();
-  const pend = pendientes(); const inv = invitados(); const gs = gruposActivos(); const co = coincidencias();
+  const pend = pendientes(); const inv = invitados(); const gs = gruposActivos(); const co = coincidencias(); const pa = pedidosAcceso(); const ff = faltaFicha();
   let h = ph('Inscripciones', 'Links de inscripción, pedidos de acceso, fichas nuevas y alumnos invitados', `<button class="btn" data-act="invitar-alumno">${ic('mail')}Invitar por correo</button><button class="btn primary" data-act="link-nuevo">${ic('plus')}Nuevo link</button>`);
   if (co.length) h += `<div class="card"><div class="card-h"><div><h2>Ya estaban cargados: confirmá que son ellos</h2><small>Crearon su cuenta desde la app y su cédula coincide con un alumno que ya está en VIBE. Al unir, entran con sus cuotas, notas y asistencia.</small></div><span class="pill late">${co.length}</span></div><div class="rows">${co.map(a => { const e = S.alumnos[a.coincideId];
       return `<div class="row"><div class="t"><b>${esc(nombreA(a))}</b> · ${esc(a.email)}<small>Puso CI ${esc(a.ci || '—')} · cel ${esc(a.tel || '—')} · pidió acceso el ${esc(fmtF(dPY(a.pidioAcceso)))}</small><small>Coincide con <b>${esc(nombreA(e))}</b> · ${esc(e.grupoId ? gName(e.grupoId) : 'sin grupo')} · CI ${esc(e.ci || '—')} · cel ${esc(e.tel || '—')}</small></div>
         <div class="r"><button class="btn sm ghost" data-act="no-coincide" data-id="${esc(a.id)}">No es</button><button class="btn sm primary" data-act="unir-alumno" data-id="${esc(a.id)}">Unir</button></div></div>`; }).join('')}</div><div class="card-b"><small class="muted">Antes de unir, fijate que el celular coincida o confirmá con el alumno. "No es" = sigue como alumno nuevo (completa su ficha y le asignás grupo).</small></div></div>`;
+  if (pa.length || ff.length) h += `<div class="card"><div class="card-h"><div><h2>Pedidos de acceso: asigná el grupo</h2><small>Crearon su cuenta desde la app con sus datos básicos. Cuando les asignás el grupo, les aparece la ficha de ese curso para completar.</small></div>${pa.length ? `<span class="pill late">${pa.length}</span>` : ''}</div><div class="rows">${pa.map(a => `<div class="row"><div class="t"><b>${esc(nombreA(a))}</b><small>${esc(['CI ' + (a.ci || '—'), a.tel, a.email].filter(Boolean).join(' · '))} · pidió acceso el ${esc(fmtF(dPY(a.pidioAcceso)))}${a.grupoPedido ? ' · quiere <b>' + esc(gName(a.grupoPedido)) + '</b>' : ' · no sabe el grupo'}</small></div>
+      <div class="r"><select class="inp" id="asg-${esc(a.id)}" aria-label="Grupo para ${esc(nombreA(a))}" style="width:auto;max-width:180px"><option value="">Elegí grupo…</option>${gs.map(g => `<option value="${esc(g.id)}" ${g.id === a.grupoPedido ? 'selected' : ''}>${esc(g.nombre)}</option>`).join('')}</select><button class="btn sm primary" data-act="asignar" data-id="${esc(a.id)}">Asignar</button></div></div>`).join('') || '<div class="empty">No hay pedidos nuevos.</div>'}</div>
+      ${ff.length ? `<div class="card-b"><small class="muted">Ya tienen grupo y falta que completen la ficha: ${ff.map(a => `<b>${esc(nombreA(a))}</b> (${esc(gName(a.grupoId))})`).join(', ')}.</small></div>` : ''}</div>`;
   const links = Object.values(S.links).sort((a, b) => (b.activo - a.activo) || (b.creado || '').localeCompare(a.creado || ''));
   h += `<div class="card"><div class="card-h"><h2>Links de inscripción</h2><small>Pasale el link al alumno cuando paga la matrícula</small></div><div class="rows">${links.map(l => { const n = Object.values(S.alumnos).filter(a => a.linkId === l.id).length;
     return `<div class="row"><div class="t">${esc(l.titulo)} ${l.activo ? pill('Activo', 'ok') : pill('Cerrado')}<small>${esc([l.programa, l.grupo_id ? gName(l.grupo_id) : 'grupo a asignar'].filter(Boolean).join(' · '))} · ${n} inscripto${n === 1 ? '' : 's'}</small><div class="linkbox" style="margin-top:6px">${esc(linkUrl(l))}</div></div>
@@ -3429,7 +3444,9 @@ const A = {
   asignar: async el => {
     const id = el.dataset.id; const g = $('#asg-' + CSS.escape(id))?.value; if (!g) { toast('Elegí el grupo.', 'error'); return; }
     el.classList.add('disabled');
-    const r = await run(S.sb.from('alumnos').update({ grupo_id: g, estado: 'activo' }).eq('id', id).select().single(), 'Asignado a ' + gName(g));
+    const a0 = S.alumnos[id]; const upd = { grupo_id: g, estado: 'activo' };
+    if (a0 && a0.pidioAcceso && !a0.fichaCompleta && S.grupos[g]?.programa) upd.programa = S.grupos[g].programa;   // su ficha va a ser la de ese curso
+    const r = await run(S.sb.from('alumnos').update(upd).eq('id', id).select().single(), 'Asignado a ' + gName(g) + (a0 && a0.pidioAcceso && !a0.fichaCompleta ? ': ahora le aparece su ficha para completar' : ''));
     if (r) { S.alumnos[id] = mapA(r); render(); } else el.classList.remove('disabled');
   },
   'alumno-nuevo': el => openAlumnoForm(null, el.dataset.g),
