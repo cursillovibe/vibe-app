@@ -11,6 +11,9 @@ App web del Cursillo VIBE para dirección, oficina, profes y alumnos. Se instala
 
 **Cómo entra un alumno (dos caminos):**
 - **Link de inscripción** (el principal): la oficina crea en **Inscripciones** un link por curso o por grupo y se lo pasa por WhatsApp al alumno que pagó la matrícula → el alumno crea su cuenta con su correo → completa la ficha.
+- **Pedir acceso sin invitación** (desde la pantalla de entrada, sin link): "Soy alumno y no tengo cuenta" → nombre, apellido, cédula, celular, grupo en el que está o se quiere inscribir, correo y contraseña → confirma el correo. Nunca entra solo a un grupo (el pedido queda en `grupo_pedido`).
+  - Si su cédula coincide con un alumno que la oficina ya había cargado sin cuenta, ve "¡Ya casi!" y en **Inscripciones → Ya estaban cargados** la oficina toca **Unir** (la cuenta pasa a su ficha, con sus pagos, notas y asistencia) o **No es** (sigue como alumno nuevo). Antes de unir, conviene comparar los celulares.
+  - Si no, completa su ficha en la app y aparece en "Fichas completas, sin grupo" con el grupo que pidió ya elegido.
 - **Invitación por correo**: la oficina carga el correo del alumno y le llega un mail para crear su contraseña.
 
 En los dos casos, cuando completa la ficha le llega un correo a informacion@ y la oficina le asigna el grupo. Cerrar un link (desmarcar "activo") corta la inscripción por ese link.
@@ -98,6 +101,7 @@ supabase/schema.sql     base de datos y permisos (se puede volver a correr)
 supabase/tareas-actividad.sql  tareas de la oficina y registro de actividad (también está en schema.sql)
 supabase/horas-caja.sql  entrada y salida (oficina y profes) y caja chica (también está en schema.sql)
 supabase/caja-cobros.sql  parte del cobro para la caja chica (también está en schema.sql)
+supabase/pedir-acceso.sql  alumnos que piden acceso sin invitación (también está en schema.sql)
 supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
 supabase/functions/     invitar (manda invitaciones), notificar (avisa fichas nuevas) y push (avisos al celular)
 supabase/cron-push.sql  avisos programados: llama a la función push cada 15 minutos
@@ -110,7 +114,7 @@ supabase/plantillas/    correos en español: invitación y recuperar contraseña
 ### 1. Supabase
 1. Entrar a supabase.com con **informacion@vibe.com.py** y crear el proyecto `vibe-app` (región São Paulo).
 2. **SQL Editor** → New query → pegar `supabase/schema.sql` → Run.
-3. **Authentication → Sign In / Providers**: dejar activado "Allow new users to sign up" (lo usa el link de inscripción) y activado **"Confirm email"**. Una cuenta creada sin un link válido no ve nada: no tiene ficha.
+3. **Authentication → Sign In / Providers**: dejar activado "Allow new users to sign up" (lo usan el link de inscripción y "Pedir acceso") y activado **"Confirm email"**. Una cuenta creada sin link ni pedido no ve nada: no tiene ficha; la de un pedido no ve ningún grupo hasta que la oficina se lo asigna.
 4. **Authentication → URL Configuration**: Site URL y Redirect URLs = la dirección de la app.
 5. **Authentication → Emails → SMTP**: `smtp.gmail.com`, puerto `465`, usuario `informacion@vibe.com.py`, contraseña = *contraseña de aplicación* de Google (la crea la dirección en myaccount.google.com → Seguridad → Contraseñas de aplicaciones; requiere verificación en 2 pasos). Remitente: "Cursillo VIBE".
 6. **Authentication → Emails → Templates**: pegar `plantillas/invitacion.html` en *Invite user* (asunto: "Tu acceso a la app de VIBE"), `plantillas/confirmar.html` en *Confirm signup* (asunto: "Confirmá tu correo para inscribirte en VIBE") y `plantillas/recuperar.html` en *Reset password* (asunto: "Cambiá tu contraseña de VIBE").

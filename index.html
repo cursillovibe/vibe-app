@@ -582,7 +582,8 @@ const mapG = r => ({ id: r.id, nombre: r.nombre, programa: r.programa || '', hor
   dias: r.dias && typeof r.dias === 'object' ? r.dias : {}, prioridad: !!r.prioridad, orden: num(r.orden), descripcion: r.descripcion || '' });
 const mapA = r => ({ id: r.id, userId: r.user_id, email: r.email || '', nombre: r.nombre || '', apellido: r.apellido || '', ci: r.ci || '', fechaNac: r.fecha_nac || '', tel: r.tel || '', ciudad: r.ciudad || '', colegio: r.colegio || '',
   encargado: r.encargado || '', encargadoTel: r.encargado_tel || '', programa: r.programa || '', linkId: r.link_id || '', ficha: r.ficha || {}, fichaCompleta: !!r.ficha_completa, fichaFecha: r.ficha_fecha || '', grupoId: r.grupo_id || '', estado: r.estado,
-  desc: num(r.descuento), cuotaEsp: r.cuota_especial, matExon: !!r.mat_exonerada, obs: r.obs || '', inscripcion: (r.creado || '').slice(0, 10) });
+  desc: num(r.descuento), cuotaEsp: r.cuota_especial, matExon: !!r.mat_exonerada, obs: r.obs || '', inscripcion: (r.creado || '').slice(0, 10),
+  grupoPedido: r.grupo_pedido || '', coincideId: r.coincide_id || '', pidioAcceso: r.pidio_acceso || '' });
 const mapP = r => ({ id: r.id, nro: r.nro, alumnoId: r.alumno_id, grupoId: r.grupo_id, itemId: r.item, concepto: r.concepto, monto: num(r.monto), fecha: r.fecha, metodo: r.metodo, obs: r.obs || '', por: r.registrado_por, creado: r.creado, paraCaja: num(r.para_caja) });
 
 /* ---------- índices y cálculos ---------- */
@@ -596,7 +597,8 @@ const gruposActivos = () => gruposOrden().filter(g => g.activo !== false);
 const alumnosDe = (gid, bajas = false) => Object.values(S.alumnos).filter(a => a.grupoId === gid && (a.estado === 'activo' || (bajas && a.estado === 'baja'))).sort(cmpA);
 const activos = () => Object.values(S.alumnos).filter(a => a.estado === 'activo');
 const pendientes = () => Object.values(S.alumnos).filter(a => a.fichaCompleta && (a.estado === 'pendiente' || (a.estado === 'activo' && !a.grupoId))).sort((a, b) => (a.fichaFecha || '').localeCompare(b.fichaFecha || ''));
-const invitados = () => Object.values(S.alumnos).filter(a => a.estado === 'invitado').sort(cmpA);
+const coincidencias = () => Object.values(S.alumnos).filter(a => a.coincideId && a.userId && S.alumnos[a.coincideId] && !S.alumnos[a.coincideId].userId).sort((a, b) => (a.pidioAcceso || '').localeCompare(b.pidioAcceso || ''));
+const invitados = () => Object.values(S.alumnos).filter(a => a.estado === 'invitado' && !coincidencias().includes(a)).sort(cmpA);
 const gName = id => S.grupos[id]?.nombre || 'Sin grupo';
 
 function debido(a, it) {
@@ -1033,7 +1035,7 @@ function pillCuenta(c) {
   return pill('Pagó todo', 'ok');
 }
 function pillEstado(a) {
-  if (a.estado === 'invitado') return pill('Invitado · sin ficha', 'pend');
+  if (a.estado === 'invitado') return pill(a.pidioAcceso ? 'Pidió acceso · sin ficha' : 'Invitado · sin ficha', 'pend');
   if (a.estado === 'pendiente') return pill('Ficha lista · sin grupo', 'late');
   if (a.estado === 'baja') return pill('De baja');
   if (!a.grupoId) return pill('Sin grupo', 'late');
@@ -1114,7 +1116,7 @@ function go(v, after) {
   doIt();
 }
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (S.perfil && v && v !== S.view && NAV.some(n => n.id === v)) go(v); });
-const badgeN = id => id === 'inscripciones' ? pendientes().length : id === 'tareas' ? (S.loaded.tareas ? misTareas().length : 0) : 0;
+const badgeN = id => id === 'inscripciones' ? pendientes().length + coincidencias().length : id === 'tareas' ? (S.loaded.tareas ? misTareas().length : 0) : 0;
 
 function renderShell() {
   const app = $('#app'); const logged = S.perfil && S.perfil.activo && !S.needPassword && !(isAlumno() && yo() && !yo().fichaCompleta);
@@ -1155,6 +1157,7 @@ function pantalla() {
     if (!S.loaded.alumnos) return `<div class="loading">Cargando…</div>`;
     const a = yo();
     if (!a) return authCard(`<div class="banner bad">Tu cuenta todavía no tiene una ficha asociada. Avisá a la oficina de VIBE.</div><button class="btn" data-act="salir">Salir</button>`);
+    if (a.coincideId && !a.grupoId) return vEsperaUnir(a);
     if (!a.fichaCompleta) return vOnboarding(a);
   }
   const fn = VIEWS[S.view] || VIEWS[startView()];
@@ -1182,6 +1185,21 @@ function vAuth() {
       <div class="err" id="r-err"></div><button class="btn primary block" type="submit">Crear mi cuenta</button></form>
       <button class="linkbtn" data-act="auth-view" data-v="login">Ya tengo cuenta: entrar</button>`);
   }
+  if (S.registroEnviado && S.authView === 'pedido') return authCard(`<div><h1>Revisá tu correo</h1><p class="muted" style="margin:6px 0 0">Te mandamos un correo a <b>${esc(S.registroEnviado)}</b>. Abrilo y tocá <b>Confirmar</b>; después entrás a la app con tu correo y tu contraseña.</p></div><small>¿No llegó? Fijate en Spam o Promociones.</small><button class="linkbtn" data-act="auth-view" data-v="login">Ir a entrar</button>`);
+  if (S.authView === 'pedido') {
+    if (!S.gruposInsc) { cargarGruposInsc(); return authCard(`<div class="loading">Cargando…</div>`); }
+    return authCard(`<div><span class="pill acc">Alumnos</span><h1 style="margin-top:8px">Crear mi cuenta</h1><p class="muted" style="margin:6px 0 0">Completá tus datos. La oficina confirma tu grupo y después ves en la app tus cuotas, notas, asistencia y horario.</p></div>${msg}
+      <form data-form="pedido"><div class="fld"><label for="p-nom">Nombre</label><input class="inp" id="p-nom" autocomplete="given-name" maxlength="80" required></div>
+      <div class="fld"><label for="p-ape">Apellido</label><input class="inp" id="p-ape" autocomplete="family-name" maxlength="80" required></div>
+      <div class="fld"><label for="p-ci">Cédula</label><input class="inp" id="p-ci" inputmode="numeric" maxlength="15" placeholder="Solo números" required></div>
+      <div class="fld"><label for="p-tel">Celular</label><input class="inp" id="p-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="09xx xxx xxx" required></div>
+      <div class="fld"><label for="p-grupo">¿En qué grupo estás o te querés inscribir?</label><select class="inp" id="p-grupo"><option value="">Elegí…</option>${S.gruposInsc.map(g => `<option value="${esc(g.id)}">${esc(g.nombre)}${g.programa ? ' · ' + esc(g.programa) : ''}</option>`).join('')}<option value="nose">Todavía no sé</option></select></div>
+      <div class="fld"><label for="p-email">Tu correo</label><input class="inp" id="p-email" type="email" autocomplete="email" required></div>
+      <div class="fld"><label for="p-pass">Elegí una contraseña</label><input class="inp" id="p-pass" type="password" autocomplete="new-password" minlength="6" required><span class="hint">Mínimo 6 caracteres. La vas a usar para entrar a la app.</span></div>
+      <div class="fld"><label for="p-pass2">Repetila</label><input class="inp" id="p-pass2" type="password" autocomplete="new-password" required></div>
+      <div class="err" id="p-err"></div><button class="btn primary block" type="submit">Crear mi cuenta</button></form>
+      <button class="linkbtn" data-act="auth-view" data-v="login">Ya tengo cuenta: entrar</button>`);
+  }
   if (S.authView === 'olvide') return authCard(`<div><h1>Recuperar acceso</h1><p class="muted" style="margin:6px 0 0">Te mandamos un correo para elegir una contraseña nueva.</p></div>${msg}
     <form data-form="olvide"><div class="fld"><label for="l-email">Correo</label><input class="inp" id="l-email" type="email" autocomplete="email" required></div>
     <button class="btn primary block" type="submit">Enviar correo</button></form><button class="linkbtn" data-act="auth-view" data-v="login">Volver a entrar</button>`);
@@ -1190,7 +1208,17 @@ function vAuth() {
     <div class="fld"><label for="l-pass">Contraseña</label><input class="inp" id="l-pass" type="password" autocomplete="current-password" required></div>
     <button class="btn primary block" type="submit">Entrar</button></form>
     <button class="linkbtn" data-act="auth-view" data-v="olvide">Olvidé mi contraseña</button>
-    ${CODIGO && L && L.activo ? `<button class="linkbtn" data-act="auth-view" data-v="registro">No tengo cuenta: crear una</button>` : `<small>¿Todavía no tenés cuenta? Cuando pagás la matrícula la oficina te pasa el link de inscripción.</small>`}`);
+    ${CODIGO && L && L.activo ? `<button class="linkbtn" data-act="auth-view" data-v="registro">No tengo cuenta: crear una</button>` : `<button class="btn block" data-act="auth-view" data-v="pedido">${ic('user')}Soy alumno y no tengo cuenta</button>`}`);
+}
+async function cargarGruposInsc() {
+  if (S.gruposInscPend) return; S.gruposInscPend = true;
+  try { const { data, error } = await S.sb.rpc('grupos_para_inscribir'); if (error) throw error; S.gruposInsc = data || []; } catch (e) { console.warn('grupos', e); S.gruposInsc = []; }
+  S.gruposInscPend = false; render();
+}
+// pidió acceso y coincide con un alumno que ya estaba cargado: espera que la oficina confirme
+function vEsperaUnir(a) {
+  return authCard(`<div><h1>¡Ya casi!</h1><p class="muted" style="margin:6px 0 0">Encontramos tus datos en VIBE${a.ci ? ' (cédula ' + esc(a.ci) + ')' : ''}. La oficina tiene que confirmar que sos vos; cuando lo haga, entrás directo con tus cuotas, notas y asistencia. No tenés que completar nada más.</p></div>
+    <small>Si tarda, escribile a la oficina por WhatsApp.</small><button class="btn primary block" data-act="recargar-datos">Actualizar</button><button class="linkbtn" data-act="salir">Salir</button>`);
 }
 function vNuevaClave() {
   return authCard(`<div><h1>Creá tu contraseña</h1><p class="muted" style="margin:6px 0 0">${esc(S.session?.user?.email || '')}</p></div>
@@ -1225,7 +1253,7 @@ function leerFicha(pref = 'f', validar = true) {
 }
 function vOnboarding(a) {
   return `<div class="onb"><div class="brand">${LOGO()}</div>
-    ${ph('¡Bienvenido/a a VIBE!', 'Completá tu ficha de inscripción. Con esto la oficina te asigna a tu grupo y ya vas a poder ver tus cuotas, notas y asistencia.')}
+    ${ph('¡Bienvenido/a a VIBE!', 'Completá tu ficha de inscripción. Con esto la oficina te asigna a tu grupo' + (a.grupoPedido && gName(a.grupoPedido) ? ' (pediste ' + gName(a.grupoPedido) + ')' : '') + ' y ya vas a poder ver tus cuotas, notas y asistencia.')}
     <div class="card"><div class="card-b">${fichaForm(a)}<div class="err" id="f-err" style="margin-top:12px"></div></div>
     <div class="savebar" style="position:static"><small>${esc(a.email)}</small><div class="actions"><button class="btn ghost" data-act="salir">Salir</button><button class="btn primary" data-act="ficha-guardar">Enviar mi ficha</button></div></div></div></div>`;
 }
@@ -1797,6 +1825,8 @@ VIEWS.inicio = () => {
     if (csf) h += `<div class="banner click" data-act="hortab" data-v="plantel"><span><b>${csf} cuenta${csf === 1 ? '' : 's'} de profe sin vincular</b> al plantel: no ven su horario hasta que las vincules.</span><span class="btn sm primary">Vincular</span></div>`;
     const cp = cambiosPend().length;
     if (isAdmin() && cp) h += `<div class="banner click" data-act="hortab" data-v="cambios"><span><b>${cp} pedido${cp === 1 ? '' : 's'} de cambio</b> de profes esperan que los apruebes.</span><span class="btn sm primary">Revisar</span></div>`;
+    const co = coincidencias().length;
+    if (co) h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span><b>${co} alumno${co === 1 ? '' : 's'} que ya estaba${co === 1 ? '' : 'n'} cargado${co === 1 ? '' : 's'}</b> crearon su cuenta: confirmá que son ellos.</span><span class="btn sm primary">Revisar</span></div>`;
     if (pend.length) h += `<div class="banner click" data-act="nav" data-v="inscripciones"><span><b>${pend.length} alumno${pend.length === 1 ? '' : 's'}</b> completaron su ficha y esperan que les asignes grupo.</span><span class="btn sm primary">Asignar grupo</span></div>`;
     const mes = t.slice(0, 7); const pm = Object.values(S.pagos).filter(p => (p.fecha || '').startsWith(mes));
     const deud = al.map(a => ({ a, c: cuenta(a) })).filter(x => x.c.vencido > 0).sort((x, y) => y.c.vencido - x.c.vencido);
@@ -1858,15 +1888,18 @@ function rowDeuda(a, c) {
 /* --- inscripciones --- */
 VIEWS.inscripciones = () => {
   if (!ready('grupos', 'alumnos')) return loadingView();
-  const pend = pendientes(); const inv = invitados(); const gs = gruposActivos();
-  let h = ph('Inscripciones', 'Links de inscripción, fichas nuevas y alumnos invitados', `<button class="btn" data-act="invitar-alumno">${ic('mail')}Invitar por correo</button><button class="btn primary" data-act="link-nuevo">${ic('plus')}Nuevo link</button>`);
+  const pend = pendientes(); const inv = invitados(); const gs = gruposActivos(); const co = coincidencias();
+  let h = ph('Inscripciones', 'Links de inscripción, pedidos de acceso, fichas nuevas y alumnos invitados', `<button class="btn" data-act="invitar-alumno">${ic('mail')}Invitar por correo</button><button class="btn primary" data-act="link-nuevo">${ic('plus')}Nuevo link</button>`);
+  if (co.length) h += `<div class="card"><div class="card-h"><div><h2>Ya estaban cargados: confirmá que son ellos</h2><small>Crearon su cuenta desde la app y su cédula coincide con un alumno que ya está en VIBE. Al unir, entran con sus cuotas, notas y asistencia.</small></div><span class="pill late">${co.length}</span></div><div class="rows">${co.map(a => { const e = S.alumnos[a.coincideId];
+      return `<div class="row"><div class="t"><b>${esc(nombreA(a))}</b> · ${esc(a.email)}<small>Puso CI ${esc(a.ci || '—')} · cel ${esc(a.tel || '—')} · pidió acceso el ${esc(fmtF(dPY(a.pidioAcceso)))}</small><small>Coincide con <b>${esc(nombreA(e))}</b> · ${esc(e.grupoId ? gName(e.grupoId) : 'sin grupo')} · CI ${esc(e.ci || '—')} · cel ${esc(e.tel || '—')}</small></div>
+        <div class="r"><button class="btn sm ghost" data-act="no-coincide" data-id="${esc(a.id)}">No es</button><button class="btn sm primary" data-act="unir-alumno" data-id="${esc(a.id)}">Unir</button></div></div>`; }).join('')}</div><div class="card-b"><small class="muted">Antes de unir, fijate que el celular coincida o confirmá con el alumno. "No es" = sigue como alumno nuevo (completa su ficha y le asignás grupo).</small></div></div>`;
   const links = Object.values(S.links).sort((a, b) => (b.activo - a.activo) || (b.creado || '').localeCompare(a.creado || ''));
   h += `<div class="card"><div class="card-h"><h2>Links de inscripción</h2><small>Pasale el link al alumno cuando paga la matrícula</small></div><div class="rows">${links.map(l => { const n = Object.values(S.alumnos).filter(a => a.linkId === l.id).length;
     return `<div class="row"><div class="t">${esc(l.titulo)} ${l.activo ? pill('Activo', 'ok') : pill('Cerrado')}<small>${esc([l.programa, l.grupo_id ? gName(l.grupo_id) : 'grupo a asignar'].filter(Boolean).join(' · '))} · ${n} inscripto${n === 1 ? '' : 's'}</small><div class="linkbox" style="margin-top:6px">${esc(linkUrl(l))}</div></div>
       <div class="r"><button class="btn sm" data-act="link-copiar" data-id="${esc(l.id)}">${ic('copy')}Copiar</button><a class="btn sm wa" href="https://wa.me/?text=${encodeURIComponent(`¡Hola! Para inscribirte en ${l.titulo} del ${S.cfg.nombre || 'Cursillo VIBE'}, entrá a este link, creá tu cuenta y completá tu ficha: ${linkUrl(l)}`)}" target="_blank" rel="noopener">${ic('wa')}Compartir</a><button class="btn sm" data-act="link-editar" data-id="${esc(l.id)}">${ic('edit')}</button></div></div>`; }).join('') || `<div class="empty"><b>Todavía no hay links</b>Creá uno por curso o por grupo y compartilo por WhatsApp.</div>`}</div></div>`;
-  h += `<div class="card"><div class="card-h"><h2>Fichas completas, sin grupo</h2><span class="pill ${pend.length ? 'late' : 'ok'}">${pend.length}</span></div><div class="rows">${pend.map(a => `<div class="row"><div class="t" data-act="ver-alumno" data-id="${esc(a.id)}" style="cursor:pointer">${esc(nombreA(a))}<small>${esc([progDe(a), a.ficha?.carrera, a.colegio, a.tel].filter(Boolean).join(' · '))} · ficha del ${fmtF(a.fichaFecha)}</small></div>
-    <div class="r"><select class="inp" style="width:auto;min-height:34px;padding:5px 10px" id="asg-${esc(a.id)}" aria-label="Grupo para ${esc(nombreA(a))}"><option value="">Elegí grupo…</option>${gs.map(g => `<option value="${esc(g.id)}" ${g.id === a.grupoId ? 'selected' : ''}>${esc(g.nombre)}</option>`).join('')}</select><button class="btn sm primary" data-act="asignar" data-id="${esc(a.id)}">Asignar</button></div></div>`).join('') || '<div class="empty"><b>Nada pendiente</b>Cuando un alumno complete su ficha te llega un correo y aparece acá.</div>'}</div></div>`;
-  h += `<div class="card"><div class="card-h"><h2>Invitados que todavía no completaron la ficha</h2><span class="pill pend">${inv.length}</span></div><div class="rows">${inv.map(a => `<div class="row"><div class="t" data-act="ver-alumno" data-id="${esc(a.id)}" style="cursor:pointer">${esc(nombreA(a))}<small>${esc([a.email, progDe(a)].filter(Boolean).join(' · '))} · invitado el ${fmtF(a.inscripcion)}${a.grupoId ? ' · ' + esc(gName(a.grupoId)) : ''}</small></div><div class="r"><button class="btn sm" data-act="reinvitar" data-id="${esc(a.id)}">${ic('mail')}Reenviar</button></div></div>`).join('') || '<div class="empty">No hay invitaciones pendientes.</div>'}</div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Fichas completas, sin grupo</h2><span class="pill ${pend.length ? 'late' : 'ok'}">${pend.length}</span></div><div class="rows">${pend.map(a => `<div class="row"><div class="t" data-act="ver-alumno" data-id="${esc(a.id)}" style="cursor:pointer">${esc(nombreA(a))}<small>${esc([progDe(a), a.ficha?.carrera, a.colegio, a.tel].filter(Boolean).join(' · '))} · ficha del ${fmtF(a.fichaFecha)}${a.grupoPedido && !a.grupoId ? ' · pidió ' + esc(gName(a.grupoPedido)) : ''}</small></div>
+    <div class="r"><select class="inp" style="width:auto;min-height:34px;padding:5px 10px" id="asg-${esc(a.id)}" aria-label="Grupo para ${esc(nombreA(a))}"><option value="">Elegí grupo…</option>${gs.map(g => `<option value="${esc(g.id)}" ${g.id === (a.grupoId || a.grupoPedido) ? 'selected' : ''}>${esc(g.nombre)}</option>`).join('')}</select><button class="btn sm primary" data-act="asignar" data-id="${esc(a.id)}">Asignar</button></div></div>`).join('') || '<div class="empty"><b>Nada pendiente</b>Cuando un alumno complete su ficha te llega un correo y aparece acá.</div>'}</div></div>`;
+  h += `<div class="card"><div class="card-h"><h2>Invitados que todavía no completaron la ficha</h2><span class="pill pend">${inv.length}</span></div><div class="rows">${inv.map(a => `<div class="row"><div class="t" data-act="ver-alumno" data-id="${esc(a.id)}" style="cursor:pointer">${esc(nombreA(a))}<small>${esc([a.email, progDe(a), a.tel].filter(Boolean).join(' · '))} · ${a.pidioAcceso ? 'pidió acceso el ' + fmtF(dPY(a.pidioAcceso)) + (a.grupoPedido ? ' · quiere ' + esc(gName(a.grupoPedido)) : '') : 'invitado el ' + fmtF(a.inscripcion)}${a.grupoId ? ' · ' + esc(gName(a.grupoId)) : ''}</small></div><div class="r">${a.pidioAcceso ? pill('Ya tiene cuenta') : `<button class="btn sm" data-act="reinvitar" data-id="${esc(a.id)}">${ic('mail')}Reenviar</button>`}</div></div>`).join('') || '<div class="empty">No hay invitaciones pendientes.</div>'}</div></div>`;
   return h;
 };
 
@@ -3389,6 +3422,10 @@ const A = {
       load(['alumnos']);
     }, false);
   },
+  'unir-alumno': el => { const a = S.alumnos[el.dataset.id]; const e = a && S.alumnos[a.coincideId]; if (!e) return;
+    confirmDlg(`¿Unir la cuenta ${a.email} con ${nombreA(e)}${e.grupoId ? ' (' + gName(e.grupoId) + ')' : ''}? Va a ver sus cuotas, notas y asistencia.`, 'Unir', async () => {
+      if (await run(S.sb.rpc('unir_alumno', { nuevo: a.id, existente: e.id }), 'Listo: ' + nombreA(e) + ' ya entra con su cuenta')) { closeModal(); await load(['alumnos']); } }, false); },
+  'no-coincide': async el => { const id = el.dataset.id; const r = await run(S.sb.from('alumnos').update({ coincide_id: null }).eq('id', id).select().single(), 'Listo: sigue como alumno nuevo'); if (r) { S.alumnos[id] = mapA(r); render(); } },
   asignar: async el => {
     const id = el.dataset.id; const g = $('#asg-' + CSS.escape(id))?.value; if (!g) { toast('Elegí el grupo.', 'error'); return; }
     el.classList.add('disabled');
@@ -3926,6 +3963,22 @@ const CH = {
   'imp-map': el => { IMP.map[+el.dataset.i] = el.value; renderImport(); }
 };
 const FORMS = {
+  pedido: async f => {
+    const v = id => $('#' + id).value.trim(); const err = t => { $('#p-err').textContent = t; };
+    const nombre = v('p-nom'), apellido = v('p-ape'), ci = v('p-ci').replace(/\D/g, ''), tel = v('p-tel'), grupo = $('#p-grupo').value, email = v('p-email').toLowerCase(), p1 = $('#p-pass').value, p2 = $('#p-pass2').value;
+    if (!nombre || !apellido) return err('Poné tu nombre y tu apellido.');
+    if (ci.length < 5) return err('Poné tu número de cédula (solo números).');
+    if (tel.replace(/\D/g, '').length < 6) return err('Poné tu número de celular.');
+    if (!grupo) return err('Elegí en qué grupo estás o te querés inscribir (o "Todavía no sé").');
+    if (p1.length < 6) return err('La contraseña tiene que tener al menos 6 caracteres.');
+    if (p1 !== p2) return err('Las contraseñas no coinciden.');
+    const b = f.querySelector('button[type=submit]'); b.classList.add('disabled'); err('');
+    const { data, error } = await S.sb.auth.signUp({ email, password: p1, options: { data: { pedido: '1', nombre, apellido, ci, tel, grupo: grupo === 'nose' ? '' : grupo }, emailRedirectTo: APP_URL } });
+    b.classList.remove('disabled');
+    if (error) return err(errText(error));
+    if (data?.user && Array.isArray(data.user.identities) && !data.user.identities.length) { S.authView = 'login'; S.authOk = false; S.authMsg = 'Ese correo ya tiene cuenta. Entrá con tu contraseña (o tocá "Olvidé mi contraseña").'; render(); return; }
+    if (!data?.session) { S.registroEnviado = email; render(); }
+  },
   registro: async f => {
     const email = $('#r-email').value.trim().toLowerCase(), p1 = $('#r-pass').value, p2 = $('#r-pass2').value;
     if (p1.length < 6) { $('#r-err').textContent = 'La contraseña tiene que tener al menos 6 caracteres.'; return; }
