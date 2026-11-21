@@ -78,6 +78,10 @@ En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la pl
 - **Exportar**: **Excel** (.xlsx con título, cédula, grupo, nota, porcentaje y resultado; hoja "Por grupo") y **PDF con el logo** (A4, encabezado naranja, pie con página). Las librerías se cargan solo al exportar (SheetJS desde cdnjs; jsPDF y autotable desde jsdelivr).
 - Archivo `supabase/examen-comun.sql`.
 
+## Recibo como imagen
+
+- En el recibo (al cobrar o desde Cobros), **Enviar imagen por WhatsApp** manda la imagen del recibo (logo, N°, monto en números y letras, sello verde **PAGADO**, fecha, alumno y CI, concepto, grupo, forma de pago, saldo del curso —"Al día" en verde—, quién lo cobró). En el **celu** se abre el menú para compartir: se elige WhatsApp y el chat del encargado o del alumno (WhatsApp no deja elegir el chat desde un link). En la **compu** se copia la imagen y se abre el chat del encargado (o del alumno): se pega con Ctrl+V y se envía. Si el navegador no deja copiar, se descarga. Sin teléfono cargado, "Compartir imagen". La imagen se prepara al abrir el recibo. El envío solo de texto se reemplazó por esto ("Copiar texto" sigue). El alumno ve su recibo y lo descarga como imagen.
+
 ## Corrección con la cámara (hoja de respuestas VIBE)
 
 - **Hoja para imprimir**: Exámenes → **Hoja de respuestas** (o desde la clave de un examen, con el nombre y la fecha ya puestos). Tres formatos: **Ingeniería 20** (a a e) y **Becas 40** (a a d) con el diseño de la matriz de siempre del cursillo (teléfono del cursillo y logo arriba, nombres, apellidos y ejemplo de llenado a la izquierda, cédula de 7 columnas y Fila 1–2 a la derecha), y **Medicina 60** (A a E) copiada de la hoja de la UNCA (cédula de 8 columnas, Fila 1 a 4, datos a la derecha). La cédula se llena desde la izquierda. Sin nombre de profe: solo Cursillo VIBE y su WhatsApp (0994 214 571, en `omr.js`). Las 4 marcas negras de las esquinas, la marca chica de arriba (dice dónde está "arriba") y el cuadradito del medio (dice qué formato es) son lo que lee la cámara: no se pueden tapar. Se puede fotocopiar.

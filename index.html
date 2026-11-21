@@ -3576,19 +3576,24 @@ function openRecibo(pid) {
     <div class="rcb-amt">${money(p.monto)}</div><div class="rcb-words">${esc(cap(letras(p.monto)))} guaraníes</div>
     <dl class="dl"><dt>Fecha</dt><dd>${fmtF(p.fecha)}</dd><dt>Recibí de</dt><dd>${esc(r.nombre)}${r.a.ci ? ' · CI ' + esc(r.a.ci) : ''}</dd><dt>Concepto</dt><dd>${esc(p.concepto)}</dd><dt>Grupo</dt><dd>${esc(r.grupo)}</dd><dt>Forma de pago</dt><dd>${esc(p.metodo || '—')}</dd>${p.obs ? `<dt>Obs.</dt><dd>${esc(p.obs)}</dd>` : ''}<dt>Saldo del curso</dt><dd>${money(r.saldo)}</dd></dl>
     <div class="rcb-sign"><span>${esc(r.cursillo)}${r.cfg.dir ? '<br>' + esc(r.cfg.dir) : ''}${r.cfg.tel ? '<br>' + esc(r.cfg.tel) : ''}</span><span class="ln">Firma y aclaración</span></div></div>
-    ${isStaff() ? (tel ? `<small class="muted rcb-extra">WhatsApp: +${esc(tel)} (${r.a.encargadoTel ? 'encargado' : 'alumno'})</small>` : '<small class="muted rcb-extra">El alumno no tiene teléfono cargado.</small>') : ''}`;
+    ${isStaff() ? (tel ? `<small class="muted rcb-extra">WhatsApp: +${esc(tel)} (${r.a.encargadoTel ? 'encargado' : 'alumno'}) · ${enCelu() ? 'se abre para compartir: elegí WhatsApp y su chat' : 'se copia la imagen y se abre su chat: pegala con Ctrl+V'}</small>` : '<small class="muted rcb-extra">El alumno no tiene teléfono cargado: podés compartir la imagen igual.</small>') : ''}`;
   const foot = `${isAdmin() ? `<button class="btn ghost danger" data-act="pago-anular" data-id="${esc(p.id)}" style="margin-right:auto">${ic('trash')}Anular</button>` : ''}
     <button class="btn" data-act="imprimir">${ic('print')}Imprimir</button><button class="btn" data-act="png-recibo">${ic('download')}Descargar imagen</button>
     ${isStaff() ? `<button class="btn" data-act="copiar-recibo">${ic('copy')}Copiar texto</button>` : ''}
-    ${tel ? `<a class="btn primary" href="https://wa.me/${tel}?text=${encodeURIComponent(reciboTexto(p))}" target="_blank" rel="noopener">${ic('wa')}Enviar por WhatsApp</a>` : ''}`;
+    ${isStaff() ? `<button class="btn primary" data-act="rcb-enviar">${ic('wa')}${tel ? 'Enviar imagen por WhatsApp' : 'Compartir imagen'}</button>` : ''}`;
   RC = p; openModal('Recibo N° ' + r.nro, body, foot);
+  // la imagen se prepara ya, así al tocar "Enviar" el celu abre el menú para compartir sin esperar
+  if (isStaff()) { const x = RCB = { pid: p.id, blob: null }; x.prom = reciboPNG(p).then(b => { x.blob = b; return b; }).catch(() => null); }
 }
 async function reciboPNG(p) {
   const r = reciboData(p); const W = 1000, P = 64;
   const cv = document.createElement('canvas'); const ctx = cv.getContext('2d');
   try { await Promise.all([document.fonts.load('800 40px Montserrat'), document.fonts.load('400 26px Figtree'), document.fonts.load('600 26px Figtree')]); } catch (e) { }
-  const rows = [['Fecha', fmtF(p.fecha)], ['Recibí de', r.nombre + (r.a.ci ? ' · CI ' + r.a.ci : '')], ['Concepto', p.concepto], ['Grupo', r.grupo], ['Forma de pago', p.metodo || '—'], ...(p.obs ? [['Obs.', p.obs]] : []), ['Saldo del curso', money(r.saldo)]];
-  const H = 330 + rows.length * 62 + 190; cv.width = W; cv.height = H;
+  const hora = p.creado ? hhmm(p.creado) : '';
+  const cobro = S.perfiles[p.por]?.nombre || '';                                  // quién registró el cobro (la oficina lo ve; el alumno no)
+  const alDia = r.saldo <= 0;
+  const rows = [['Fecha', fmtF(p.fecha) + (hora && dPY(p.creado) === p.fecha ? ' · ' + hora : '')], ['Recibí de', r.nombre + (r.a.ci ? ' · CI ' + r.a.ci : '')], ['Concepto', p.concepto], ['Grupo', r.grupo], ['Forma de pago', p.metodo || '—'], ...(p.obs ? [['Obs.', p.obs]] : []), ['Saldo del curso', alDia ? 'Al día' : money(r.saldo) + ' pendiente']];
+  const H = 330 + rows.length * 62 + 200; cv.width = W; cv.height = H;
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
   let logoOk = false;
   try { const im = new Image(); im.src = r.cfg.logo || 'img/logo-vibe.png'; await im.decode(); const w = Math.min(380, im.width * 80 / im.height); ctx.drawImage(im, P, 50, w, w * im.height / im.width); logoOk = true; } catch (e) { }
@@ -3597,12 +3602,39 @@ async function reciboPNG(p) {
   ctx.fillStyle = '#17140F'; ctx.font = '800 40px Montserrat, sans-serif'; ctx.fillText('N° ' + r.nro, W - P, 120); ctx.textAlign = 'left';
   ctx.fillStyle = '#FB8500'; ctx.fillRect(P, 158, W - 2 * P, 6);
   ctx.fillStyle = '#17140F'; ctx.font = '800 60px Montserrat, sans-serif'; ctx.fillText(money(p.monto), P, 245);
+  const anchoMonto = ctx.measureText(money(p.monto)).width;
   ctx.fillStyle = '#68625A'; ctx.font = '400 26px Figtree, sans-serif'; ctx.fillText(cap(letras(p.monto)) + ' guaraníes', P, 285);
+  // sello PAGADO
+  ctx.save(); ctx.translate(Math.max(W - P - 150, P + anchoMonto + 150), 232); ctx.rotate(-0.12);
+  ctx.strokeStyle = '#1E7D46'; ctx.lineWidth = 5; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(-128, -40, 256, 80, 14); else ctx.rect(-128, -40, 256, 80); ctx.stroke();
+  ctx.fillStyle = '#1E7D46'; ctx.font = '800 44px Montserrat, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('PAGADO', 0, 2); ctx.restore();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   let y = 350;
-  rows.forEach(([k, v]) => { ctx.fillStyle = '#68625A'; ctx.font = '600 24px Figtree, sans-serif'; ctx.fillText(k, P, y); ctx.fillStyle = '#17140F'; ctx.font = '600 28px Figtree, sans-serif'; let t = String(v); while (ctx.measureText(t).width > W - P - 330 && t.length > 4) t = t.slice(0, -2); if (t !== String(v)) t = t.slice(0, -1) + '…'; ctx.fillText(t, 330, y); ctx.fillStyle = '#E4E0D9'; ctx.fillRect(P, y + 22, W - 2 * P, 1); y += 62; });
-  y += 90; ctx.fillStyle = '#17140F'; ctx.fillRect(W - P - 320, y, 320, 2); ctx.fillStyle = '#68625A'; ctx.font = '400 22px Figtree, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Firma y aclaración', W - P - 160, y + 32); ctx.textAlign = 'left';
-  ctx.fillStyle = '#17140F'; ctx.font = '700 24px Figtree, sans-serif'; ctx.fillText(r.cursillo, P, y - 10); ctx.fillStyle = '#68625A'; ctx.font = '400 22px Figtree, sans-serif'; ctx.fillText([r.cfg.dir, r.cfg.tel].filter(Boolean).join(' · '), P, y + 22);
+  rows.forEach(([k, v]) => { ctx.fillStyle = '#68625A'; ctx.font = '600 24px Figtree, sans-serif'; ctx.fillText(k, P, y); ctx.fillStyle = k === 'Saldo del curso' && alDia ? '#1E7D46' : '#17140F'; ctx.font = (k === 'Saldo del curso' && alDia ? '700' : '600') + ' 28px Figtree, sans-serif'; let t = String(v); while (ctx.measureText(t).width > W - P - 330 && t.length > 4) t = t.slice(0, -2); if (t !== String(v)) t = t.slice(0, -1) + '…'; ctx.fillText(t, 330, y); ctx.fillStyle = '#E4E0D9'; ctx.fillRect(P, y + 22, W - 2 * P, 1); y += 62; });
+  y += 70;
+  ctx.fillStyle = '#17140F'; ctx.font = '700 24px Figtree, sans-serif'; ctx.fillText(r.cursillo, P, y); ctx.fillStyle = '#68625A'; ctx.font = '400 22px Figtree, sans-serif'; ctx.fillText([r.cfg.dir, r.cfg.tel].filter(Boolean).join(' · '), P, y + 32);
+  if (cobro) { ctx.textAlign = 'right'; ctx.fillStyle = '#68625A'; ctx.font = '400 22px Figtree, sans-serif'; ctx.fillText('Cobrado por', W - P, y); ctx.fillStyle = '#17140F'; ctx.font = '700 24px Figtree, sans-serif'; ctx.fillText(cobro, W - P, y + 32); ctx.textAlign = 'left'; }
+  ctx.fillStyle = '#9A948B'; ctx.font = '400 19px Figtree, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Comprobante emitido desde la app de ' + r.cursillo, W / 2, H - 34); ctx.textAlign = 'left';
   return new Promise(res => cv.toBlob(res, 'image/png'));
+}
+// mandar la imagen del recibo: en el celu, compartir (WhatsApp → el chat); en la compu, se copia la imagen y se abre el chat para pegarla
+const enCelu = () => matchMedia('(pointer: coarse)').matches;
+let RCB = null;
+async function enviarReciboImagen(p) {
+  const r = reciboData(p), tel = waNum(r.a.encargadoTel || r.a.tel);
+  const blob = (RCB && RCB.pid === p.id && (RCB.blob || await RCB.prom)) || await reciboPNG(p);
+  if (!blob) { toast('No se pudo generar la imagen.', 'error'); return; }
+  const nombre = `Recibo ${r.nro} - ${r.nombre}.png`.replace(/[\\/:*?"<>|]+/g, ' ');
+  const file = new File([blob], nombre, { type: 'image/png' });
+  if (enCelu() && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], text: `${r.cursillo} · Recibo N° ${r.nro} · ${r.nombre} · ${money(p.monto)}` }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }   // si falla, sigue como en la compu
+  }
+  let copiada = false;
+  try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); copiada = true; } catch (e) { }
+  if (!copiada) guardarArchivo(nombre, blob);
+  if (tel) window.open(`https://wa.me/${tel}`, '_blank', 'noopener');
+  toast(copiada ? `Imagen copiada.${tel ? ' En el chat que se abrió, pegala (Ctrl+V) y enviá.' : ' Pegala en el chat (Ctrl+V).'}` : 'Se descargó la imagen: adjuntala en el chat de WhatsApp.');
 }
 
 /* ---------- WhatsApp recordatorio ---------- */
@@ -3908,6 +3940,7 @@ const A = {
   'pago-anular': el => { const id = el.dataset.id; const pc = S.pagos[id]?.paraCaja; confirmDlg('¿Anular este pago? Se borra del historial y la cuota vuelve a quedar pendiente.' + (pc ? ` También se saca de la caja chica lo apartado (${money(pc)}).` : ''), 'Anular pago', async () => { if (await run(S.sb.from('pagos').delete().eq('id', id), 'Pago anulado')) { delete S.pagos[id]; rebuild('pagos'); render(); if (pc && S.loaded.caja) load(['caja']); } }); },
   'pg-caja': el => { const i = $('#pg-caja'); if (!i) return; i.value = +el.dataset.v ? fmtN(+el.dataset.v) : ''; IN['pg-caja'](i); },
   'copiar-recibo': async () => { try { await navigator.clipboard.writeText(reciboTexto(RC)); toast('Recibo copiado'); } catch (e) { toast('No se pudo copiar.', 'error'); } },
+  'rcb-enviar': async el => { if (!RC) return; el.classList.add('disabled'); try { await enviarReciboImagen(RC); } catch (e) { toast(errText(e), 'error'); } el.classList.remove('disabled'); },
   'png-recibo': async () => { toast('Generando imagen…'); const b = await reciboPNG(RC); if (b) guardarArchivo(`Recibo ${String(RC.nro).padStart(5, '0')} - ${nombreA(S.alumnos[RC.alumnoId] || {})}.png`, b); },
   imprimir: () => { document.body.classList.add('print-rcb'); window.print(); setTimeout(() => document.body.classList.remove('print-rcb'), 500); },
   wa: el => openWA(el.dataset.id),
