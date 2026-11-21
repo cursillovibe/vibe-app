@@ -78,6 +78,17 @@ En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la pl
 - **Exportar**: **Excel** (.xlsx con título, cédula, grupo, nota, porcentaje y resultado; hoja "Por grupo") y **PDF con el logo** (A4, encabezado naranja, pie con página). Las librerías se cargan solo al exportar (SheetJS desde cdnjs; jsPDF y autotable desde jsdelivr).
 - Archivo `supabase/examen-comun.sql`.
 
+## Corrección con la cámara (hoja de respuestas VIBE)
+
+- **Hoja para imprimir**: Exámenes → **Hoja de respuestas** (o desde la clave de un examen, con el nombre y la fecha ya puestos). Tres formatos, copiados de la hoja de la UNCA: **Ingeniería 20** (A a E), **Becas 40** (A a D) y **Medicina 60** (A a E). Cédula de 8 columnas (se llena desde la izquierda), Fila del 1 al 4, letras dentro de cada burbuja. Las 4 marcas negras de las esquinas, la marca chica de arriba (dice dónde está "arriba") y el cuadradito del medio (dice qué formato es) son lo que lee la cámara: no se pueden tapar. Se puede fotocopiar.
+- **Corregir**: en el examen, **Corregir con la cámara**. La primera vez pide la **clave**: se toca respuesta por respuesta o se **escanea una hoja llenada con la clave**. Una clave por fila (versión) del examen; si todos rinden lo mismo, solo la Fila 1. La clave se guarda en `examen_claves` (los alumnos no la pueden leer; se guarda con `guardar_clave()`, que la copia a todos los grupos del mismo examen y pone el puntaje máximo = cantidad de preguntas).
+- Después se pasan las hojas frente a la cámara, una tras otra, **sin sacar fotos**: cuando dos cuadros seguidos leen lo mismo, suena, busca al alumno por la cédula entre los grupos del examen, corrige (correcta = 1, mal / en blanco / doble marca = 0) y **guarda la nota sola** con lo que marcó (`notas.respuestas`, `notas.fila`). La misma hoja no se lee dos veces aunque quede frente a la cámara.
+- **Para resolver**: cédula que no está en el grupo, cédula mal marcada, fila sin clave o la misma cédula en dos hojas distintas quedan en la lista; se toca, se elige el alumno y se guarda. Las marcas dudosas (muy claras o a medias) salen en amarillo para mirarlas en la hoja; ahí mismo se puede cambiar cualquier respuesta.
+- **Ver hoja**: en el examen, los alumnos corregidos con la cámara tienen "ver hoja" (lo que marcó contra la clave, editable). Si se corrige la clave después, las notas de las hojas ya leídas se **recalculan solas**. Si se cambia a mano una nota leída, pasa a ser nota a mano.
+- **Subir fotos**: si la cámara no anda (permiso, navegador viejo), se pueden subir fotos de las hojas.
+- El lector (`omr.js`) corre en el celu, sin internet para leer y sin costo: busca las marcas, endereza la hoja, se alinea con los círculos impresos (aguanta la hoja un poco doblada, sombras y luz despareja) y rechaza los cuadros borrosos en vez de adivinar. Probado con 190 fotos simuladas (0 respuestas mal leídas) y con una cámara simulada en Chrome.
+- Archivos `omr.js` (diseño de la hoja y lector) y `supabase/correccion-omr.sql`.
+
 ## Tareas de la oficina y la librería
 
 En **Tareas** (dirección y oficina; también en el Inicio de las dos):
@@ -111,6 +122,8 @@ supabase/horas-caja.sql  entrada y salida (oficina y profes) y caja chica (tambi
 supabase/caja-cobros.sql  parte del cobro para la caja chica (también está en schema.sql)
 supabase/pedir-acceso.sql  alumnos que piden acceso sin invitación (también está en schema.sql)
 supabase/examen-comun.sql  examen común a varios grupos (también está en schema.sql)
+supabase/correccion-omr.sql  clave de respuestas y hojas leídas con la cámara (también está en schema.sql)
+omr.js                  hoja de respuestas VIBE: el PDF para imprimir y el lector de la cámara
 supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
 supabase/functions/     invitar (manda invitaciones), notificar (avisa fichas nuevas) y push (avisos al celular)
 supabase/cron-push.sql  avisos programados: llama a la función push cada 15 minutos

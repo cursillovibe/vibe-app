@@ -416,6 +416,57 @@ code.aj{font-size:12px;white-space:pre-wrap;word-break:break-all}
 .sgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 @media (max-width: 560px){.sgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .clist .row .t small{display:block}
+
+/* corrección con la cámara */
+body.omr-on{overflow:hidden}
+.omr{position:fixed;inset:0;z-index:90;background:#0d0c0b;color:#f3f0eb;display:flex;flex-direction:column}
+.omr.claro{background:var(--bg);color:var(--ink)}
+.omr-top{display:flex;align-items:center;gap:10px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));border-bottom:1px solid rgba(255,255,255,.08)}
+.omr.claro .omr-top{border-bottom-color:var(--line);background:var(--surface)}
+.omr-top .t{flex:1;min-width:0;font-weight:700;line-height:1.25}
+.omr-top .t small{display:block;font-weight:500;opacity:.7;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.omr:not(.claro) .btn{background:#23211e;border-color:#3a3732;color:#f3f0eb}
+.omr:not(.claro) .btn.primary{background:var(--accent);border-color:var(--accent);color:#1a1000}
+.omr-cam{position:relative;display:flex;justify-content:center;background:#000;flex:none}
+.omr-vw{position:relative;display:inline-block;line-height:0}
+.omr-vw video{display:block;max-width:100vw;max-height:52vh;background:#000}
+.omr-vw canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.omr-msg{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:7px 14px;border-radius:999px;font-weight:600;font-size:14px;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+.omr-body{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch}
+.omr-foot{display:flex;gap:10px;justify-content:flex-end;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));border-top:1px solid rgba(255,255,255,.08)}
+.omr.claro .omr-foot{border-top-color:var(--line);background:var(--surface)}
+.omr-foot .btn{flex:1;max-width:320px}
+.omr-acts{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.omr-tip{background:rgba(255,255,255,.06);border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5}
+.omr-stats{display:flex;gap:14px;font-size:13.5px;opacity:.85;margin-bottom:10px}
+.omr-stats .warn{color:#ffb020;opacity:1}
+.omr-card{display:flex;align-items:center;gap:12px;background:#1c1a18;border:1px solid #2e2b27;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.omr-card.big{padding:14px;border-color:#3ddc84}
+.omr-card.big.dud{border-color:#e8ba45}
+.omr-card.warn{border-color:#ff7a6c;background:#2a1714}
+.omr-card .t{flex:1;min-width:0}
+.omr-card .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.omr-card .t small{display:block;opacity:.7;font-size:12.5px}
+.omr-card .t small.av{opacity:1;color:#ffb020}
+.omr-card .r{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.omr-card .r small{font-size:11.5px;opacity:.7}
+.omr-card .nt,.hd-sum .nt{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.omr-card.big .nt{font-size:30px}
+.omr-card .nt small,.hd-sum .nt small{font-size:13px;font-weight:600;opacity:.6}
+.kq{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:4px 22px}
+.kq-r{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:10px}
+.kq-r b{width:26px;text-align:right;font-variant-numeric:tabular-nums;margin-right:4px}
+.kq-r button{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer}
+.kq-r button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.kq-r.falta b{color:var(--bad)}
+.kq-r.dud{background:var(--late-soft)}
+.kq.hd{grid-template-columns:repeat(auto-fill,minmax(112px,1fr));margin-top:8px}
+.kq.hd .hd-r{width:44px;border-radius:10px}
+.hd-r.bien{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.hd-r.mal{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+.hd-r.blanco{color:var(--muted)}
+.hd-k{font-size:12px;color:var(--muted);font-weight:700;width:14px}
+.hd-sum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
 </style>
 </head>
 <body>
@@ -518,6 +569,7 @@ function letras(n) {
 /* ---------- íconos ---------- */
 const ICONS = {
   home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.8c2 .7 3.2 2.4 3.6 5.2"/>',
   layers:'<path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="m2.5 12.5 9.5 5 9.5-5"/><path d="m2.5 17 9.5 5 9.5-5"/>',
   check:'<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2.5h6v3H9z"/><path d="m8.5 13 2.5 2.5 4.5-5"/>',
@@ -879,7 +931,7 @@ const LOADERS = {
   exams: async () => {
     const ex = await fetchAll('examenes', '*', q => q.order('id')); const ns = await fetchAll('notas', '*', q => q.order('examen_id').order('alumno_id'));
     const m = {}; ex.forEach(e => m[e.id] = { id: e.id, grupoId: e.grupo_id, nombre: e.nombre, materia: e.materia || '', fecha: e.fecha || '', max: num(e.maximo) || 100, comun: e.comun || '', notas: {} });
-    ns.forEach(n => { if (m[n.examen_id]) m[n.examen_id].notas[n.alumno_id] = num(n.nota); });
+    ns.forEach(n => { const x = m[n.examen_id]; if (!x) return; x.notas[n.alumno_id] = num(n.nota); if (n.respuestas) (x.hojas ||= {})[n.alumno_id] = { resp: n.respuestas, fila: n.fila }; });
     S.exams = m; rebuild('exams');
   },
   cfg: async () => { const { data } = await S.sb.from('config').select('valor').eq('clave', 'general').maybeSingle(); S.cfg = data?.valor || {}; },
@@ -2122,7 +2174,7 @@ VIEWS.examenes = () => {
   if (u.exLista && S.exams[u.exLista]) return vExamenLista(S.exams[u.exLista]);
   if (u.exSel && S.exams[u.exSel]) return vExamen(S.exams[u.exSel]);
   if (!u.exGrupo || !S.grupos[u.exGrupo]) u.exGrupo = gs[0]?.id || '';
-  let h = ph('Exámenes', 'Notas por grupo y evolución de cada alumno', u.exGrupo ? `<button class="btn primary" data-act="examen-nuevo">${ic('plus')}Nuevo examen</button>` : '');
+  let h = ph('Exámenes', 'Notas por grupo y evolución de cada alumno', `<button class="btn" data-act="ex-hojas">${ic('download')}Hoja de respuestas</button>` + (u.exGrupo ? `<button class="btn primary" data-act="examen-nuevo">${ic('plus')}Nuevo examen</button>` : ''));
   if (!gs.length) return h + `<div class="card"><div class="empty">${isProfe() ? 'Todavía no tenés grupos asignados.' : 'No hay grupos activos.'}</div></div>`;
   h += `<div class="chips">${gs.map(x => `<button class="chip" data-act="ex-grupo" data-v="${esc(x.id)}" aria-pressed="${x.id === u.exGrupo}">${esc(x.nombre)}</button>`).join('')}</div>`;
   const ex = S.idx.examsByGrupo[u.exGrupo] || []; const n = alumnosDe(u.exGrupo).length;
@@ -2138,9 +2190,9 @@ function vExamen(e) {
   const rank = Object.entries(e.notas || {}).filter(([id]) => S.alumnos[id]).sort((a, b) => num(b[1]) - num(a[1]));
   let h = `<div><button class="back" data-act="back-examenes">${ic('back')}Exámenes</button></div>`;
   const her = examHermanos(e);
-  h += ph(e.nombre, `${esc(gName(e.grupoId))} · ${fmtF(e.fecha)}${e.materia ? ' · ' + esc(e.materia) : ''} · puntaje máximo ${fmtN(max)}`, `<button class="btn" data-act="examen-editar" data-id="${esc(e.id)}">${ic('edit')}Editar</button><button class="btn primary" data-act="ex-lista" data-id="${esc(e.id)}">${ic('list')}${her.length > 1 ? 'Lista completa (' + her.length + ' grupos)' : 'Lista y exportar'}</button>`);
+  h += ph(e.nombre, `${esc(gName(e.grupoId))} · ${fmtF(e.fecha)}${e.materia ? ' · ' + esc(e.materia) : ''} · puntaje máximo ${fmtN(max)}`, `<button class="btn" data-act="examen-editar" data-id="${esc(e.id)}">${ic('edit')}Editar</button><button class="btn" data-act="ex-corregir" data-id="${esc(e.id)}">${ic('camera')}Corregir con la cámara</button><button class="btn primary" data-act="ex-lista" data-id="${esc(e.id)}">${ic('list')}${her.length > 1 ? 'Lista completa (' + her.length + ' grupos)' : 'Lista y exportar'}</button>`);
   if (her.length > 1) h += `<div class="chips" style="margin-bottom:12px"><small class="muted" style="align-self:center">Mismo examen en:</small>${her.map(x => `<button class="chip" data-act="ex-hermano" data-id="${esc(x.id)}" aria-pressed="${x.id === e.id}">${esc(gName(x.grupoId))}</button>`).join('')}</div>`;
-  h += `<div class="grid2"><div class="card"><div class="card-h"><h2>Cargar notas</h2><small>Dejá vacío si no rindió</small></div><div class="rows">${al.map(a => { const v = D.notas[a.id]; const p = v === '' || v == null ? null : Math.round(num(v) / max * 100); return `<div class="row"><div class="t">${esc(nombreA(a))}</div><div class="r">${p == null ? '' : `<small class="${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</small>`}<input class="inp nota" id="nota-${esc(a.id)}" data-in="nota" data-id="${esc(a.id)}" inputmode="decimal" value="${v == null ? '' : esc(v)}" aria-label="Nota de ${esc(nombreA(a))}"><small>/ ${fmtN(max)}</small></div></div>`; }).join('') || '<div class="empty">El grupo no tiene alumnos.</div>'}</div>
+  h += `<div class="grid2"><div class="card"><div class="card-h"><h2>Cargar notas</h2><small>Dejá vacío si no rindió</small></div><div class="rows">${al.map(a => { const v = D.notas[a.id]; const p = v === '' || v == null ? null : Math.round(num(v) / max * 100); return `<div class="row"><div class="t">${esc(nombreA(a))}${e.hojas?.[a.id] ? `<br><button class="lnk" data-act="ver-hoja" data-id="${esc(e.id)}" data-a="${esc(a.id)}">${ic('camera')}ver hoja</button>` : ''}</div><div class="r">${p == null ? '' : `<small class="${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</small>`}<input class="inp nota" id="nota-${esc(a.id)}" data-in="nota" data-id="${esc(a.id)}" inputmode="decimal" value="${v == null ? '' : esc(v)}" aria-label="Nota de ${esc(nombreA(a))}"><small>/ ${fmtN(max)}</small></div></div>`; }).join('') || '<div class="empty">El grupo no tiene alumnos.</div>'}</div>
     <div class="savebar"><small>${D.dirty ? 'Hay cambios sin guardar' : 'Todo guardado'}</small><button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="notas-guardar">Guardar notas</button></div></div>
     <div class="card"><div class="card-h"><h2>Ranking</h2><small>${rank.length} rindieron</small></div><div class="rows">${rank.map(([id, v], i) => { const p = Math.round(num(v) / max * 100); return `<div class="row click" data-act="ver-alumno" data-id="${esc(id)}"><div class="t"><span class="num" style="color:var(--muted);margin-right:8px">${i + 1}°</span>${esc(nombreA(S.alumnos[id]))}</div><div class="r"><span class="num">${fmtN(num(v))}</span>${pill(p + '%', p >= 60 ? 'ok' : 'bad')}</div></div>`; }).join('') || '<div class="empty">Todavía no hay notas guardadas.</div>'}</div></div></div>`;
   return h;
@@ -2245,6 +2297,261 @@ async function exportExamenPDF(e) {
     doc.text(`Generado el ${fmtF(hoy())} · página ${i} de ${n}`, W - M, H - 8, { align: 'right' });
   }
   doc.save(nombreArchivoEx(e) + '.pdf');
+}
+
+/* ---------- corrección con la cámara (hoja de respuestas VIBE, ver omr.js) ---------- */
+const OMR_V = '1';
+function loadOMR() {
+  if (window.OMR) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'omr.js?v=' + OMR_V; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar el lector de hojas. Revisá la conexión.')); document.head.appendChild(s); });
+}
+const FMT_PROG = p => p === 'Medicina' ? 'med' : p === 'Becas' ? 'becas' : 'ing';
+const soloDig = s => String(s || '').replace(/\D/g, '');
+const LET = 'abcde';
+const difResp = (a, b) => { let d = 0; for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) d++; return d; };
+const ciErrTxt = e => ({ vacia: 'No marcó la cédula', incompleta: 'Cédula incompleta (falta marcar una columna)', doble: 'Cédula con doble marca', corta: 'Cédula incompleta' }[e] || 'No se leyó la cédula');
+async function descargarHoja(fid, e) {
+  await Promise.all([loadPDF(), loadOMR()]);
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  let logo = null; try { logo = await imgData('img/logo-vibe.png'); } catch (_) { /* sin logo */ }
+  OMR.pdf(doc, fid, { logo, examen: e ? e.nombre : '', fecha: e && e.fecha ? fmtF(e.fecha) : '' });
+  const f = OMR.FORMATOS[fid];
+  doc.save(`Hoja de respuestas VIBE - ${f.nombre} ${f.preguntas}${e ? ' - ' + e.nombre : ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
+}
+function openHojas() {
+  openModal('Hoja de respuestas para imprimir', `<p class="muted" style="margin-top:0">Es la hoja que se corrige con la cámara del celu. Imprimila o fotocopiala en A4.</p><div class="rows">${[['ing', 'Ingeniería', '20 preguntas · A a E'], ['becas', 'Becas', '40 preguntas · A a D'], ['med', 'Medicina', '60 preguntas · A a E']].map(([k, l, s]) => `<div class="row click" data-act="hoja-pdf" data-v="${k}"><div class="t"><b>${l}</b><small>${s}</small></div><div class="r">${ic('download')}</div></div>`).join('')}</div>`, '', 'narrow');
+}
+
+let OC = null;   // la pantalla de corrección abierta
+async function abrirCorrector(eid) {
+  const e = S.exams[eid]; if (!e || OC) return;
+  try { await loadOMR(); } catch (err) { toast(errText(err), 'error'); return; }
+  const { data, error } = await S.sb.from('examen_claves').select('formato,claves').eq('examen_id', e.id).maybeSingle();
+  if (error) { toast(errText(error), 'error'); return; }
+  OC = { eid: e.id, her: examHermanos(e).map(x => x.id), clave: data ? { formato: data.formato, claves: data.claves } : null, lista: [], seq: 0, modo: null, edit: null };
+  document.body.insertAdjacentHTML('beforeend', '<div id="omr" class="omr" role="dialog" aria-modal="true" aria-label="Corregir con la cámara"></div>');
+  document.body.classList.add('omr-on');
+  try { OC.audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { /* sin sonido */ }
+  try { OC.wake = await navigator.wakeLock?.request('screen'); } catch (_) { /* la pantalla se puede apagar */ }
+  if (OC.clave) ocEscanear('alumnos'); else ocClave();
+}
+function ocCerrar(forzar) {
+  if (!OC) return;
+  const pend = OC.lista.filter(x => !x.descartada && (!x.guardada || x.error)).length;
+  if (!forzar && pend) { confirmDlg(`Hay ${pend} hoja(s) leídas sin guardar (falta elegir el alumno o la fila). ¿Salir igual?`, 'Salir sin guardarlas', () => ocCerrar(true)); return; }
+  ocCamStop(); try { OC.wake?.release(); } catch (_) { /* nada */ } try { OC.audio?.close(); } catch (_) { /* nada */ }
+  $('#omr')?.remove(); document.body.classList.remove('omr-on'); OC = null; load(['exams']);
+}
+function ocBip(ok) {
+  try { navigator.vibrate?.(ok ? 70 : [60, 60, 60]); } catch (_) { /* nada */ }
+  const a = OC?.audio; if (!a) return;
+  try { if (a.state === 'suspended') a.resume(); const o = a.createOscillator(), g = a.createGain(); o.frequency.value = ok ? 880 : 330; g.gain.setValueAtTime(0.15, a.currentTime); g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.18); o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + 0.2); } catch (_) { /* nada */ }
+}
+
+// --- clave de respuestas ---
+function ocClave() {
+  const e = S.exams[OC.eid];
+  if (!OC.edit) {
+    const fid = OC.clave?.formato || FMT_PROG(S.grupos[e.grupoId]?.programa), n = OMR.FORMATOS[fid].preguntas, filas = {};
+    Object.entries(OC.clave?.claves || { 1: '' }).forEach(([k, v]) => { filas[k] = Array.from({ length: n }, (_, i) => v[i] || ''); });
+    OC.edit = { fid, filas, fila: Math.min(...Object.keys(filas).map(Number)), dud: {} };
+  }
+  ocCamStop(); OC.modo = 'clave-edit';
+  const E = OC.edit, f = OMR.FORMATOS[E.fid], ks = Object.keys(E.filas).map(Number).sort();
+  const root = $('#omr'); root.className = 'omr claro';
+  root.innerHTML = `<div class="omr-top"><button class="btn" data-act="oc-cerrar" aria-label="Cerrar">${ic('x')}</button><div class="t">Clave de respuestas<small>${esc(e.nombre)}</small></div>${OC.clave ? `<button class="btn" data-act="oc-scan">${ic('camera')}Corregir</button>` : ''}</div>
+  <div class="omr-body">
+    <div class="fld"><label>Hoja</label><div class="chips">${Object.values(OMR.FORMATOS).map(x => `<button class="chip" data-act="oc-fmt" data-v="${x.id}" aria-pressed="${x.id === E.fid}">${x.nombre} · ${x.preguntas}${x.opciones === 4 ? ' (A a D)' : ''}</button>`).join('')}</div></div>
+    <div class="fld"><label>Filas (versiones del examen)</label><div class="chips" id="oc-filas"></div><span class="hint">Si todos rinden el mismo examen, dejá solo la Fila 1.</span></div>
+    <div class="omr-acts"><button class="btn" data-act="oc-kscan">${ic('camera')}Escanear una hoja con la clave</button><button class="btn" data-act="hoja-pdf" data-v="${E.fid}" data-id="${esc(OC.eid)}">${ic('download')}Hoja para imprimir</button>${ks.length > 1 ? `<button class="btn" data-act="oc-fila-menos">${ic('trash')}Quitar la fila ${E.fila}</button>` : ''}</div>
+    <div class="card-h" style="margin:14px 0 8px"><h2>Fila ${E.fila}</h2><small id="oc-falt"></small></div>
+    <div class="kq">${E.filas[E.fila].map((v, q) => `<div class="kq-r${!v ? ' falta' : ''}${(E.dud[E.fila] || []).includes(q) ? ' dud' : ''}"><b>${q + 1}</b>${[...LET.slice(0, f.opciones)].map(l => `<button data-act="oc-k" data-q="${q}" data-v="${l}" aria-pressed="${v === l}">${l.toUpperCase()}</button>`).join('')}</div>`).join('')}</div>
+  </div>
+  <div class="omr-foot"><button class="btn primary" data-act="oc-clave-ok">${OC.clave ? 'Guardar clave' : 'Guardar clave y empezar a corregir'}</button></div>`;
+  ocClaveCuentas();
+}
+function ocClaveCuentas() {
+  const E = OC.edit, f = OMR.FORMATOS[E.fid], ks = Object.keys(E.filas).map(Number).sort(), falt = E.filas[E.fila].filter(x => !x).length;
+  $('#oc-filas').innerHTML = ks.map(k => { const fa = E.filas[k].filter(x => !x).length; return `<button class="chip" data-act="oc-fila" data-v="${k}" aria-pressed="${k === E.fila}">Fila ${k}${fa ? ` · faltan ${fa}` : ' ✓'}</button>`; }).join('') + (ks.length < 4 ? `<button class="chip" data-act="oc-fila-mas">+ Otra fila</button>` : '');
+  $('#oc-falt').textContent = falt ? `Faltan ${falt} de ${f.preguntas}` : `Completa (${f.preguntas})`;
+}
+function ocClaveLeida(r) {
+  const E = OC.edit; ocBip(true);
+  if (r.fmt !== E.fid) { const n = OMR.FORMATOS[r.fmt].preguntas; E.fid = r.fmt; Object.keys(E.filas).forEach(k => { E.filas[k] = Array.from({ length: n }, (_, i) => E.filas[k][i] || ''); }); }
+  const k = r.fila || E.fila, n = OMR.FORMATOS[E.fid].preguntas;
+  E.filas[k] = Array.from({ length: n }, (_, i) => LET.includes(r.resp[i] || '-') ? r.resp[i] : '');
+  E.dud[k] = r.dudosas; E.fila = k;
+  const malas = [...r.resp].filter(c => !LET.includes(c)).length;
+  toast(`Clave de la fila ${k} leída${malas ? ` · faltan ${malas} (en blanco o con doble marca)` : ''}${r.dudosas.length ? ' · revisá las marcadas en amarillo' : ''}`);
+  ocClave();
+}
+
+// --- cámara ---
+function ocEscanear(modo) {
+  OC.modo = modo; const e = S.exams[OC.eid], C = OC.clave;
+  const root = $('#omr'); root.className = 'omr';
+  root.innerHTML = `<div class="omr-top"><button class="btn" data-act="${modo === 'clave' ? 'oc-kvolver' : 'oc-cerrar'}" aria-label="${modo === 'clave' ? 'Volver' : 'Cerrar'}">${ic(modo === 'clave' ? 'back' : 'x')}</button><div class="t">${modo === 'clave' ? 'Escaneá la hoja con la clave' : esc(e.nombre)}<small>${modo === 'clave' ? 'Si hay varias filas, marcá la fila en la hoja' : `${esc(OMR.FORMATOS[C.formato].nombre)} · ${OMR.FORMATOS[C.formato].preguntas} preguntas · ${Object.keys(C.claves).length > 1 ? Object.keys(C.claves).length + ' filas' : '1 fila'}`}</small></div>${modo === 'clave' ? '' : `<button class="btn" data-act="oc-editclave">Clave</button>`}</div>
+  <div class="omr-cam"><span class="omr-vw"><video playsinline muted autoplay></video><canvas></canvas></span><div class="omr-msg" id="oc-msg">Abriendo la cámara…</div></div>
+  <div class="omr-body" id="oc-body"></div>
+  <div class="omr-foot"><label class="btn">${ic('upload')}Subir fotos<input type="file" accept="image/*" multiple hidden data-ch="oc-fotos"></label>${modo === 'clave' ? '' : '<button class="btn primary" data-act="oc-cerrar">Terminar</button>'}</div>`;
+  ocPintar(); ocCamStart();
+}
+async function ocCamStart() {
+  ocCamStop();
+  const v = $('#omr video'), cv = document.createElement('canvas');
+  const K = OC.cam = { video: v, cv, ctx: cv.getContext('2d', { willReadFrequently: true }), ov: $('#omr .omr-vw canvas'), prev: '', n: 0, sinHoja: 0, ult: null, msg: '' };
+  if (!navigator.mediaDevices?.getUserMedia) { ocMsg('Este navegador no deja usar la cámara. Subí fotos de las hojas.'); return; }
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    if (!OC || OC.cam !== K) { st.getTracks().forEach(t => t.stop()); return; }
+    K.stream = st; v.srcObject = st; await v.play().catch(() => {});
+    try { const tr = st.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if ((cap.focusMode || []).includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (_) { /* sin enfoque continuo */ }
+    ocMsg('Poné la hoja entera en la pantalla'); ocLoop();
+  } catch (err) { ocMsg(err && err.name === 'NotAllowedError' ? 'No hay permiso para usar la cámara. Habilitalo en el navegador o subí fotos.' : 'No se pudo abrir la cámara. Probá subir fotos.'); }
+}
+function ocCamStop() { const K = OC && OC.cam; if (!K) return; clearTimeout(K.timer); if (K.stream) K.stream.getTracks().forEach(t => t.stop()); OC.cam = null; }
+function ocMsg(t) { const K = OC && OC.cam; if (K && K.msg === t) return; if (K) K.msg = t; const el = $('#oc-msg'); if (el) el.textContent = t; }
+function ocLeerCanvas(src, sw, sh, max) {
+  const sc = Math.min(1, max / Math.max(sw, sh)), w = Math.round(sw * sc), h = Math.round(sh * sc);
+  const K = OC.cam || {}; const c = K.cv || document.createElement('canvas'); if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const x = K.ctx || c.getContext('2d', { willReadFrequently: true }); x.drawImage(src, 0, 0, w, h);
+  return { r: OMR.leer({ data: OMR.gris(x.getImageData(0, 0, w, h).data, w, h), w, h }, OC.modo === 'clave' ? {} : { fmt: OC.clave.formato }), w, h };
+}
+function ocLoop() {
+  const K = OC && OC.cam; if (!K) return;
+  const v = K.video;
+  if (v.readyState >= 2 && v.videoWidth && !document.hidden && !modalOpen()) {
+    try { const { r, w } = ocLeerCanvas(v, v.videoWidth, v.videoHeight, 1600); ocDibujar(r, w); ocFrame(r); } catch (err) { ocMsg('Error leyendo: ' + errText(err)); }
+  }
+  if (OC && OC.cam === K) K.timer = setTimeout(ocLoop, 80);
+}
+function ocDibujar(r, w) {
+  const K = OC.cam, c = K.ov, v = K.video, dpr = window.devicePixelRatio || 1;
+  const cw = Math.round(v.clientWidth * dpr), chh = Math.round(v.clientHeight * dpr); if (c.width !== cw || c.height !== chh) { c.width = cw; c.height = chh; }
+  const x = c.getContext('2d'); x.clearRect(0, 0, cw, chh); if (!r.esquinas) return;
+  const s = cw / w; x.lineWidth = 3 * dpr; x.strokeStyle = r.ok ? '#3ddc84' : '#ffb020';
+  x.beginPath(); r.esquinas.forEach(([a, b], i) => i ? x.lineTo(a * s, b * s) : x.moveTo(a * s, b * s)); x.closePath(); x.stroke();
+  if (r.ok) { x.fillStyle = 'rgba(61,220,132,.9)'; [...r.pos.resp, ...r.pos.ci, r.pos.fila].forEach(p => { if (p) { x.beginPath(); x.arc(p[0] * s, p[1] * s, 3 * dpr, 0, 7); x.fill(); } }); }
+}
+function ocFrame(r) {
+  const K = OC.cam;
+  if (!r.ok) { K.sinHoja = r.error === 'sin-marcas' ? K.sinHoja + 1 : 0; if (K.sinHoja >= 3) K.ult = null; K.prev = ''; K.n = 0; ocMsg(K.ult ? '✓ Listo. Pasá la siguiente hoja' : r.msg); return; }
+  K.sinHoja = 0; const U = K.ult;
+  // la misma hoja sigue frente a la cámara: no la leemos de nuevo
+  if (OC.modo !== 'clave' && U && ((r.ci && r.ci === U.ci) || (!r.ci && difResp(r.resp, U.resp) <= Math.max(2, r.resp.length / 10)))) { ocMsg('✓ Listo. Pasá la siguiente hoja'); K.prev = ''; return; }
+  const sig = [r.fmt, r.ci, r.ciError, r.fila, r.resp].join('|');
+  if (K.prev === sig) K.n++; else { K.prev = sig; K.n = 1; }
+  ocMsg('Leyendo… quedate quieto');
+  if (K.n < 2) return;                      // dos cuadros seguidos iguales
+  K.prev = ''; K.n = 0;
+  if (OC.modo === 'clave') { ocClaveLeida(r); return; }
+  K.ult = { ci: r.ci, resp: r.resp };
+  ocNueva(r);
+}
+async function ocFotos(files) {
+  for (const file of files) {
+    try {
+      const bmp = await createImageBitmap(file);
+      const { r } = ocLeerCanvas(bmp, bmp.width, bmp.height, 2000);
+      if (!r.ok) { toast(`${file.name}: ${r.msg}`, 'error'); continue; }
+      if (OC.modo === 'clave') { ocClaveLeida(r); return; }
+      ocNueva(r);
+    } catch (_) { toast(`${file.name}: no se pudo abrir la foto`, 'error'); }
+  }
+}
+
+// --- hojas leídas ---
+function ocNueva(r) {
+  const prev = OC.lista.find(x => !x.descartada && (r.ci ? x.ci === r.ci : !x.ci && x.resp === r.resp));
+  if (prev && prev.resp === r.resp) { OC.ultimo = prev.id; ocPintar(); toast('Esa hoja ya estaba leída'); return; }
+  const it = { id: ++OC.seq, ci: r.ci, ciError: r.ciError, fila: r.fila, resp: r.resp, dudosas: r.dudosas, alumnoId: null, eid: null, repetida: prev ? prev.id : null };
+  ocResolver(it); OC.lista.unshift(it); OC.ultimo = it.id;
+  const listo = it.estado === 'listo' && !it.repetida;
+  ocBip(listo && !it.dudosas.length);
+  if (listo) ocGuardar(it); else ocPintar();
+}
+function ocResolver(it) {
+  const C = OC.clave;
+  if (!it.alumnoId && it.ci) {
+    for (const xid of OC.her) { const x = S.exams[xid]; const a = x && alumnosDe(x.grupoId).find(al => soloDig(al.ci) === it.ci); if (a) { it.alumnoId = a.id; it.eid = xid; break; } }
+    if (!it.alumnoId) { const o = Object.values(S.alumnos).find(al => soloDig(al.ci) === it.ci); it.otro = o ? o.id : null; }
+  }
+  if (it.alumnoId && !it.eid) it.eid = OC.her.find(xid => S.exams[xid]?.grupoId === S.alumnos[it.alumnoId]?.grupoId) || null;
+  const ks = Object.keys(C.claves);
+  if (!it.filaUsada) it.filaUsada = ks.length === 1 ? +ks[0] : (it.fila && C.claves[it.fila] ? it.fila : null);
+  const k = it.filaUsada ? C.claves[it.filaUsada] : null;
+  it.nota = k ? OMR.corregir(it.resp, k).buenas : null;
+  if (it.alumnoId && it.eid && it.antes === undefined) { const v = S.exams[it.eid]?.notas?.[it.alumnoId]; it.antes = v == null ? null : v; }
+  it.estado = !it.alumnoId || !it.eid ? 'sin-alumno' : !k ? 'sin-fila' : 'listo';
+}
+async function ocGuardar(it) {
+  it.guardando = true; ocPintar();
+  const { error } = await S.sb.from('notas').upsert({ examen_id: it.eid, alumno_id: it.alumnoId, nota: it.nota, respuestas: it.resp, fila: it.filaUsada }, { onConflict: 'examen_id,alumno_id' });
+  it.guardando = false;
+  if (error) { it.error = errText(error); it.guardada = false; ocBip(false); }
+  else { it.error = null; it.guardada = true; const x = S.exams[it.eid]; if (x) { x.notas[it.alumnoId] = it.nota; (x.hojas ||= {})[it.alumnoId] = { resp: it.resp, fila: it.filaUsada }; } }
+  if (OC) ocPintar();
+}
+function ocPintar() {
+  const b = $('#oc-body'); if (!b || !OC) return;
+  if (OC.modo === 'clave') { b.innerHTML = '<div class="omr-tip">Llená una hoja con las respuestas correctas y ponela frente a la cámara, con las 4 esquinas negras a la vista. Después revisás la clave antes de guardarla.</div>'; return; }
+  const L = OC.lista.filter(x => !x.descartada);
+  const guard = L.filter(x => x.guardada && !x.error).length, rev = L.filter(x => x.estado !== 'listo' || x.repetida || x.error).length;
+  const u = L.find(x => x.id === OC.ultimo) || L[0];
+  let h = `<div class="omr-stats"><span><b>${L.length}</b> leídas</span><span><b>${guard}</b> guardadas</span>${rev ? `<span class="warn"><b>${rev}</b> para resolver</span>` : ''}</div>`;
+  h += u ? ocCard(u, true) : '<div class="omr-tip"><b>Cómo se usa:</b> poné cada hoja frente a la cámara con las 4 esquinas negras a la vista. Cuando suena, la nota ya está guardada: pasá la siguiente. No hace falta sacar fotos.</div>';
+  if (L.length > 1) h += `<div class="omr-list">${L.filter(x => x !== u).map(x => ocCard(x, false)).join('')}</div>`;
+  b.innerHTML = h;
+}
+function ocCard(it, big) {
+  const f = OMR.FORMATOS[OC.clave.formato], a = S.alumnos[it.alumnoId];
+  const nom = a ? nombreA(a) : it.ci ? 'CI ' + it.ci : 'Cédula sin leer';
+  const p = it.nota == null ? null : Math.round(it.nota / f.preguntas * 100), av = [];
+  if (!a) av.push(it.otro ? `Está en ${gName(S.alumnos[it.otro]?.grupoId)}, no en este examen` : it.ci ? 'Esta cédula no está en el grupo' : ciErrTxt(it.ciError));
+  if (it.repetida) av.push('Misma cédula que otra hoja');
+  if (a && it.estado === 'sin-fila') av.push(it.fila ? `No hay clave de la fila ${it.fila}` : 'No marcó la fila');
+  if (it.dudosas.length) av.push(`${it.dudosas.length} marca(s) para revisar`);
+  if (it.error) av.push(it.error);
+  const est = it.guardando ? 'Guardando…' : it.guardada && !it.error ? 'Nota guardada' : 'Tocá para resolver';
+  const mal = it.estado !== 'listo' || it.repetida || it.error;
+  return `<div class="omr-card${big ? ' big' : ''}${mal ? ' warn' : it.dudosas.length ? ' dud' : ''}" data-act="oc-det" data-id="${it.id}">
+    <div class="t"><b>${esc(nom)}</b><small>${esc([a && it.ci ? (soloDig(a.ci) === it.ci ? 'CI ' : 'Puso CI ') + it.ci : '', it.filaUsada && Object.keys(OC.clave.claves).length > 1 ? 'Fila ' + it.filaUsada : '', est].filter(Boolean).join(' · '))}</small>${av.length ? `<small class="av">${esc(av.join(' · '))}</small>` : ''}</div>
+    <div class="r">${it.nota == null ? '<span class="nt">—</span>' : `<span class="nt">${it.nota}<small>/${f.preguntas}</small></span>${pill(p + '%', p >= APRUEBA ? 'ok' : 'bad')}`}${it.antes != null && it.antes !== it.nota ? `<small>antes ${fmtN(it.antes)}</small>` : ''}</div></div>`;
+}
+
+// --- detalle de una hoja: alumno, fila y correcciones a mano ---
+let HD = null;
+function hojaDetalle(it, clave, her, onSave, onDescartar) {
+  const ks = Object.keys(clave.claves).map(Number).sort();
+  HD = { it, clave, resp: [...it.resp], alumnoId: it.alumnoId, eid: it.eid, fila: it.filaUsada || (ks.length === 1 ? ks[0] : null), onSave, onDescartar };
+  const als = her.flatMap(xid => S.exams[xid] ? alumnosDe(S.exams[xid].grupoId).map(a => ({ a, xid })) : []).sort((p, q) => nombreA(p.a).localeCompare(nombreA(q.a), 'es'));
+  const body = `${it.ci || it.ciError ? `<p style="margin-top:0">Cédula leída: <b>${esc(it.ci || ciErrTxt(it.ciError))}</b></p>` : ''}
+    <div class="fld"><label for="hd-al">Alumno</label><select class="inp" id="hd-al" data-ch="hd-al"><option value="">Elegí al alumno…</option>${als.map(({ a, xid }) => `<option value="${esc(a.id)}|${esc(xid)}" ${a.id === HD.alumnoId ? 'selected' : ''}>${esc(nombreA(a))}${her.length > 1 ? ' · ' + esc(gName(a.grupoId)) : ''}${a.ci ? ' · CI ' + esc(a.ci) : ''}${a.id !== it.alumnoId && S.exams[xid].notas[a.id] != null ? ' · ya tiene nota' : ''}</option>`).join('')}</select></div>
+    ${ks.length > 1 ? `<div class="fld"><label>Fila</label><div class="chips" id="hd-filas"></div></div>` : ''}
+    <div class="hd-sum" id="hd-sum"></div>
+    <span class="hint">Tocá una respuesta para cambiarla (A, B, C… y en blanco). En amarillo, las marcas dudosas: miralas en la hoja. A la derecha, la respuesta correcta.</span>
+    <div class="kq hd" id="hd-q"></div>`;
+  const borrar = onDescartar ? `<button class="btn" data-act="hd-borrar">${it.guardada ? 'Borrar la nota' : 'Descartar hoja'}</button>` : '';
+  openModal('Hoja leída', body, `${borrar}<button class="btn primary" data-act="hd-ok">Guardar</button>`);
+  hdPintar();
+}
+function hdPintar() {
+  const k = HD.fila ? HD.clave.claves[HD.fila] : null, f = OMR.FORMATOS[HD.clave.formato];
+  const fl = $('#hd-filas'); if (fl) fl.innerHTML = Object.keys(HD.clave.claves).map(Number).sort().map(n => `<button class="chip" data-act="hd-fila" data-v="${n}" aria-pressed="${n === HD.fila}">Fila ${n}</button>`).join('');
+  $('#hd-q').innerHTML = HD.resp.map((r, q) => `<div class="kq-r${(HD.it.dudosas || []).includes(q) ? ' dud' : ''}"><b>${q + 1}</b><button class="hd-r ${!k ? '' : r === k[q] ? 'bien' : r === '-' ? 'blanco' : 'mal'}" data-act="hd-q" data-q="${q}">${r === '-' ? '–' : r === '*' ? '2×' : r.toUpperCase()}</button><span class="hd-k">${k ? k[q].toUpperCase() : ''}</span></div>`).join('');
+  const c = k ? OMR.corregir(HD.resp.join(''), k) : null, p = c ? Math.round(c.buenas / f.preguntas * 100) : 0;
+  $('#hd-sum').innerHTML = c ? `<span class="nt">${c.buenas}<small>/${f.preguntas}</small></span> ${pill(p + '%', p >= APRUEBA ? 'ok' : 'bad')} <small class="muted">${c.mal} mal · ${c.blancas} en blanco · ${c.dobles} con doble marca</small>` : '<small class="bad-t">Elegí la fila del examen para corregir.</small>';
+}
+async function verHoja(eid, aid) {
+  const e = S.exams[eid], h = e?.hojas?.[aid]; if (!h) return;
+  try { await loadOMR(); } catch (err) { toast(errText(err), 'error'); return; }
+  const { data, error } = await S.sb.from('examen_claves').select('formato,claves').eq('examen_id', eid).maybeSingle();
+  if (error || !data) { toast(error ? errText(error) : 'Este examen todavía no tiene clave.', 'error'); return; }
+  const it = { resp: h.resp, fila: h.fila, filaUsada: h.fila, alumnoId: aid, eid, dudosas: [], ci: soloDig(S.alumnos[aid]?.ci), guardada: true };
+  hojaDetalle(it, data, examHermanos(e).map(x => x.id), async x => {
+    const ok = await run(S.sb.from('notas').upsert({ examen_id: x.eid, alumno_id: x.alumnoId, nota: x.nota, respuestas: x.resp, fila: x.filaUsada }, { onConflict: 'examen_id,alumno_id' }), 'Hoja corregida');
+    if (ok) { if (x.eid !== eid || x.alumnoId !== aid) await run(S.sb.from('notas').delete().eq('examen_id', eid).eq('alumno_id', aid)); closeModal(); S.draftExam = null; load(['exams']); }
+  }, null);
 }
 
 /* --- horario --- */
@@ -3965,6 +4272,49 @@ const A = {
   'ex-lista-volver': () => { S.ui.exSel = S.ui.exLista; S.ui.exLista = null; S.draftExam = null; render(); },
   'ex-hermano': el => { const f = () => { const x = S.exams[el.dataset.id]; if (!x) return; S.ui.exSel = x.id; S.ui.exGrupo = x.grupoId; S.draftExam = null; render(); }; if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Cambiar de grupo igual?', 'Cambiar sin guardar', f); else f(); },
   'ex-orden': el => { S.ui.exOrden = el.dataset.v; render(); },
+  'ex-hojas': () => openHojas(),
+  'hoja-pdf': async el => { el.classList.add('disabled'); try { await descargarHoja(el.dataset.v, el.dataset.id ? S.exams[el.dataset.id] : null); if (!OC) closeModal(); } catch (e) { toast(errText(e), 'error'); } el.classList.remove('disabled'); },
+  'ex-corregir': el => { const f = () => abrirCorrector(el.dataset.id); if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Seguir igual?', 'Seguir sin guardar', () => { S.draftExam = null; f(); }); else f(); },
+  'ver-hoja': el => verHoja(el.dataset.id, el.dataset.a),
+  'oc-cerrar': () => ocCerrar(),
+  'oc-scan': () => ocEscanear('alumnos'),
+  'oc-editclave': () => { OC.edit = null; ocClave(); },
+  'oc-kscan': () => ocEscanear('clave'),
+  'oc-kvolver': () => ocClave(),
+  'oc-fmt': el => { const E = OC.edit, f = OMR.FORMATOS[el.dataset.v]; E.fid = f.id; Object.keys(E.filas).forEach(k => { E.filas[k] = Array.from({ length: f.preguntas }, (_, i) => LET.slice(0, f.opciones).includes(E.filas[k][i] || '-') ? E.filas[k][i] : ''); }); E.dud = {}; ocClave(); },
+  'oc-fila': el => { OC.edit.fila = +el.dataset.v; ocClave(); },
+  'oc-fila-mas': () => { const E = OC.edit, ks = Object.keys(E.filas).map(Number); const k = [1, 2, 3, 4].find(x => !ks.includes(x)); if (!k) return; E.filas[k] = Array(OMR.FORMATOS[E.fid].preguntas).fill(''); E.fila = k; ocClave(); },
+  'oc-fila-menos': () => { const E = OC.edit; if (Object.keys(E.filas).length < 2) return; confirmDlg(`¿Quitar la clave de la fila ${E.fila}?`, 'Quitar', () => { delete E.filas[E.fila]; delete E.dud[E.fila]; E.fila = Math.min(...Object.keys(E.filas).map(Number)); ocClave(); }); },
+  'oc-k': el => { const E = OC.edit, q = +el.dataset.q, v = el.dataset.v; E.filas[E.fila][q] = E.filas[E.fila][q] === v ? '' : v; const row = el.parentElement; row.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === E.filas[E.fila][q]))); row.classList.toggle('falta', !E.filas[E.fila][q]); row.classList.remove('dud'); ocClaveCuentas(); },
+  'oc-clave-ok': async el => {
+    const E = OC.edit, f = OMR.FORMATOS[E.fid], ks = Object.keys(E.filas).map(Number).sort();
+    const inc = ks.find(k => E.filas[k].some(x => !x)); if (inc) { E.fila = inc; ocClave(); toast(`Falta completar la fila ${inc}: ${E.filas[inc].filter(x => !x).length} respuesta(s).`, 'error'); return; }
+    const cl = {}; ks.forEach(k => { cl[k] = E.filas[k].join(''); });
+    el.classList.add('disabled');
+    const { data, error } = await S.sb.rpc('guardar_clave', { eid: OC.eid, fmt: E.fid, cl });
+    el.classList.remove('disabled');
+    if (error) { toast(errText(error), 'error'); return; }
+    OC.clave = { formato: E.fid, claves: cl }; OC.edit = null;
+    OC.her.forEach(xid => { if (S.exams[xid]) S.exams[xid].max = f.preguntas; });
+    toast('Clave guardada' + (data ? ` · se recalcularon ${data} nota(s)` : ''));
+    ocEscanear('alumnos');
+    OC.lista.forEach(it => { if (it.descartada) return; it.filaUsada = null; ocResolver(it); if (it.estado === 'listo' && !it.guardada && !it.repetida) ocGuardar(it); });
+    ocPintar();
+  },
+  'oc-det': el => {
+    const it = OC.lista.find(x => x.id === +el.dataset.id); if (!it) return;
+    hojaDetalle(it, OC.clave, OC.her, x => { x.repetida = null; closeModal(); ocResolver(x); if (x.estado === 'listo') ocGuardar(x); else ocPintar(); },
+      x => { const fin = () => { x.descartada = true; closeModal(); ocPintar(); }; if (!x.guardada) return fin(); confirmDlg(`¿Borrar la nota guardada de ${nombreA(S.alumnos[x.alumnoId] || {})}?`, 'Borrar la nota', async () => { if (await run(S.sb.from('notas').delete().eq('examen_id', x.eid).eq('alumno_id', x.alumnoId), 'Nota borrada')) { delete S.exams[x.eid]?.notas[x.alumnoId]; x.descartada = true; ocPintar(); } }); });
+  },
+  'hd-fila': el => { HD.fila = +el.dataset.v; hdPintar(); },
+  'hd-q': el => { const q = +el.dataset.q, ops = [...LET.slice(0, OMR.FORMATOS[HD.clave.formato].opciones), '-'], i = ops.indexOf(HD.resp[q]); HD.resp[q] = ops[(i + 1) % ops.length]; hdPintar(); },
+  'hd-ok': () => {
+    if (!HD.alumnoId || !HD.eid) { toast('Elegí al alumno.', 'error'); return; }
+    if (!HD.fila) { toast('Elegí la fila del examen.', 'error'); return; }
+    const it = HD.it; it.resp = HD.resp.join(''); it.alumnoId = HD.alumnoId; it.eid = HD.eid; it.filaUsada = HD.fila; it.antes = undefined;
+    it.nota = OMR.corregir(it.resp, HD.clave.claves[HD.fila]).buenas; it.estado = 'listo'; HD.onSave(it);
+  },
+  'hd-borrar': () => HD.onDescartar && HD.onDescartar(HD.it),
   'ex-todos': () => { S.ui.exTodos = !S.ui.exTodos; render(); },
   'ex-xlsx': async el => { el.classList.add('disabled'); try { await exportExamenXLSX(S.exams[el.dataset.id]); } catch (e) { toast(errText(e), 'error'); } el.classList.remove('disabled'); },
   'ex-pdf': async el => { el.classList.add('disabled'); try { await exportExamenPDF(S.exams[el.dataset.id]); } catch (e) { toast(errText(e), 'error'); } el.classList.remove('disabled'); },
@@ -3979,6 +4329,8 @@ const A = {
     let ok = true;
     if (filas.length) ok = !!(await run(S.sb.from('notas').upsert(filas, { onConflict: 'examen_id,alumno_id' })));
     if (ok && quitar.length) ok = !!(await run(S.sb.from('notas').delete().eq('examen_id', e.id).in('alumno_id', quitar)));
+    const aMano = filas.filter(f => e.hojas?.[f.alumno_id] && num(e.notas[f.alumno_id]) !== f.nota).map(f => f.alumno_id);
+    if (ok && aMano.length) ok = !!(await run(S.sb.from('notas').update({ respuestas: null, fila: null }).eq('examen_id', e.id).in('alumno_id', aMano)));
     if (!ok) { el.classList.remove('disabled'); return; }
     D.dirty = false; toast('Notas guardadas'); await load(['exams']);
   },
@@ -4067,6 +4419,8 @@ function cajaCalc() { const n = num($('#cj-n')?.value), pa = parseMoney($('#cj-p
 // marca la lista como modificada sin re-renderizar (para no perder el foco del cuadro de texto)
 function asisDirty() { const D = S.draftAsis; if (!D) return; D.dirty = true; const b = $('[data-act="asis-guardar"]'); if (b) { b.classList.remove('disabled'); b.textContent = 'Guardar lista'; } }
 const CH = {
+  'oc-fotos': t => { const fs = [...(t.files || [])]; t.value = ''; if (fs.length && OC) ocFotos(fs); },
+  'hd-al': t => { const [a, x] = (t.value || '|').split('|'); HD.alumnoId = a || null; HD.eid = x || null; },
   fGrupo: el => { S.ui.fGrupo = el.value; render(); },
   fEstado: el => { S.ui.fEstado = el.value; render(); },
   fDeuda: el => { S.ui.fDeuda = el.checked; render(); },
