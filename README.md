@@ -70,6 +70,14 @@ En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la pl
 - Cada una corrige lo que anotó el mismo día; solo la dirección borra. Todo queda en Actividad. Los profes no la ven.
 - Base: tabla `caja_movs` (`supabase/horas-caja.sql`); `pagos.para_caja` y el trigger `pagos_a_caja` (`supabase/caja-cobros.sql`).
 
+## Exámenes en varios grupos y lista completa
+
+- Al crear un examen se eligen **todos los grupos que lo rinden** (chips). Cada grupo tiene su fila en `examenes` (con los permisos de siempre) y las del mismo examen comparten `comun`. Desde **Editar** se puede sumar otro grupo después; cambiar nombre, materia, fecha o puntaje cambia todos.
+- Las notas se cargan grupo por grupo (chips "Mismo examen en:" para pasar de uno a otro).
+- **Lista completa**: todos los que rindieron, de todos los grupos, con puesto (los empatados comparten), nota, % y grupo; promedio, aprobados (60% o más), nota más alta y resumen por grupo. Orden por nota, nombre o grupo; opción de mostrar los que no rindieron. Un profe ve solo sus grupos.
+- **Exportar**: **Excel** (.xlsx con título, cédula, grupo, nota, porcentaje y resultado; hoja "Por grupo") y **PDF con el logo** (A4, encabezado naranja, pie con página). Las librerías se cargan solo al exportar (SheetJS desde cdnjs; jsPDF y autotable desde jsdelivr).
+- Archivo `supabase/examen-comun.sql`.
+
 ## Tareas de la oficina y la librería
 
 En **Tareas** (dirección y oficina; también en el Inicio de las dos):
@@ -102,6 +110,7 @@ supabase/tareas-actividad.sql  tareas de la oficina y registro de actividad (tam
 supabase/horas-caja.sql  entrada y salida (oficina y profes) y caja chica (también está en schema.sql)
 supabase/caja-cobros.sql  parte del cobro para la caja chica (también está en schema.sql)
 supabase/pedir-acceso.sql  alumnos que piden acceso sin invitación (también está en schema.sql)
+supabase/examen-comun.sql  examen común a varios grupos (también está en schema.sql)
 supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
 supabase/functions/     invitar (manda invitaciones), notificar (avisa fichas nuevas) y push (avisos al celular)
 supabase/cron-push.sql  avisos programados: llama a la función push cada 15 minutos

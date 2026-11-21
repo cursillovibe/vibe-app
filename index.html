@@ -521,6 +521,7 @@ const ICONS = {
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.8c2 .7 3.2 2.4 3.6 5.2"/>',
   layers:'<path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="m2.5 12.5 9.5 5 9.5-5"/><path d="m2.5 17 9.5 5 9.5-5"/>',
   check:'<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2.5h6v3H9z"/><path d="m8.5 13 2.5 2.5 4.5-5"/>',
+  list:'<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   entrar:'<path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M9 16l4-4-4-4"/><path d="M13 12H3"/>',
   cash:'<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v.01M18 14.5v.01"/>',
   wallet:'<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M16 15h2"/><path d="M6 6V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
@@ -877,7 +878,7 @@ const LOADERS = {
   },
   exams: async () => {
     const ex = await fetchAll('examenes', '*', q => q.order('id')); const ns = await fetchAll('notas', '*', q => q.order('examen_id').order('alumno_id'));
-    const m = {}; ex.forEach(e => m[e.id] = { id: e.id, grupoId: e.grupo_id, nombre: e.nombre, materia: e.materia || '', fecha: e.fecha || '', max: num(e.maximo) || 100, notas: {} });
+    const m = {}; ex.forEach(e => m[e.id] = { id: e.id, grupoId: e.grupo_id, nombre: e.nombre, materia: e.materia || '', fecha: e.fecha || '', max: num(e.maximo) || 100, comun: e.comun || '', notas: {} });
     ns.forEach(n => { if (m[n.examen_id]) m[n.examen_id].notas[n.alumno_id] = num(n.nota); });
     S.exams = m; rebuild('exams');
   },
@@ -2118,6 +2119,7 @@ function vResumen() {
 VIEWS.examenes = () => {
   if (!ready('grupos', 'alumnos', 'exams')) return loadingView();
   const u = S.ui; const gs = gruposActivos();
+  if (u.exLista && S.exams[u.exLista]) return vExamenLista(S.exams[u.exLista]);
   if (u.exSel && S.exams[u.exSel]) return vExamen(S.exams[u.exSel]);
   if (!u.exGrupo || !S.grupos[u.exGrupo]) u.exGrupo = gs[0]?.id || '';
   let h = ph('Exámenes', 'Notas por grupo y evolución de cada alumno', u.exGrupo ? `<button class="btn primary" data-act="examen-nuevo">${ic('plus')}Nuevo examen</button>` : '');
@@ -2125,7 +2127,8 @@ VIEWS.examenes = () => {
   h += `<div class="chips">${gs.map(x => `<button class="chip" data-act="ex-grupo" data-v="${esc(x.id)}" aria-pressed="${x.id === u.exGrupo}">${esc(x.nombre)}</button>`).join('')}</div>`;
   const ex = S.idx.examsByGrupo[u.exGrupo] || []; const n = alumnosDe(u.exGrupo).length;
   h += `<div class="card">${ex.length ? `<div class="tw"><table><thead><tr><th>Examen</th><th>Fecha</th><th class="n">Cargadas</th><th class="n">Promedio</th><th class="n">Aprobados (≥60%)</th></tr></thead><tbody>${ex.map(e => { const v = Object.values(e.notas || {}).map(x => num(x) / num(e.max || 100) * 100); const prom = v.length ? Math.round(sum(v) / v.length) : null;
-    return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td><b>${esc(e.nombre)}</b>${e.materia ? `<br><small>${esc(e.materia)}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n">${v.length}/${n}</td><td class="n">${prom == null ? '—' : `<span class="${prom < 60 ? 'bad-t' : 'ok-t'} num">${prom}%</span>`}</td><td class="n">${v.length ? v.filter(x => x >= 60).length + ' de ' + v.length : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty"><b>Sin exámenes en este grupo</b>Creá uno y cargá las notas.</div>'}</div>`;
+    const otros = examHermanos(e).filter(x => x.id !== e.id).map(x => gName(x.grupoId));
+    return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td><b>${esc(e.nombre)}</b>${e.materia || otros.length ? `<br><small>${esc([e.materia, otros.length ? 'también ' + otros.join(', ') : ''].filter(Boolean).join(' · '))}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n">${v.length}/${n}</td><td class="n">${prom == null ? '—' : `<span class="${prom < 60 ? 'bad-t' : 'ok-t'} num">${prom}%</span>`}</td><td class="n">${v.length ? v.filter(x => x >= 60).length + ' de ' + v.length : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty"><b>Sin exámenes en este grupo</b>Creá uno y cargá las notas.</div>'}</div>`;
   return h;
 };
 function vExamen(e) {
@@ -2134,11 +2137,114 @@ function vExamen(e) {
   const D = S.draftExam;
   const rank = Object.entries(e.notas || {}).filter(([id]) => S.alumnos[id]).sort((a, b) => num(b[1]) - num(a[1]));
   let h = `<div><button class="back" data-act="back-examenes">${ic('back')}Exámenes</button></div>`;
-  h += ph(e.nombre, `${esc(gName(e.grupoId))} · ${fmtF(e.fecha)}${e.materia ? ' · ' + esc(e.materia) : ''} · puntaje máximo ${fmtN(max)}`, `<button class="btn" data-act="examen-editar" data-id="${esc(e.id)}">${ic('edit')}Editar</button>`);
+  const her = examHermanos(e);
+  h += ph(e.nombre, `${esc(gName(e.grupoId))} · ${fmtF(e.fecha)}${e.materia ? ' · ' + esc(e.materia) : ''} · puntaje máximo ${fmtN(max)}`, `<button class="btn" data-act="examen-editar" data-id="${esc(e.id)}">${ic('edit')}Editar</button><button class="btn primary" data-act="ex-lista" data-id="${esc(e.id)}">${ic('list')}${her.length > 1 ? 'Lista completa (' + her.length + ' grupos)' : 'Lista y exportar'}</button>`);
+  if (her.length > 1) h += `<div class="chips" style="margin-bottom:12px"><small class="muted" style="align-self:center">Mismo examen en:</small>${her.map(x => `<button class="chip" data-act="ex-hermano" data-id="${esc(x.id)}" aria-pressed="${x.id === e.id}">${esc(gName(x.grupoId))}</button>`).join('')}</div>`;
   h += `<div class="grid2"><div class="card"><div class="card-h"><h2>Cargar notas</h2><small>Dejá vacío si no rindió</small></div><div class="rows">${al.map(a => { const v = D.notas[a.id]; const p = v === '' || v == null ? null : Math.round(num(v) / max * 100); return `<div class="row"><div class="t">${esc(nombreA(a))}</div><div class="r">${p == null ? '' : `<small class="${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</small>`}<input class="inp nota" id="nota-${esc(a.id)}" data-in="nota" data-id="${esc(a.id)}" inputmode="decimal" value="${v == null ? '' : esc(v)}" aria-label="Nota de ${esc(nombreA(a))}"><small>/ ${fmtN(max)}</small></div></div>`; }).join('') || '<div class="empty">El grupo no tiene alumnos.</div>'}</div>
     <div class="savebar"><small>${D.dirty ? 'Hay cambios sin guardar' : 'Todo guardado'}</small><button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="notas-guardar">Guardar notas</button></div></div>
     <div class="card"><div class="card-h"><h2>Ranking</h2><small>${rank.length} rindieron</small></div><div class="rows">${rank.map(([id, v], i) => { const p = Math.round(num(v) / max * 100); return `<div class="row click" data-act="ver-alumno" data-id="${esc(id)}"><div class="t"><span class="num" style="color:var(--muted);margin-right:8px">${i + 1}°</span>${esc(nombreA(S.alumnos[id]))}</div><div class="r"><span class="num">${fmtN(num(v))}</span>${pill(p + '%', p >= 60 ? 'ok' : 'bad')}</div></div>`; }).join('') || '<div class="empty">Todavía no hay notas guardadas.</div>'}</div></div></div>`;
   return h;
+}
+
+/* ---------- examen común a varios grupos: lista completa y exportación ---------- */
+// todas las filas del mismo examen (una por grupo) que esta cuenta puede ver
+const examHermanos = e => e.comun ? Object.values(S.exams).filter(x => x.comun === e.comun).sort((a, b) => gName(a.grupoId).localeCompare(gName(b.grupoId), 'es')) : [e];
+const APRUEBA = 60;
+function filasExamen(e) {
+  const her = examHermanos(e); const filas = [];
+  her.forEach(x => {
+    const mx = num(x.max || 100); const vistos = new Set();
+    const add = (a, v) => { vistos.add(a.id); filas.push({ a, g: x.grupoId, nota: v == null || v === '' ? null : num(v), p: v == null || v === '' ? null : Math.round(num(v) / mx * 1000) / 10, max: mx }); };
+    alumnosDe(x.grupoId).forEach(a => add(a, x.notas?.[a.id]));
+    // también cuentan las notas de alumnos que después cambiaron de grupo o se dieron de baja
+    Object.entries(x.notas || {}).forEach(([id, v]) => { if (!vistos.has(id) && S.alumnos[id]) add(S.alumnos[id], v); });
+  });
+  const rind = filas.filter(f => f.nota != null).sort((a, b) => b.p - a.p || nombreA(a.a).localeCompare(nombreA(b.a), 'es'));
+  rind.forEach((f, i) => { f.puesto = i && rind[i - 1].p === f.p ? rind[i - 1].puesto : i + 1; });   // empatados comparten el puesto
+  return { her, filas, rind };
+}
+const promedioP = L => L.length ? Math.round(sum(L.map(f => f.p)) / L.length * 10) / 10 : null;
+const fmtP = p => p == null ? '—' : String(p).replace('.', ',') + '%';
+const resultadoTxt = f => f.nota == null ? 'No rindió' : f.p >= APRUEBA ? 'Aprobado' : 'No aprobado';
+function filasOrdenadas(e) {
+  const { her, filas, rind } = filasExamen(e); const u = S.ui; const o = u.exOrden || 'nota';
+  let L = u.exTodos ? [...rind, ...filas.filter(f => f.nota == null)] : [...rind];
+  if (o === 'nombre') L.sort((a, b) => nombreA(a.a).localeCompare(nombreA(b.a), 'es'));
+  if (o === 'grupo') L.sort((a, b) => gName(a.g).localeCompare(gName(b.g), 'es') || (b.p ?? -1) - (a.p ?? -1) || nombreA(a.a).localeCompare(nombreA(b.a), 'es'));
+  return { her, filas, rind, L };
+}
+function vExamenLista(e) {
+  const { her, filas, rind, L } = filasOrdenadas(e); const u = S.ui; const max = num(e.max || 100);
+  const aprob = rind.filter(f => f.p >= APRUEBA).length; const prom = promedioP(rind);
+  let h = `<div><button class="back" data-act="ex-lista-volver">${ic('back')}${esc(e.nombre)}</button></div>`;
+  h += ph('Lista completa · ' + e.nombre, `${esc(her.map(x => gName(x.grupoId)).join(', '))} · ${fmtF(e.fecha)}${e.materia ? ' · ' + esc(e.materia) : ''} · puntaje máximo ${fmtN(max)}`,
+    `<button class="btn" data-act="ex-xlsx" data-id="${esc(e.id)}">${ic('download')}Excel</button><button class="btn primary" data-act="ex-pdf" data-id="${esc(e.id)}">${ic('download')}PDF con logo</button>`);
+  h += `<div class="kpis">${kpi('Rindieron', rind.length, 'de ' + filas.length + ' alumnos')}${kpi('Promedio', fmtP(prom), 'de los que rindieron', prom != null && prom < APRUEBA ? 'bad' : '')}${kpi('Aprobados', aprob, rind.length ? `${Math.round(aprob / rind.length * 100)}% (≥ ${APRUEBA}%)` : `≥ ${APRUEBA}%`)}${kpi('Nota más alta', rind.length ? fmtN(rind[0].nota) : '—', rind.length ? nombreA(rind[0].a) : '')}</div>`;
+  if (her.length > 1) h += `<div class="card"><div class="card-h"><h2>Por grupo</h2></div><div class="tw"><table><thead><tr><th>Grupo</th><th class="n">Rindieron</th><th class="n">Promedio</th><th class="n">Aprob.</th></tr></thead><tbody>${her.map(x => { const r = rind.filter(f => f.g === x.grupoId); const t = filas.filter(f => f.g === x.grupoId).length; const pr = promedioP(r);
+      return `<tr class="click" data-act="ver-examen" data-id="${esc(x.id)}"><td><b>${esc(gName(x.grupoId))}</b></td><td class="n">${r.length}/${t}</td><td class="n"><span class="num ${pr != null && pr < APRUEBA ? 'bad-t' : 'ok-t'}">${fmtP(pr)}</span></td><td class="n">${r.filter(f => f.p >= APRUEBA).length}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+  h += `<div class="filters"><div class="chips">${[['nota', 'Por nota'], ['nombre', 'Por nombre'], ['grupo', 'Por grupo']].map(([k, l]) => `<button class="chip" data-act="ex-orden" data-v="${k}" aria-pressed="${(u.exOrden || 'nota') === k}">${l}</button>`).join('')}</div><div class="chips"><button class="chip" data-act="ex-todos" aria-pressed="${!!u.exTodos}">Mostrar también los que no rindieron</button></div></div>`;
+  h += `<div class="card"><div class="tw"><table><thead><tr><th class="n">Puesto</th><th>Alumno</th><th class="n">Nota</th></tr></thead><tbody>${L.map(f => `<tr class="click" data-act="ver-alumno" data-id="${esc(f.a.id)}"><td class="n num" style="width:56px">${f.puesto ? f.puesto + '°' : ''}</td><td><b>${esc(nombreA(f.a))}</b>${her.length > 1 ? `<br><small class="muted">${esc(gName(f.g))}</small>` : ''}</td><td class="n" style="white-space:nowrap">${f.nota == null ? '<span class="muted">no rindió</span>' : `<span class="num">${fmtN(f.nota)}</span> ${pill(fmtP(f.p), f.p >= APRUEBA ? 'ok' : 'bad')}`}</td></tr>`).join('') || `<tr><td colspan="3"><div class="empty">Todavía no hay notas guardadas.</div></td></tr>`}</tbody></table></div></div>`;
+  return h;
+}
+const nombreArchivoEx = e => (`Notas ${e.nombre}${e.fecha ? ' ' + fmtF(e.fecha).replace(/\//g, '-') : ''}`).replace(/[\\/:*?"<>|]+/g, ' ').trim();
+async function exportExamenXLSX(e) {
+  await loadXLSX();
+  const { her, rind, L } = filasOrdenadas(e); const varios = her.length > 1; const prom = promedioP(rind); const aprob = rind.filter(f => f.p >= APRUEBA).length;
+  const head = ['Puesto', 'Alumno', 'Cédula', ...(varios ? ['Grupo'] : []), 'Nota', 'Porcentaje', 'Resultado'];
+  const aoa = [[S.cfg.nombre || 'Cursillo VIBE'], [e.nombre], [`${her.map(x => gName(x.grupoId)).join(', ')} · ${fmtF(e.fecha)}${e.materia ? ' · ' + e.materia : ''} · puntaje máximo ${fmtN(num(e.max || 100))}`],
+    [`Rindieron ${rind.length} · Promedio ${fmtP(prom)} · Aprobados ${aprob} (${APRUEBA}% o más)`], [], head,
+    ...L.map(f => [f.puesto || '', nombreA(f.a), f.a.ci || '', ...(varios ? [gName(f.g)] : []), f.nota == null ? '' : f.nota, f.p == null ? '' : f.p / 100, resultadoTxt(f)])];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const cP = varios ? 5 : 4; for (let r = 6; r < aoa.length; r++) { const ref = XLSX.utils.encode_cell({ r, c: cP }); if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '0.0%'; }
+  ws['!cols'] = [{ wch: 8 }, { wch: 34 }, { wch: 12 }, ...(varios ? [{ wch: 18 }] : []), { wch: 8 }, { wch: 11 }, { wch: 13 }];
+  ws['!merges'] = [0, 1, 2, 3].map(r => ({ s: { r, c: 0 }, e: { r, c: head.length - 1 } }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Notas');
+  if (varios) {
+    const fl = filasExamen(e);
+    const rs = [['Grupo', 'Alumnos', 'Rindieron', 'Promedio', 'Aprobados'], ...her.map(x => { const r = fl.rind.filter(f => f.g === x.grupoId); const pr = promedioP(r); return [gName(x.grupoId), fl.filas.filter(f => f.g === x.grupoId).length, r.length, pr == null ? '' : pr / 100, r.filter(f => f.p >= APRUEBA).length]; })];
+    const w2 = XLSX.utils.aoa_to_sheet(rs); for (let r = 1; r < rs.length; r++) { const ref = XLSX.utils.encode_cell({ r, c: 3 }); if (w2[ref] && typeof w2[ref].v === 'number') w2[ref].z = '0.0%'; }
+    w2['!cols'] = [{ wch: 22 }, { wch: 9 }, { wch: 10 }, { wch: 10 }, { wch: 10 }]; XLSX.utils.book_append_sheet(wb, w2, 'Por grupo');
+  }
+  XLSX.writeFile(wb, nombreArchivoEx(e) + '.xlsx');
+}
+function loadPDF() {
+  const js = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar el generador de PDF. Revisá la conexión.')); document.head.appendChild(s); });
+  if (window.jspdf?.jsPDF?.API?.autoTable) return Promise.resolve();
+  return (window.jspdf ? Promise.resolve() : js('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'))
+    .then(() => window.jspdf.jsPDF.API.autoTable ? null : js('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js'));
+}
+function imgData(src) {
+  return new Promise((res, rej) => { const im = new Image(); im.onload = () => { const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); res({ data: c.toDataURL('image/png'), w: im.naturalWidth, h: im.naturalHeight }); }; im.onerror = rej; im.src = src; });
+}
+async function exportExamenPDF(e) {
+  await loadPDF();
+  const { her, rind, L } = filasOrdenadas(e); const varios = her.length > 1; const prom = promedioP(rind); const aprob = rind.filter(f => f.p >= APRUEBA).length;
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' }); const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 14;
+  const NAR = [251, 133, 0], NEG = [26, 26, 26], GRIS = [110, 110, 110];
+  let y = 14;
+  try { const lg = await imgData('img/logo-vibe.png'); const lw = 46, lh = lw * lg.h / lg.w; doc.addImage(lg.data, 'PNG', M, y, lw, lh); y += lh + 6; } catch (err) { doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(...NEG); doc.text('Cursillo VIBE', M, y + 6); y += 12; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...NEG);
+  doc.splitTextToSize(e.nombre, W - 2 * M).forEach(l => { doc.text(l, M, y); y += 7; });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...GRIS);
+  doc.splitTextToSize(`${her.map(x => gName(x.grupoId)).join(', ')} · ${fmtF(e.fecha)}${e.materia ? ' · ' + e.materia : ''} · puntaje máximo ${fmtN(num(e.max || 100))}`, W - 2 * M).forEach(l => { doc.text(l, M, y); y += 5; });
+  y += 1; doc.setDrawColor(...NAR); doc.setLineWidth(0.8); doc.line(M, y, W - M, y); y += 6;
+  doc.setFontSize(10.5); doc.setTextColor(...NEG);
+  doc.text(`Rindieron: ${rind.length}     Promedio: ${fmtP(prom)}     Aprobados (${APRUEBA}% o más): ${aprob}${rind.length ? ' (' + Math.round(aprob / rind.length * 100) + '%)' : ''}`, M, y); y += 4;
+  const head = [['Puesto', 'Alumno', ...(varios ? ['Grupo'] : []), 'Nota', '%', 'Resultado']];
+  const body = L.map(f => [f.puesto ? f.puesto + '°' : '', nombreA(f.a), ...(varios ? [gName(f.g)] : []), f.nota == null ? '—' : fmtN(f.nota), fmtP(f.p), resultadoTxt(f)]);
+  const cRes = head[0].length - 1;
+  doc.autoTable({ startY: y + 2, head, body, theme: 'striped', margin: { left: M, right: M, bottom: 18 },
+    styles: { font: 'helvetica', fontSize: 9.5, cellPadding: 2, textColor: NEG }, headStyles: { fillColor: NAR, textColor: 255, fontStyle: 'bold' }, alternateRowStyles: { fillColor: [253, 243, 231] },
+    columnStyles: { 0: { halign: 'center', cellWidth: 16 }, [cRes - 2]: { halign: 'right', cellWidth: 16 }, [cRes - 1]: { halign: 'right', cellWidth: 17 }, [cRes]: { cellWidth: 26 } },
+    didParseCell: d => { if (d.section === 'body' && d.column.index === cRes) { const t = d.cell.raw; d.cell.styles.textColor = t === 'Aprobado' ? [21, 128, 61] : t === 'No aprobado' ? [190, 30, 45] : GRIS; } } });
+  const n = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i); doc.setDrawColor(...NAR); doc.setLineWidth(0.4); doc.line(M, H - 13, W - M, H - 13);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GRIS);
+    doc.text(`${S.cfg.nombre || 'Cursillo VIBE'} · ${S.cfg.dir || 'Coronel Oviedo'}${S.cfg.tel ? ' · ' + S.cfg.tel : ''}`, M, H - 8);
+    doc.text(`Generado el ${fmtF(hoy())} · página ${i} de ${n}`, W - M, H - 8, { align: 'right' });
+  }
+  doc.save(nombreArchivoEx(e) + '.pdf');
 }
 
 /* --- horario --- */
@@ -3216,11 +3322,18 @@ function waBtn() {
 }
 
 /* ---------- formularios: examen ---------- */
+let XF = null;
 function openExamForm(eid) {
   const e = eid ? S.exams[eid] : { nombre: '', materia: '', fecha: hoy(), max: 100, grupoId: S.ui.exGrupo };
+  const her = eid ? examHermanos(e) : []; const ya = new Set(her.map(x => x.grupoId));
+  XF = { eid, sel: new Set(eid ? [] : [e.grupoId].filter(Boolean)) };
+  const otros = gruposActivos().filter(g => !ya.has(g.id));
+  const grupos = !eid ? `<div class="fld full"><label>Grupos que rinden este examen *</label><div class="chips">${gruposActivos().map(g => `<button class="chip" data-act="x-grupo" data-v="${esc(g.id)}" aria-pressed="${XF.sel.has(g.id)}">${esc(g.nombre)}</button>`).join('')}</div><span class="hint">Si varios grupos rinden el mismo examen, elegilos todos: cada uno carga sus notas y después ves la lista completa.</span></div>`
+    : `${her.length > 1 ? `<div class="fld full"><label>Grupos</label><div style="display:flex;flex-wrap:wrap;gap:6px">${her.map(x => pill(gName(x.grupoId), 'acc')).join('')}</div></div>` : `<div class="fld"><label for="x-gru">Grupo</label><select class="inp" id="x-gru">${optGrupos(e.grupoId)}</select></div>`}
+      ${otros.length ? `<div class="fld full"><label>Sumar otros grupos que rinden el mismo examen</label><div class="chips">${otros.map(g => `<button class="chip" data-act="x-grupo" data-v="${esc(g.id)}" aria-pressed="false">+ ${esc(g.nombre)}</button>`).join('')}</div></div>` : ''}`;
   openModal(eid ? 'Editar examen' : 'Nuevo examen', `<div class="form">
     <div class="fld full"><label for="x-nom">Nombre *</label><input class="inp" id="x-nom" value="${esc(e.nombre)}" placeholder="Examen 3 · Álgebra"></div>
-    <div class="fld"><label for="x-gru">Grupo</label><select class="inp" id="x-gru">${optGrupos(e.grupoId)}</select></div>
+    ${grupos}
     <div class="fld"><label for="x-mat">Materia</label><input class="inp" id="x-mat" value="${esc(e.materia || '')}" placeholder="Matemática"></div>
     <div class="fld"><label for="x-fec">Fecha</label><input type="date" class="inp" id="x-fec" value="${esc(e.fecha || '')}"></div>
     <div class="fld"><label for="x-max">Puntaje máximo</label><input class="inp" id="x-max" type="number" min="1" value="${esc(e.max || 100)}"></div>
@@ -3821,17 +3934,41 @@ const A = {
   'examen-nuevo': () => openExamForm(),
   'examen-editar': el => openExamForm(el.dataset.id),
   'ver-examen': el => go('examenes', () => { S.ui.exSel = el.dataset.id; S.draftExam = null; }),
-  'back-examenes': () => { const f = () => { S.ui.exSel = null; S.draftExam = null; render(); }; if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Salir igual?', 'Salir sin guardar', f); else f(); },
+  'back-examenes': () => { const f = () => { S.ui.exSel = null; S.ui.exLista = null; S.draftExam = null; render(); }; if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Salir igual?', 'Salir sin guardar', f); else f(); },
+  'x-grupo': el => { const v = el.dataset.v; if (XF.sel.has(v)) XF.sel.delete(v); else XF.sel.add(v); el.setAttribute('aria-pressed', String(XF.sel.has(v))); },
   'examen-guardar': async el => {
-    const nombre = $('#x-nom').value.trim(); if (!nombre) { $('#x-err').textContent = 'Poné un nombre.'; return; }
-    const eid = el.dataset.id; const row = { nombre, grupo_id: $('#x-gru').value, materia: $('#x-mat').value.trim() || null, fecha: $('#x-fec').value || null, maximo: Math.max(1, num($('#x-max').value) || 100) };
-    if (!row.grupo_id) { $('#x-err').textContent = 'Elegí el grupo.'; return; }
+    const nombre = $('#x-nom').value.trim(); const err = t => { $('#x-err').textContent = t; }; if (!nombre) return err('Poné un nombre.');
+    const eid = el.dataset.id; const base = { nombre, materia: $('#x-mat').value.trim() || null, fecha: $('#x-fec').value || null, maximo: Math.max(1, num($('#x-max').value) || 100) };
+    const nuevos = [...XF.sel];
+    if (!eid) {
+      if (!nuevos.length) return err('Elegí al menos un grupo.');
+      el.classList.add('disabled');
+      const comun = nuevos.length > 1 ? crypto.randomUUID() : null;
+      const r = await run(S.sb.from('examenes').insert(nuevos.map(g => ({ ...base, grupo_id: g, comun }))).select(), nuevos.length > 1 ? `Examen creado para ${nuevos.length} grupos` : 'Examen guardado');
+      if (!r || !r.length) { el.classList.remove('disabled'); return; }
+      const r0 = r.find(x => x.grupo_id === S.ui.exGrupo) || r[0];
+      closeModal(); S.ui.exGrupo = r0.grupo_id; S.ui.exSel = r0.id; S.ui.exLista = null; S.draftExam = null; await load(['exams']); return;
+    }
+    const e = S.exams[eid]; const upd = { ...base };
+    if (!e.comun && $('#x-gru')) { upd.grupo_id = $('#x-gru').value; if (!upd.grupo_id) return err('Elegí el grupo.'); }
+    const extra = nuevos.filter(g => g !== (upd.grupo_id || e.grupoId));
+    const comun = e.comun || (extra.length ? crypto.randomUUID() : null);
+    if (comun && !e.comun) upd.comun = comun;
     el.classList.add('disabled');
-    const q = eid ? S.sb.from('examenes').update(row).eq('id', eid).select().single() : S.sb.from('examenes').insert(row).select().single();
-    const r = await run(q, 'Examen guardado'); if (!r) { el.classList.remove('disabled'); return; }
-    closeModal(); S.ui.exGrupo = r.grupo_id; S.ui.exSel = r.id; S.draftExam = null; await load(['exams']);
+    const r1 = await run(e.comun ? S.sb.from('examenes').update(base).eq('comun', e.comun).select() : S.sb.from('examenes').update(upd).eq('id', eid).select());
+    if (!r1) { el.classList.remove('disabled'); return; }
+    if (extra.length && !(await run(S.sb.from('examenes').insert(extra.map(g => ({ ...base, grupo_id: g, comun }))).select()))) { el.classList.remove('disabled'); await load(['exams']); return; }
+    toast(extra.length ? `Examen guardado y sumado a ${extra.length} grupo${extra.length === 1 ? '' : 's'} más` : 'Examen guardado');
+    closeModal(); const r0 = r1.find(x => x.id === eid) || r1[0]; S.ui.exGrupo = r0.grupo_id; S.ui.exSel = r0.id; S.draftExam = null; await load(['exams']);
   },
-  'examen-borrar': el => { const id = el.dataset.id; confirmDlg('¿Borrar este examen y todas sus notas?', 'Borrar examen', async () => { if (await run(S.sb.from('examenes').delete().eq('id', id), 'Examen borrado')) { S.ui.exSel = null; S.draftExam = null; await load(['exams']); } }); },
+  'ex-lista': el => { const f = () => { S.ui.exLista = el.dataset.id; render(); window.scrollTo(0, 0); }; if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Salir igual?', 'Salir sin guardar', f); else f(); },
+  'ex-lista-volver': () => { S.ui.exSel = S.ui.exLista; S.ui.exLista = null; S.draftExam = null; render(); },
+  'ex-hermano': el => { const f = () => { const x = S.exams[el.dataset.id]; if (!x) return; S.ui.exSel = x.id; S.ui.exGrupo = x.grupoId; S.draftExam = null; render(); }; if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Cambiar de grupo igual?', 'Cambiar sin guardar', f); else f(); },
+  'ex-orden': el => { S.ui.exOrden = el.dataset.v; render(); },
+  'ex-todos': () => { S.ui.exTodos = !S.ui.exTodos; render(); },
+  'ex-xlsx': async el => { el.classList.add('disabled'); try { await exportExamenXLSX(S.exams[el.dataset.id]); } catch (e) { toast(errText(e), 'error'); } el.classList.remove('disabled'); },
+  'ex-pdf': async el => { el.classList.add('disabled'); try { await exportExamenPDF(S.exams[el.dataset.id]); } catch (e) { toast(errText(e), 'error'); } el.classList.remove('disabled'); },
+  'examen-borrar': el => { const id = el.dataset.id; const her = S.exams[id] ? examHermanos(S.exams[id]) : []; confirmDlg(her.length > 1 ? `¿Borrar este examen de ${gName(S.exams[id].grupoId)} y sus notas? Los otros grupos (${her.filter(x => x.id !== id).map(x => gName(x.grupoId)).join(', ')}) lo mantienen.` : '¿Borrar este examen y todas sus notas?', 'Borrar examen', async () => { if (await run(S.sb.from('examenes').delete().eq('id', id), 'Examen borrado')) { S.ui.exSel = null; S.draftExam = null; await load(['exams']); } }); },
   'notas-guardar': async el => {
     const D = S.draftExam; const e = S.exams[D.eid]; if (!e) return;
     const filas = [], quitar = [];
