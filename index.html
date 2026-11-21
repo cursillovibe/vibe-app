@@ -2212,7 +2212,7 @@ function filasExamen(e) {
     Object.entries(x.notas || {}).forEach(([id, v]) => { if (!vistos.has(id) && S.alumnos[id]) add(S.alumnos[id], v); });
   });
   const rind = filas.filter(f => f.nota != null).sort((a, b) => b.p - a.p || nombreA(a.a).localeCompare(nombreA(b.a), 'es'));
-  rind.forEach((f, i) => { f.puesto = i && rind[i - 1].p === f.p ? rind[i - 1].puesto : i + 1; });   // empatados comparten el puesto
+  rind.forEach((f, i) => { f.puesto = i + 1; });   // 1, 2, 3… seguidos (pedido de Guido): con el mismo puntaje, por orden alfabético
   return { her, filas, rind };
 }
 const promedioP = L => L.length ? Math.round(sum(L.map(f => f.p)) / L.length * 10) / 10 : null;

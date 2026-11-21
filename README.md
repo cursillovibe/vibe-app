@@ -74,7 +74,7 @@ En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la pl
 
 - Al crear un examen se eligen **todos los grupos que lo rinden** (chips). Cada grupo tiene su fila en `examenes` (con los permisos de siempre) y las del mismo examen comparten `comun`. Desde **Editar** se puede sumar otro grupo después; cambiar nombre, materia, fecha o puntaje cambia todos.
 - Las notas se cargan grupo por grupo (chips "Mismo examen en:" para pasar de uno a otro).
-- **Lista completa**: todos los que rindieron, de todos los grupos, con puesto (los empatados comparten), nota, % y grupo; promedio, aprobados (60% o más), nota más alta y resumen por grupo. Orden por nota, nombre o grupo; opción de mostrar los que no rindieron. Un profe ve solo sus grupos.
+- **Lista completa**: todos los que rindieron, de todos los grupos, con puesto 1, 2, 3… seguido del mayor puntaje al menor (con el mismo puntaje, por orden alfabético), nota, % y grupo; promedio, aprobados (60% o más), nota más alta y resumen por grupo. Orden por nota, nombre o grupo; opción de mostrar los que no rindieron. Un profe ve solo sus grupos.
 - **Exportar**: **Excel** (.xlsx con título, cédula, grupo, nota, porcentaje y resultado; hoja "Por grupo") y **PDF con el logo** (A4, encabezado naranja, pie con página). Las librerías se cargan solo al exportar (SheetJS desde cdnjs; jsPDF y autotable desde jsdelivr).
 - Archivo `supabase/examen-comun.sql`.
 
