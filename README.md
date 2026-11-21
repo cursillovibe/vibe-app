@@ -83,6 +83,7 @@ En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la pl
 - En **Armar horario**, un grupo **sin materias cargadas esa semana no entra** en el armado, el borrador, la imagen, los mensajes ni la publicación (por ejemplo, un grupo creado que todavía no empezó). Esos grupos quedan en la tarjeta compacta **"Sin clases esta semana"** con **Cargar materias**.
 - **Días extra solo esa semana**: en cada grupo, la fila "Días de clase esta semana" muestra los días del grupo; tocando un día que no tiene (Sáb, Dom…) se suman clases extra: mañana → tarde → mañana y tarde → nada. En un día con un solo turno se puede sumar el otro. El grupo no cambia; se guarda en `materias_semana.extra` (`{"Sáb":"M","Dom":"MT"}`) y `publicar_horario` lo usa. Si a una materia se le fija un día que el grupo no tiene, ese día se suma solo como extra a la mañana. Las clases extra publicadas aparecen en la Semana, en Mi horario, en las listas de hoy de la oficina y en la toma de lista.
 - Archivo `supabase/horario-extra.sql`.
+- **Orden de los grupos**: la dirección mueve cada grupo con las flechas **▲▼** de su bloque, en el borrador (Armar horario) y en la Semana publicada. Sube o baja entre los grupos que se ven en esa pantalla; el orden se guarda para todos (`grupos.orden`, con `ordenar_grupos()`), y lo siguen la imagen para el grupo, los mensajes y las listas. No cambia quién recibe los mejores profes (eso es "prioridad"). Reordenar no se anota en la Actividad. Archivo `supabase/orden-grupos.sql`.
 
 ## Recibo como imagen
 

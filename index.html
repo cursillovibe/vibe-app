@@ -473,6 +473,11 @@ body.omr-on{overflow:hidden}
 .chip.dia-ex{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
 .chip.dia-no{color:var(--muted);border-style:dashed}
 .chip.dia-fer{opacity:.55}
+
+.g-ord{margin-left:auto;display:inline-flex;gap:4px}
+.g-ord .btn{min-width:34px;padding:4px 8px;font-size:12px;line-height:1}
+.g-ord .btn[disabled]{opacity:.35}
+.card.g-movido{box-shadow:0 0 0 2px var(--accent);transition:box-shadow .3s}
 </style>
 </head>
 <body>
@@ -653,6 +658,9 @@ function rebuild(which) {
 }
 const gruposOrden = () => Object.values(S.grupos).sort((a, b) => (b.activo !== false) - (a.activo !== false) || num(a.orden) - num(b.orden) || (a.nombre || '').localeCompare(b.nombre || '', 'es'));
 const gruposActivos = () => gruposOrden().filter(g => g.activo !== false);
+// flechas para ordenar los grupos en el horario (dirección): suben o bajan entre los que se ven en esa pantalla
+const flechasGrupo = (g, vis) => { if (!isAdmin() || vis.length < 2) return ''; const i = vis.indexOf(g.id), at = `data-act="g-mover" data-id="${esc(g.id)}" data-vis="${esc(vis.join(','))}"`;
+  return `<span class="g-ord"><button class="btn sm" ${at} data-v="-1" ${i <= 0 ? 'disabled' : ''} aria-label="Subir ${esc(g.nombre)} en el horario" title="Subir en el horario">▲</button><button class="btn sm" ${at} data-v="1" ${i >= vis.length - 1 ? 'disabled' : ''} aria-label="Bajar ${esc(g.nombre)} en el horario" title="Bajar en el horario">▼</button></span>`; };
 const alumnosDe = (gid, bajas = false) => Object.values(S.alumnos).filter(a => a.grupoId === gid && (a.estado === 'activo' || (bajas && a.estado === 'baja'))).sort(cmpA);
 const activos = () => Object.values(S.alumnos).filter(a => a.estado === 'activo');
 const pendientes = () => Object.values(S.alumnos).filter(a => a.fichaCompleta && (a.estado === 'pendiente' || (a.estado === 'activo' && !a.grupoId))).sort((a, b) => (a.fichaFecha || '').localeCompare(b.fichaFecha || ''));
@@ -2669,7 +2677,7 @@ function vHorSemana() {
   const ids = [...new Set(cls.map(c => c.grupo_id))].map(id => S.grupos[id]).filter(Boolean).sort((a, b) => num(a.orden) - num(b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
   ids.forEach(g => {
     const cg = cls.filter(c => c.grupo_id === g.id).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
-    h += `<div class="card"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}</h3>${wkDias(cg, c => c.fecha, celdaClase)}</div></div>`;
+    h += `<div class="card" data-gid="${esc(g.id)}"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}${flechasGrupo(g, ids.map(x => x.id))}</h3>${wkDias(cg, c => c.fecha, celdaClase)}</div></div>`;
   });
   if (isAdmin()) h += `<div class="actions" style="justify-content:space-between"><small class="muted">Tocá una clase para cambiar el profe o marcar quién la dio (si alguien firmó en papel).</small>${S.sem && S.sem.lunes === l && S.sem.publicada ? `<button class="btn sm ghost danger" data-act="despublicar">${ic('x')}Retirar el horario publicado</button>` : ''}</div>`;
   return h;
@@ -2763,7 +2771,7 @@ function vBorrador() {
       const fij = s.fm || s.fp;
       const pin = s.materia || fij ? `<button class="fx" data-act="bfijo" ${at(s)} aria-pressed="${!!fij}" title="${fij ? 'Fijado a mano: al volver a armar queda como está. Tocá para soltarlo.' : 'Fijar este bloque tal como está'}" aria-label="${fij ? 'Soltar bloque' : 'Fijar bloque'}">${ic('pin')}</button>` : '';
       return `<div class="wc ${fij ? 'fijo' : ''}">${pin}${dia}<span class="t">${s.turno}</span>${s.materia ? `<button class="mchip" style="background:${MATS[s.materia]?.bg};color:${MATS[s.materia]?.fg}" data-act="bmat" ${at(s)} title="Cambiar materia o moverla de día">${esc(matL(s.materia))}</button>${s.tema ? `<span class="tema">${esc(s.tema)}</span>` : ''}${s.materia === 'examen' ? '<span class="t">sin profe</span>' : s.profe ? `<button class="lnk p" data-act="bprof" ${at(s)} title="Cambiar profe">${esc(primerN(s.profe))}</button>` : `<button class="lnk sc" data-act="bprof" ${at(s)}>SIN COBERTURA</button>`}` : `<button class="lnk t" data-act="bmat" ${at(s)} title="Poner una materia">— vacío</button>`}</div>`; };
-    h += `<div class="card"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}</h3>${cells.length ? wkDias(cells, s => s.day, celda) : '<span class="muted">Este grupo no tiene turnos cargados.</span>'}</div></div>`;
+    h += `<div class="card" data-gid="${esc(g.id)}"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}${flechasGrupo(g, gs.map(x => x.id))}</h3>${cells.length ? wkDias(cells, s => s.day, celda) : '<span class="muted">Este grupo no tiene turnos cargados.</span>'}</div></div>`;
   });
   const pend = !w.publicada || S.borr.generado > w.publicada;
   h += `<div class="card"><div class="card-h"><h2>Publicar y mandar al grupo</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
@@ -3472,7 +3480,7 @@ function openGrupoForm(gid) {
     <span class="full hint muted" style="font-size:13px">Mañana 8:00–12:00 · Tarde 13:30–17:30 · Doble = los dos turnos (cada uno cuenta como una clase).</span>
     <label class="chk full"><input type="checkbox" id="g-prio" ${g.prioridad ? 'checked' : ''}>Recibe primero a los mejores profes (alumnos nuevos)</label>
     <div class="fld full"><label for="g-desc">Descripción para armar el horario</label><input class="inp" id="g-desc" value="${esc(g.descripcion || '')}" placeholder="Ej: alumnos nuevos, sin base"></div>
-    <div class="fld"><label for="g-ord">Orden en el horario</label><input class="inp" id="g-ord" type="number" min="0" value="${num(g.orden)}"></div>
+    <div class="fld"><label for="g-ord">Orden en el horario</label><input class="inp" id="g-ord" type="number" min="0" value="${num(g.orden)}"><span class="hint">Más fácil: en el horario, con las flechas ▲▼ de cada grupo.</span></div>
     <div class="fsec">Plan de pagos</div>
     <div class="full gen">
       <div class="fld"><label for="g-mat">Matrícula (Gs.)</label><input class="inp money" id="g-mat" inputmode="numeric" value="${mat ? fmtN(mat.monto) : ''}"></div>
@@ -4168,6 +4176,17 @@ const A = {
   },
   'arm-fer': async el => { const k = el.dataset.v; const f = S.sem.feriados || []; const nuevo = f.includes(k) ? f.filter(x => x !== k) : [...f, k];
     const r = await run(S.sb.from('semanas').update({ feriados: nuevo }).eq('id', S.sem.id).select().single()); if (r) { S.sem = r; render(); } },
+  'g-mover': async el => {
+    const id = el.dataset.id, dir = +el.dataset.v, vis = (el.dataset.vis || '').split(','), i = vis.indexOf(id), j = i + dir;
+    if (i < 0 || j < 0 || j >= vis.length) return;
+    const ref = vis[j], todos = gruposOrden().filter(g => g.activo !== false && g.id !== id).map(g => g.id), k = todos.indexOf(ref);
+    todos.splice(dir < 0 ? k : k + 1, 0, id);                       // queda justo arriba (o abajo) del grupo que se veía al lado
+    todos.forEach((x, n) => { if (S.grupos[x]) S.grupos[x].orden = n + 1; });
+    render();
+    const c = document.querySelector(`.card[data-gid="${CSS.escape(id)}"]`); if (c) { c.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); c.classList.add('g-movido'); setTimeout(() => c.classList.remove('g-movido'), 900); }
+    const { error } = await S.sb.rpc('ordenar_grupos', { ids: todos });
+    if (error) { toast(errText(error), 'error'); load(['grupos']); }
+  },
   'pool-abrir': el => { (S.ui.poolAbiertos ||= new Set()).add(el.dataset.g); render(); },
   'pool-extra': async el => {
     const g = el.dataset.g, d = el.dataset.v, gr = S.grupos[g]; if (!gr) return;
