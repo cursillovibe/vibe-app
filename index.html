@@ -2300,7 +2300,7 @@ async function exportExamenPDF(e) {
 }
 
 /* ---------- corrección con la cámara (hoja de respuestas VIBE, ver omr.js) ---------- */
-const OMR_V = '1';
+const OMR_V = '2';
 function loadOMR() {
   if (window.OMR) return Promise.resolve();
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'omr.js?v=' + OMR_V; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar el lector de hojas. Revisá la conexión.')); document.head.appendChild(s); });
@@ -2308,6 +2308,7 @@ function loadOMR() {
 const FMT_PROG = p => p === 'Medicina' ? 'med' : p === 'Becas' ? 'becas' : 'ing';
 const soloDig = s => String(s || '').replace(/\D/g, '');
 const LET = 'abcde';
+const nFilas = fid => OMR.layout(fid).fila.length;   // Ingeniería y Becas: 2 · Medicina: 4
 const difResp = (a, b) => { let d = 0; for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) d++; return d; };
 const ciErrTxt = e => ({ vacia: 'No marcó la cédula', incompleta: 'Cédula incompleta (falta marcar una columna)', doble: 'Cédula con doble marca', corta: 'Cédula incompleta' }[e] || 'No se leyó la cédula');
 async function descargarHoja(fid, e) {
@@ -2362,7 +2363,7 @@ function ocClave() {
   root.innerHTML = `<div class="omr-top"><button class="btn" data-act="oc-cerrar" aria-label="Cerrar">${ic('x')}</button><div class="t">Clave de respuestas<small>${esc(e.nombre)}</small></div>${OC.clave ? `<button class="btn" data-act="oc-scan">${ic('camera')}Corregir</button>` : ''}</div>
   <div class="omr-body">
     <div class="fld"><label>Hoja</label><div class="chips">${Object.values(OMR.FORMATOS).map(x => `<button class="chip" data-act="oc-fmt" data-v="${x.id}" aria-pressed="${x.id === E.fid}">${x.nombre} · ${x.preguntas}${x.opciones === 4 ? ' (A a D)' : ''}</button>`).join('')}</div></div>
-    <div class="fld"><label>Filas (versiones del examen)</label><div class="chips" id="oc-filas"></div><span class="hint">Si todos rinden el mismo examen, dejá solo la Fila 1.</span></div>
+    <div class="fld"><label>Filas (versiones del examen)</label><div class="chips" id="oc-filas"></div><span class="hint">Si todos rinden el mismo examen, dejá solo la Fila 1. La hoja de ${esc(f.nombre)} tiene ${nFilas(E.fid)} filas.</span></div>
     <div class="omr-acts"><button class="btn" data-act="oc-kscan">${ic('camera')}Escanear una hoja con la clave</button><button class="btn" data-act="hoja-pdf" data-v="${E.fid}" data-id="${esc(OC.eid)}">${ic('download')}Hoja para imprimir</button>${ks.length > 1 ? `<button class="btn" data-act="oc-fila-menos">${ic('trash')}Quitar la fila ${E.fila}</button>` : ''}</div>
     <div class="card-h" style="margin:14px 0 8px"><h2>Fila ${E.fila}</h2><small id="oc-falt"></small></div>
     <div class="kq">${E.filas[E.fila].map((v, q) => `<div class="kq-r${!v ? ' falta' : ''}${(E.dud[E.fila] || []).includes(q) ? ' dud' : ''}"><b>${q + 1}</b>${[...LET.slice(0, f.opciones)].map(l => `<button data-act="oc-k" data-q="${q}" data-v="${l}" aria-pressed="${v === l}">${l.toUpperCase()}</button>`).join('')}</div>`).join('')}</div>
@@ -2372,12 +2373,13 @@ function ocClave() {
 }
 function ocClaveCuentas() {
   const E = OC.edit, f = OMR.FORMATOS[E.fid], ks = Object.keys(E.filas).map(Number).sort(), falt = E.filas[E.fila].filter(x => !x).length;
-  $('#oc-filas').innerHTML = ks.map(k => { const fa = E.filas[k].filter(x => !x).length; return `<button class="chip" data-act="oc-fila" data-v="${k}" aria-pressed="${k === E.fila}">Fila ${k}${fa ? ` · faltan ${fa}` : ' ✓'}</button>`; }).join('') + (ks.length < 4 ? `<button class="chip" data-act="oc-fila-mas">+ Otra fila</button>` : '');
+  $('#oc-filas').innerHTML = ks.map(k => { const fa = E.filas[k].filter(x => !x).length; return `<button class="chip" data-act="oc-fila" data-v="${k}" aria-pressed="${k === E.fila}">Fila ${k}${fa ? ` · faltan ${fa}` : ' ✓'}</button>`; }).join('') + (ks.length < nFilas(E.fid) ? `<button class="chip" data-act="oc-fila-mas">+ Otra fila</button>` : '');
   $('#oc-falt').textContent = falt ? `Faltan ${falt} de ${f.preguntas}` : `Completa (${f.preguntas})`;
 }
 function ocClaveLeida(r) {
   const E = OC.edit; ocBip(true);
   if (r.fmt !== E.fid) { const n = OMR.FORMATOS[r.fmt].preguntas; E.fid = r.fmt; Object.keys(E.filas).forEach(k => { E.filas[k] = Array.from({ length: n }, (_, i) => E.filas[k][i] || ''); }); }
+  Object.keys(E.filas).forEach(x => { if (+x > nFilas(E.fid) && Object.keys(E.filas).length > 1) delete E.filas[x]; });
   const k = r.fila || E.fila, n = OMR.FORMATOS[E.fid].preguntas;
   E.filas[k] = Array.from({ length: n }, (_, i) => LET.includes(r.resp[i] || '-') ? r.resp[i] : '');
   E.dud[k] = r.dudosas; E.fila = k;
@@ -4281,9 +4283,9 @@ const A = {
   'oc-editclave': () => { OC.edit = null; ocClave(); },
   'oc-kscan': () => ocEscanear('clave'),
   'oc-kvolver': () => ocClave(),
-  'oc-fmt': el => { const E = OC.edit, f = OMR.FORMATOS[el.dataset.v]; E.fid = f.id; Object.keys(E.filas).forEach(k => { E.filas[k] = Array.from({ length: f.preguntas }, (_, i) => LET.slice(0, f.opciones).includes(E.filas[k][i] || '-') ? E.filas[k][i] : ''); }); E.dud = {}; ocClave(); },
+  'oc-fmt': el => { const E = OC.edit, f = OMR.FORMATOS[el.dataset.v]; E.fid = f.id; Object.keys(E.filas).forEach(k => { if (+k > nFilas(f.id) && Object.keys(E.filas).length > 1) delete E.filas[k]; }); if (!E.filas[E.fila]) E.fila = Math.min(...Object.keys(E.filas).map(Number)); Object.keys(E.filas).forEach(k => { E.filas[k] = Array.from({ length: f.preguntas }, (_, i) => LET.slice(0, f.opciones).includes(E.filas[k][i] || '-') ? E.filas[k][i] : ''); }); E.dud = {}; ocClave(); },
   'oc-fila': el => { OC.edit.fila = +el.dataset.v; ocClave(); },
-  'oc-fila-mas': () => { const E = OC.edit, ks = Object.keys(E.filas).map(Number); const k = [1, 2, 3, 4].find(x => !ks.includes(x)); if (!k) return; E.filas[k] = Array(OMR.FORMATOS[E.fid].preguntas).fill(''); E.fila = k; ocClave(); },
+  'oc-fila-mas': () => { const E = OC.edit, ks = Object.keys(E.filas).map(Number); const k = [1, 2, 3, 4].slice(0, nFilas(E.fid)).find(x => !ks.includes(x)); if (!k) return; E.filas[k] = Array(OMR.FORMATOS[E.fid].preguntas).fill(''); E.fila = k; ocClave(); },
   'oc-fila-menos': () => { const E = OC.edit; if (Object.keys(E.filas).length < 2) return; confirmDlg(`¿Quitar la clave de la fila ${E.fila}?`, 'Quitar', () => { delete E.filas[E.fila]; delete E.dud[E.fila]; E.fila = Math.min(...Object.keys(E.filas).map(Number)); ocClave(); }); },
   'oc-k': el => { const E = OC.edit, q = +el.dataset.q, v = el.dataset.v; E.filas[E.fila][q] = E.filas[E.fila][q] === v ? '' : v; const row = el.parentElement; row.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === E.filas[E.fila][q]))); row.classList.toggle('falta', !E.filas[E.fila][q]); row.classList.remove('dud'); ocClaveCuentas(); },
   'oc-clave-ok': async el => {
