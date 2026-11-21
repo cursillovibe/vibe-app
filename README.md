@@ -78,6 +78,12 @@ En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la pl
 - **Exportar**: **Excel** (.xlsx con título, cédula, grupo, nota, porcentaje y resultado; hoja "Por grupo") y **PDF con el logo** (A4, encabezado naranja, pie con página). Las librerías se cargan solo al exportar (SheetJS desde cdnjs; jsPDF y autotable desde jsdelivr).
 - Archivo `supabase/examen-comun.sql`.
 
+## Horario: grupos sin clases y días extra de una semana
+
+- En **Armar horario**, un grupo **sin materias cargadas esa semana no entra** en el armado, el borrador, la imagen, los mensajes ni la publicación (por ejemplo, un grupo creado que todavía no empezó). Esos grupos quedan en la tarjeta compacta **"Sin clases esta semana"** con **Cargar materias**.
+- **Días extra solo esa semana**: en cada grupo, la fila "Días de clase esta semana" muestra los días del grupo; tocando un día que no tiene (Sáb, Dom…) se suman clases extra: mañana → tarde → mañana y tarde → nada. En un día con un solo turno se puede sumar el otro. El grupo no cambia; se guarda en `materias_semana.extra` (`{"Sáb":"M","Dom":"MT"}`) y `publicar_horario` lo usa. Si a una materia se le fija un día que el grupo no tiene, ese día se suma solo como extra a la mañana. Las clases extra publicadas aparecen en la Semana, en Mi horario, en las listas de hoy de la oficina y en la toma de lista.
+- Archivo `supabase/horario-extra.sql`.
+
 ## Recibo como imagen
 
 - En el recibo (al cobrar o desde Cobros), **Enviar imagen por WhatsApp** manda la imagen del recibo (logo, N°, monto en números y letras, sello verde **PAGADO**, fecha, alumno y CI, concepto, grupo, forma de pago, saldo del curso —"Al día" en verde—, quién lo cobró). En el **celu** se abre el menú para compartir: se elige WhatsApp y el chat del encargado o del alumno (WhatsApp no deja elegir el chat desde un link). En la **compu** se copia la imagen y se abre el chat del encargado (o del alumno): se pega con Ctrl+V y se envía. Si el navegador no deja copiar, se descarga. Sin teléfono cargado, "Compartir imagen". La imagen se prepara al abrir el recibo. El envío solo de texto se reemplazó por esto ("Copiar texto" sigue). El alumno ve su recibo y lo descarga como imagen.
