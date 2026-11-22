@@ -2673,6 +2673,7 @@ function vHorSemana() {
   const pasadas = cls.filter(c => c.materia && c.materia !== 'examen' && c.fecha < hoy());
   const sinL = pasadas.filter(c => !c.dictada_por).length;
   h += `<div class="kpis">${kpi('Clases', cls.filter(c => c.materia && c.materia !== 'examen').length, 'en la semana')}${kpi('Con lista', pasadas.length - sinL, 'de las que ya pasaron')}${kpi('Sin lista', sinL, 'pasaron y nadie llamó lista', sinL ? 'bad' : '')}${kpi('Sin cobertura', cls.filter(c => c.materia && c.materia !== 'examen' && !c.profesor_id).length, 'clases sin profe')}</div>`;
+  if (isStaff()) h += `<div class="actions" style="justify-content:flex-end;margin:-4px 0 10px"><button class="btn" data-act="hor-png-al" data-v="sem">${ic('download')}Imagen para alumnos (sin profes)</button></div>`;
   if (isAdmin() && addDays(l, 6) >= hoy()) h += cardLibres(l);
   const ids = [...new Set(cls.map(c => c.grupo_id))].map(id => S.grupos[id]).filter(Boolean).sort((a, b) => num(a.orden) - num(b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
   ids.forEach(g => {
@@ -2777,7 +2778,7 @@ function vBorrador() {
   h += `<div class="card"><div class="card-h"><h2>Publicar y mandar al grupo</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
     <p style="margin:0">${pend ? 'Al publicar, cada profe ve sus clases y los alumnos ven la materia y el tema de cada día (sin el nombre del profe).' : 'Publicado. Si cambiás algo, volvé a publicar.'}${w.publicada ? ' Si lo publicaste por error, retiralo: profes y alumnos dejan de verlo hasta que publiques de nuevo.' : ''}</p>
     <label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pub-avisar" ${S.ui.pubAvisar === false ? '' : 'checked'} data-ch="pub-avisar"><span>Avisar al celular de profes y alumnos al publicar</span></label>
-    <div class="actions"><button class="btn primary ${pend ? '' : 'disabled'}" data-act="publicar">${ic('check')}${w.publicada ? 'Publicar cambios' : 'Publicar horario'}</button><button class="btn" data-act="hor-png">${ic('download')}Imagen para el grupo</button><button class="btn" data-act="hor-msg">${ic('wa')}Mensaje a cada profe</button>${w.publicada ? `<button class="btn ghost danger" data-act="despublicar">${ic('x')}Retirar publicación</button>` : ''}</div></div></div>`;
+    <div class="actions"><button class="btn primary ${pend ? '' : 'disabled'}" data-act="publicar">${ic('check')}${w.publicada ? 'Publicar cambios' : 'Publicar horario'}</button><button class="btn" data-act="hor-png">${ic('download')}Imagen para el grupo (profes)</button><button class="btn" data-act="hor-png-al" data-v="borr">${ic('download')}Imagen para alumnos</button><button class="btn" data-act="hor-msg">${ic('wa')}Mensaje a cada profe</button>${w.publicada ? `<button class="btn ghost danger" data-act="despublicar">${ic('x')}Retirar publicación</button>` : ''}</div></div></div>`;
   return h;
 }
 let BK = null; // bloque del borrador en edición
@@ -2926,6 +2927,91 @@ async function horarioPNG() {
   });
   ctx.textAlign = 'left'; ctx.fillStyle = '#b8b2a8'; ctx.font = '11px Figtree, sans-serif'; ctx.fillText((S.cfg.nombre || 'Cursillo VIBE') + (S.cfg.tel ? ' · ' + S.cfg.tel : ''), padX, y);
   return await new Promise(res => cv.toBlob(res, 'image/png'));
+}
+
+// ---------- imagen del horario para alumnos (sin profes): una fila por día y una columna por grupo y turno, como la planilla de siempre ----------
+const IMG_MAT = { alg: ['#000000', '#ffffff'], arit: ['#595959', '#ffffff'], trig: ['#FFFF00', '#000000'], fis: ['#FF0000', '#000000'], calc: ['#BFBFBF', '#000000'], geo: ['#70AD47', '#000000'], examen: ['#ffffff', '#000000'] };
+const TURNO_IMG = { Mañana: 'MAÑANA 8hs a 12hs', Tarde: 'TARDE 13:30 a 17:30hs' };
+// de dónde salen las clases: el borrador que se está armando o lo publicado en esa semana
+function datosImgAlumnos(fuente, l) {
+  if (fuente === 'borr') {
+    const cols = gruposActivos().filter(enSemana).map(g => { const cells = celdasBorr(g), turnos = TURNOS.filter(t => cells.some(x => x.turno === t));
+      return { g, turnos, celda: (d, t) => cells.find(x => x.day === d && x.turno === t && x.materia) || null }; }).filter(c => c.turnos.length);
+    return { l: S.sem.lunes, feriados: S.sem.feriados || [], cols };
+  }
+  const cls = clasesSem(l), ids = [...new Set(cls.map(c => c.grupo_id))].map(id => S.grupos[id]).filter(Boolean).sort((a, b) => num(a.orden) - num(b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
+  const cols = ids.map(g => { const cg = cls.filter(c => c.grupo_id === g.id && c.materia), turnos = TURNOS.filter(t => cg.some(c => c.turno === t));
+    return { g, turnos, celda: (d, t) => cg.find(c => c.fecha === fDia(l, d) && c.turno === t) || null }; }).filter(c => c.turnos.length);
+  return { l, feriados: S.sem && S.sem.lunes === l ? (S.sem.feriados || []) : [], cols };
+}
+async function horarioAlumnosPNG({ l, feriados, cols }) {
+  const cD = 118, cF = 118, cT = 236, F = 'Figtree, Calibri, sans-serif', pad = 24;
+  const W = pad * 2 + cD + cF + cols.reduce((a, c) => a + c.turnos.length * cT, 0);
+  const tmp = document.createElement('canvas').getContext('2d');
+  const envolver = (txt, font, maxW) => { tmp.font = font; const out = []; let cur = ''; String(txt).split(/\s+/).filter(Boolean).forEach(w => { const t = cur ? cur + ' ' + w : w; if (tmp.measureText(t).width <= maxW || !cur) cur = t; else { out.push(cur); cur = w; } }); if (cur) out.push(cur); return out.length ? out : [''];
+  };
+  const llano = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  // "Álgebra-Progresiones…"; si el tema ya nombra la materia ("Repaso Cálculo") va solo el tema
+  const texto = c => { const t = (c.tema || '').trim();
+    if (c.materia === 'examen') return (llano(t).includes('examen') ? t : 'EXAMEN' + (t ? ' ' + t : '')).toUpperCase();
+    return !t ? matL(c.materia) : llano(t).includes(llano(matL(c.materia))) ? t : matL(c.materia) + '-' + t; };
+  const fontDe = c => c && c.materia === 'examen' ? `bold 15px ${F}` : `15px ${F}`;
+  // alto de cada fila según el texto más largo
+  const filas = DK.map(d => { let n = 1; if (!feriados.includes(d)) cols.forEach(c => c.turnos.forEach(t => { const x = c.celda(d, t); if (x) n = Math.max(n, envolver(texto(x), fontDe(x), cT - 18).length); })); return Math.max(44, 14 + n * 19); });
+  const yTab = 86, hG = 32, hT = 30, H = yTab + hG + hT + filas.reduce((a, b) => a + b, 0) + 48;
+  const cv = document.createElement('canvas'); cv.width = W * 2; cv.height = H * 2; const ctx = cv.getContext('2d'); ctx.scale(2, 2);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.textBaseline = 'middle';
+  try { const im = new Image(); im.src = S.cfg.logo || 'img/logo-vibe.png'; await im.decode(); const lh = 36, lw = im.width * lh / im.height; ctx.drawImage(im, W - pad - lw, 20, lw, lh); } catch (e) { }
+  ctx.textAlign = 'left'; ctx.fillStyle = '#17140F'; ctx.font = `bold 24px Montserrat, ${F}`; ctx.fillText('Horario de clases', pad, 32);
+  ctx.fillStyle = '#68625A'; ctx.font = `15px ${F}`; ctx.fillText(`Semana del ${fmtF(l).slice(0, 5)} al ${fmtF(addDays(l, 6))}`, pad, 58);
+  ctx.fillStyle = '#FB8500'; ctx.fillRect(pad, 74, W - pad * 2, 3);
+  const celda = (x, y, w, h, bg, fg, lineas, font) => { ctx.fillStyle = bg; ctx.fillRect(x, y, w, h); ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+    ctx.fillStyle = fg; ctx.font = font; ctx.textAlign = 'center'; const lh = 19, y0 = y + h / 2 - (lineas.length - 1) * lh / 2; lineas.forEach((ln, i) => ctx.fillText(ln, x + w / 2, y0 + i * lh)); };
+  // encabezado: Días · Fecha · un bloque por grupo con sus turnos
+  let x = pad, y = yTab;
+  celda(x, y, cD, hG + hT, '#ffffff', '#000000', ['Días'], `bold 15px ${F}`); x += cD;
+  celda(x, y, cF, hG + hT, '#ffffff', '#000000', ['Fecha'], `bold 15px ${F}`); x += cF;
+  cols.forEach(c => { const w = c.turnos.length * cT; celda(x, y, w, hG, '#ffffff', '#000000', envolver(c.g.nombre, `bold 15px ${F}`, w - 12).slice(0, 1), `bold 15px ${F}`);
+    c.turnos.forEach((t, i) => celda(x + i * cT, y + hG, cT, hT, '#ffffff', '#000000', [TURNO_IMG[t] || t], `bold 13px ${F}`)); x += w; });
+  // una fila por día
+  y = yTab + hG + hT;
+  DK.forEach((d, i) => {
+    const h = filas[i], fer = feriados.includes(d); x = pad;
+    celda(x, y, cD, h, '#ffffff', '#000000', [DK_FULL[i]], `bold 15px ${F}`); x += cD;
+    celda(x, y, cF, h, '#ffffff', '#000000', [fmtF(fDia(l, d))], `15px ${F}`); x += cF;
+    cols.forEach(c => c.turnos.forEach(t => {
+      if (fer) { celda(x, y, cT, h, '#FDE8E8', '#C00000', ['FERIADO'], `bold 15px ${F}`); x += cT; return; }
+      const cl = c.celda(d, t);
+      if (!cl) { celda(x, y, cT, h, '#ffffff', '#000000', ['X'], `bold 15px ${F}`); x += cT; return; }
+      const [bg, fg] = IMG_MAT[cl.materia] || ['#ffffff', '#000000'];
+      celda(x, y, cT, h, bg, fg, envolver(texto(cl), fontDe(cl), cT - 18), fontDe(cl)); x += cT;
+    }));
+    y += h;
+  });
+  ctx.textAlign = 'left'; ctx.fillStyle = '#9A948B'; ctx.font = `13px ${F}`; ctx.fillText([S.cfg.nombre || 'Cursillo VIBE', S.cfg.tel].filter(Boolean).join(' · '), pad, y + 24);
+  return await new Promise(res => cv.toBlob(res, 'image/png'));
+}
+function openImgAlumnos(fuente, l) {
+  const D = datosImgAlumnos(fuente, l);
+  if (!D.cols.length) { toast('No hay clases en esa semana para armar la imagen.', 'error'); return; }
+  S.ui.imgAl = { fuente, l: D.l, sel: D.cols.map(c => c.g.id) };
+  const body = `<p style="margin-top:0">La materia y el tema de cada día, <b>sin los profes</b>, con los colores de siempre. ${fuente === 'borr' ? 'Sale del horario que estás armando.' : 'Sale de lo publicado en esa semana.'}</p>
+    <div class="fld"><label>Grupos en la imagen</label><div class="chips" id="imgal-chips">${D.cols.map(c => `<button class="chip" data-act="imgal-g" data-v="${esc(c.g.id)}" aria-pressed="true">${esc(c.g.nombre)}</button>`).join('')}</div><span class="hint">Tocá un grupo para sacarlo o ponerlo. "Una por grupo" baja una imagen para cada grupo marcado.</span></div>`;
+  openModal('Imagen del horario para alumnos', body, `<button class="btn" data-act="imgal-cada">${ic('download')}Una por grupo</button><button class="btn primary" data-act="imgal-uno">${ic('download')}Descargar imagen</button>`);
+}
+async function bajarImgAlumnos(cada) {
+  const U = S.ui.imgAl; if (!U) return;
+  const D = datosImgAlumnos(U.fuente, U.l), cols = D.cols.filter(c => U.sel.includes(c.g.id));
+  if (!cols.length) { toast('Elegí al menos un grupo.', 'error'); return; }
+  const rango = `${fmtF(D.l).slice(0, 5).replace('/', '-')} al ${fmtF(addDays(D.l, 6)).slice(0, 5).replace('/', '-')}`;
+  const grupos = cada ? cols.map(c => [c]) : [cols];
+  for (const g of grupos) {
+    const b = await horarioAlumnosPNG({ ...D, cols: g });
+    if (!b) { toast('No se pudo generar la imagen.', 'error'); return; }
+    guardarArchivo(`Horario ${g.length === 1 ? g[0].g.nombre : 'alumnos'} ${rango}.png`.replace(/[\\/:*?"<>|]+/g, ' '), b, 'image/png');
+    if (grupos.length > 1) await new Promise(r => setTimeout(r, 400));
+  }
+  toast(grupos.length > 1 ? `Listas: ${grupos.length} imágenes` : 'Imagen descargada');
 }
 // texto por profe con sus clases del borrador
 function mensajesProfes() {
@@ -4260,6 +4346,10 @@ const A = {
     ['alNoche', 'alManana', 'prNoche', 'prManana', 'prEntrada', 'prSalida', 'disp', 'ofNoche', 'ofManana', 'ofDisp'].forEach(k => (push[k] = g(k).checked)); await guardarCfg({ push }, 'Avisos guardados'); },
   'push-wa': () => { const txt = `🔔 *${S.cfg.nombre || 'Cursillo VIBE'}*\nActivá los avisos de la app para que te recordemos tus clases (la noche anterior y a la mañana) y cuándo cargar tu disponibilidad:\n1. Entrá a la app 👉 ${APP_URL}\n2. En Inicio tocá *Activar avisos* y permití las notificaciones.\nEn iPhone: primero en Safari tocá Compartir → *Agregar a inicio* y abrí la app desde el ícono.`;
     window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); },
+  'hor-png-al': el => openImgAlumnos(el.dataset.v, S.ui.horLunes),
+  'imgal-g': el => { const U = S.ui.imgAl; if (!U) return; const id = el.dataset.v, on = !U.sel.includes(id); U.sel = on ? [...U.sel, id] : U.sel.filter(x => x !== id); el.setAttribute('aria-pressed', String(on)); },
+  'imgal-uno': async el => { el.classList.add('disabled'); try { await bajarImgAlumnos(false); } finally { el.classList.remove('disabled'); } },
+  'imgal-cada': async el => { el.classList.add('disabled'); try { await bajarImgAlumnos(true); } finally { el.classList.remove('disabled'); } },
   'hor-png': async () => { toast('Generando imagen…'); const b = await horarioPNG(); if (!b) { toast('No se pudo generar la imagen.', 'error'); return; }
     const url = URL.createObjectURL(b); openModal('Imagen del horario', `<img src="${url}" alt="Horario de la semana" style="width:100%;border:1px solid var(--line);border-radius:10px"><p class="muted" style="margin:10px 0 0">Descargala y mandala al grupo de profes por WhatsApp.</p>`, `<button class="btn" data-act="close">Cerrar</button><button class="btn primary" data-act="hor-png-bajar">${ic('download')}Descargar</button>`, 'wide'); S.pngBlob = b; },
   'hor-png-bajar': () => { if (S.pngBlob) guardarArchivo(`Horario VIBE ${S.sem.lunes}.png`, S.pngBlob); },
