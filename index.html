@@ -3442,7 +3442,7 @@ VIEWS.ajustes = () => {
   h += `<div class="card"><div class="card-h"><h2>Exportar</h2><small>Copia de seguridad en CSV (se abre en Excel)</small></div><div class="card-b actions"><button class="btn" data-act="exp-alumnos">${ic('download')}Alumnos con estado de cuenta</button><button class="btn" data-act="exp-pagos-todos">${ic('download')}Todos los pagos</button><button class="btn" data-act="exp-asis">${ic('download')}Asistencia</button></div></div>`;
   return h;
 };
-const PUSH_DEF = { noche: '20:00', manana: '06:30', alNoche: true, alManana: true, prNoche: true, prManana: true, disp: true, ofNoche: true, ofManana: true, ofDisp: true };
+const PUSH_DEF = { noche: '20:00', manana: '06:30', alNoche: true, alManana: true, prNoche: true, prManana: true, prEntrada: true, prSalida: true, disp: true, ofNoche: true, ofManana: true, ofDisp: true };
 const pushCfg = () => ({ ...PUSH_DEF, ...(S.cfg.push || {}) });
 function cardPushAjustes() {
   const c = pushCfg(), r = S.pushRes;
@@ -3454,7 +3454,7 @@ function cardPushAjustes() {
     <div class="form"><div class="fld"><label for="pu-noche">Recordatorio de la noche (clases de mañana)</label><input class="inp" type="time" id="pu-noche" value="${esc(c.noche)}"></div>
     <div class="fld"><label for="pu-manana">Recordatorio de la mañana (clases de hoy)</label><input class="inp" type="time" id="pu-manana" value="${esc(c.manana)}"></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px 18px"><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Alumnos</b>${chk('alNoche', 'A la noche: “Mañana tenés Física… prepará tus cosas”')}${chk('alManana', 'A la mañana: “Hoy tenés Física… no te olvides tus materiales”')}</div>
-    <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Profes</b>${chk('prNoche', 'A la noche: “Mañana das Física en CPI2, 8:00”')}${chk('prManana', 'A la mañana: “Hoy das Física… buena clase”')}${chk('disp', 'Disponibilidad: mié 17:00, jue y vie 13:00, sáb 11:00 (a los que no cargaron)')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Profes</b>${chk('prNoche', 'A la noche: “Mañana das Física en CPI2, 8:00”')}${chk('prManana', 'A la mañana: “Hoy das Física… buena clase”')}${chk('prEntrada', 'Al empezar la clase (8:00 / 13:30): “Empieza tu clase… marcá tu entrada” (si no la marcó)')}${chk('prSalida', 'Al terminar (12:00 / 17:30): “Terminó tu clase… marcá tu salida” (si no la marcó)')}${chk('disp', 'Disponibilidad: mié 17:00, jue y vie 13:00, sáb 11:00 (a los que no cargaron)')}</div>
     <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Oficina</b>${chk('ofNoche', 'A la noche: “Mañana te toca la oficina, turno de la tarde”')}${chk('ofManana', 'A la mañana: “Hoy te toca la oficina… marcá tu turno”')}${chk('ofDisp', 'Disponibilidad: los mismos días que los profes')}</div></div>
     <small class="muted">Cuando publicás el horario también se puede avisar a profes y alumnos (casilla al lado de Publicar). Los turnos de la semana de la oficina se mandan desde Turnos oficina → Avisar al celular.</small>
     <div><button class="btn primary" data-act="push-cfg">Guardar avisos</button></div></div></div>`;
@@ -4257,7 +4257,7 @@ const A = {
     if (r.error) toast(r.error, 'error'); else if (!r.enviados) { toast('Este celular ya no está anotado. Activá los avisos de nuevo.', 'error'); lsSet('vibe-push', null); pushRevisar(); } else toast('Aviso de prueba enviado: debería llegarte en unos segundos.'); },
   'push-desactivar': async () => { const sub = await pushQuitar(); if (sub) { try { await sub.unsubscribe(); } catch (e) { } } lsSet('vibe-push', null); S.push = 'inactivo'; render(); toast('Avisos desactivados en este celular'); },
   'push-cfg': async () => { const g = k => $('#pu-' + k), push = { noche: g('noche').value || PUSH_DEF.noche, manana: g('manana').value || PUSH_DEF.manana };
-    ['alNoche', 'alManana', 'prNoche', 'prManana', 'disp', 'ofNoche', 'ofManana', 'ofDisp'].forEach(k => (push[k] = g(k).checked)); await guardarCfg({ push }, 'Avisos guardados'); },
+    ['alNoche', 'alManana', 'prNoche', 'prManana', 'prEntrada', 'prSalida', 'disp', 'ofNoche', 'ofManana', 'ofDisp'].forEach(k => (push[k] = g(k).checked)); await guardarCfg({ push }, 'Avisos guardados'); },
   'push-wa': () => { const txt = `🔔 *${S.cfg.nombre || 'Cursillo VIBE'}*\nActivá los avisos de la app para que te recordemos tus clases (la noche anterior y a la mañana) y cuándo cargar tu disponibilidad:\n1. Entrá a la app 👉 ${APP_URL}\n2. En Inicio tocá *Activar avisos* y permití las notificaciones.\nEn iPhone: primero en Safari tocá Compartir → *Agregar a inicio* y abrí la app desde el ícono.`;
     window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); },
   'hor-png': async () => { toast('Generando imagen…'); const b = await horarioPNG(); if (!b) { toast('No se pudo generar la imagen.', 'error'); return; }
