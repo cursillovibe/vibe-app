@@ -385,6 +385,7 @@ code.aj{font-size:12px;white-space:pre-wrap;word-break:break-all}
 .lnk{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 .gbloque{display:flex;flex-direction:column;gap:8px}
 .gbloque h3{margin:0;font-family:var(--font-display);font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gbloque h3 .g-hs{font-family:var(--font-body, inherit);font-weight:400;font-size:12px;color:var(--muted)}
 .dispg{border-collapse:collapse;width:100%}
 .dispg th,.dispg td{padding:6px 4px;text-align:center;border-top:1px solid var(--line)}
 .dispg th{font-size:12px;color:var(--muted);font-weight:600;border-top:0}
@@ -643,7 +644,7 @@ const yo = () => isAlumno() ? Object.values(S.alumnos).find(a => a.userId === S.
 
 /* ---------- mapeo base ↔ app ---------- */
 const mapG = r => ({ id: r.id, nombre: r.nombre, programa: r.programa || '', horario: r.horario || '', inicio: r.inicio || '', fin: r.fin || '', activo: r.activo !== false, plan: Array.isArray(r.plan) ? r.plan : [],
-  dias: r.dias && typeof r.dias === 'object' ? r.dias : {}, prioridad: !!r.prioridad, orden: num(r.orden), descripcion: r.descripcion || '' });
+  dias: r.dias && typeof r.dias === 'object' ? r.dias : {}, horas: r.horas && typeof r.horas === 'object' ? r.horas : {}, prioridad: !!r.prioridad, orden: num(r.orden), descripcion: r.descripcion || '' });
 const mapA = r => ({ id: r.id, userId: r.user_id, email: r.email || '', nombre: r.nombre || '', apellido: r.apellido || '', ci: r.ci || '', fechaNac: r.fecha_nac || '', tel: r.tel || '', ciudad: r.ciudad || '', colegio: r.colegio || '',
   encargado: r.encargado || '', encargadoTel: r.encargado_tel || '', programa: r.programa || '', linkId: r.link_id || '', ficha: r.ficha || {}, fichaCompleta: !!r.ficha_completa, fichaFecha: r.ficha_fecha || '', grupoId: r.grupo_id || '', estado: r.estado,
   desc: num(r.descuento), cuotaEsp: r.cuota_especial, matExon: !!r.mat_exonerada, obs: r.obs || '', inscripcion: (r.creado || '').slice(0, 10),
@@ -711,7 +712,15 @@ function asis7() { let pres = 0, base = 0; const d0 = addDays(hoy(), -6); Object
 const DK = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const DK_FULL = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const TURNOS = ['Mañana', 'Tarde'];
-const TURNO_H = { 'Mañana': '8:00–12:00', 'Tarde': '13:30–17:30' };
+// horas de clase de cada grupo (Editar grupo → Horas de clase); si no tiene, las de siempre
+const HORA_DEF = { 'Mañana': ['08:00', '12:00'], 'Tarde': ['13:30', '17:30'] };
+const horasT = (g, t) => { const h = g?.horas?.[t], ok = v => /^\d{2}:\d{2}$/.test(v || ''); return h && ok(h.ini) && ok(h.fin) ? [h.ini, h.fin] : (HORA_DEF[t] || ['', '']); };
+const hTxt = v => String(v || '').replace(/^0(?=\d)/, '');            // "08:00" → "8:00"
+const hCorta = v => hTxt(v).replace(/:00$/, '');                      // "8:00" → "8" · "13:30" igual
+const rangoT = (g, t) => horasT(g, t).map(hTxt).join('–');            // "8:00–12:00"
+const turnoHs = (g, t) => HORA_DEF[t] ? `${t} ${rangoT(g, t)}` : t;  // "Tarde 14:00–18:00"
+// las horas de los turnos que usa el grupo, para el título del grupo en el horario
+const horasGrupo = (g, turnos) => { const ts = TURNOS.filter(t => turnos.includes(t)); return ts.length ? `<small class="g-hs">${ts.map(t => esc(turnoHs(g, t))).join(' · ')}</small>` : ''; };
 const CODE_LBL = { '-': '—', M: 'Mañana', T: 'Tarde', MT: 'Doble' };
 const MATS = {
   arit: { l: 'Aritmética', bg: '#fef3c7', fg: '#92400e' }, alg: { l: 'Álgebra', bg: '#dbeafe', fg: '#1e40af' },
@@ -1352,7 +1361,7 @@ VIEWS['mi-inicio'] = () => {
   let h = ph(`Hola, ${a.nombre.split(' ')[0] || ''}`, fechaLarga(hoy()), `<button class="btn" data-act="nav" data-v="mis-datos">${ic('user')}Mis datos</button>`);
   if (a.grupoId && a.estado === 'activo') h += cardPush();
   const prox = (S.miHor || []).filter(c => c.fecha >= hoy()).slice(0, 3);
-  if (prox.length) h += `<div class="card"><div class="card-h"><h2>Próximas clases</h2><button class="btn sm ghost" data-act="nav" data-v="mi-horario">Ver horario</button></div><div class="rows">${prox.map(c => `<div class="row"><div class="t">${c.fecha === hoy() ? '<b>Hoy</b>' : cap(DIAS[new Date(c.fecha + 'T12:00:00').getDay()]) + ' ' + dm(c.fecha)} · ${esc(c.turno)}<small>${esc(c.tema || (c.materia === 'examen' ? 'Examen' : ''))}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></div>`;
+  if (prox.length) h += `<div class="card"><div class="card-h"><h2>Próximas clases</h2><button class="btn sm ghost" data-act="nav" data-v="mi-horario">Ver horario</button></div><div class="rows">${prox.map(c => `<div class="row"><div class="t">${c.fecha === hoy() ? '<b>Hoy</b>' : cap(DIAS[new Date(c.fecha + 'T12:00:00').getDay()]) + ' ' + dm(c.fecha)} · ${esc(turnoHs(g, c.turno))}<small>${esc(c.tema || (c.materia === 'examen' ? 'Examen' : ''))}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('')}</div></div>`;
   if (a.estado === 'pendiente' || !a.grupoId) h += `<div class="banner">Tu ficha está completa. La oficina te va a asignar a tu grupo; cuando lo haga vas a ver acá tus cuotas, notas y asistencia.</div>`;
   if (a.estado === 'baja') h += `<div class="banner">Figurás de baja en el cursillo. Si es un error, hablá con la oficina.</div>`;
   h += `<div class="kpis">${kpi('Mi grupo', esc(g ? g.nombre : '—'), g?.horario ? esc(g.horario) : '')}
@@ -2678,7 +2687,7 @@ function vHorSemana() {
   const ids = [...new Set(cls.map(c => c.grupo_id))].map(id => S.grupos[id]).filter(Boolean).sort((a, b) => num(a.orden) - num(b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
   ids.forEach(g => {
     const cg = cls.filter(c => c.grupo_id === g.id).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.turno.localeCompare(b.turno));
-    h += `<div class="card" data-gid="${esc(g.id)}"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}${flechasGrupo(g, ids.map(x => x.id))}</h3>${wkDias(cg, c => c.fecha, celdaClase)}</div></div>`;
+    h += `<div class="card" data-gid="${esc(g.id)}"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}${horasGrupo(g, cg.map(c => c.turno))}${flechasGrupo(g, ids.map(x => x.id))}</h3>${wkDias(cg, c => c.fecha, celdaClase)}</div></div>`;
   });
   if (isAdmin()) h += `<div class="actions" style="justify-content:space-between"><small class="muted">Tocá una clase para cambiar el profe o marcar quién la dio (si alguien firmó en papel).</small>${S.sem && S.sem.lunes === l && S.sem.publicada ? `<button class="btn sm ghost danger" data-act="despublicar">${ic('x')}Retirar el horario publicado</button>` : ''}</div>`;
   return h;
@@ -2702,7 +2711,7 @@ function celdaClase(c, seg) {
 function openClaseForm(id) {
   const c = S.clases[id]; if (!c) return; const ps = profsActivos(); S.clLibres = id;
   const opt = (sel, vacio) => `<option value="">${vacio}</option>` + ps.concat(sel && !S.prof[sel]?.activo && S.prof[sel] ? [S.prof[sel]] : []).map(p => `<option value="${esc(p.id)}" ${p.id === sel ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
-  openModal('Clase', `<p class="muted" style="margin:0 0 12px">${esc(gName(c.grupo_id))} · ${fechaLarga(c.fecha)} · ${esc(c.turno)}</p><div class="form">
+  openModal('Clase', `<p class="muted" style="margin:0 0 12px">${esc(gName(c.grupo_id))} · ${fechaLarga(c.fecha)} · ${esc(turnoHs(S.grupos[c.grupo_id], c.turno))}</p><div class="form">
     <div class="fld"><label for="cl-mat">Materia</label><select class="inp" id="cl-mat"><option value="">—</option>${Object.keys(MATS).map(k => `<option value="${k}" ${c.materia === k ? 'selected' : ''}>${MATS[k].l}</option>`).join('')}</select></div>
     <div class="fld"><label for="cl-tema">Tema</label><input class="inp" id="cl-tema" value="${esc(c.tema || '')}"></div>
     <div class="fld"><label for="cl-prof">Profe del horario</label><select class="inp" id="cl-prof">${opt(c.profesor_id, 'Sin profe')}</select></div>
@@ -2772,7 +2781,7 @@ function vBorrador() {
       const fij = s.fm || s.fp;
       const pin = s.materia || fij ? `<button class="fx" data-act="bfijo" ${at(s)} aria-pressed="${!!fij}" title="${fij ? 'Fijado a mano: al volver a armar queda como está. Tocá para soltarlo.' : 'Fijar este bloque tal como está'}" aria-label="${fij ? 'Soltar bloque' : 'Fijar bloque'}">${ic('pin')}</button>` : '';
       return `<div class="wc ${fij ? 'fijo' : ''}">${pin}${dia}<span class="t">${s.turno}</span>${s.materia ? `<button class="mchip" style="background:${MATS[s.materia]?.bg};color:${MATS[s.materia]?.fg}" data-act="bmat" ${at(s)} title="Cambiar materia o moverla de día">${esc(matL(s.materia))}</button>${s.tema ? `<span class="tema">${esc(s.tema)}</span>` : ''}${s.materia === 'examen' ? '<span class="t">sin profe</span>' : s.profe ? `<button class="lnk p" data-act="bprof" ${at(s)} title="Cambiar profe">${esc(primerN(s.profe))}</button>` : `<button class="lnk sc" data-act="bprof" ${at(s)}>SIN COBERTURA</button>`}` : `<button class="lnk t" data-act="bmat" ${at(s)} title="Poner una materia">— vacío</button>`}</div>`; };
-    h += `<div class="card" data-gid="${esc(g.id)}"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}${flechasGrupo(g, gs.map(x => x.id))}</h3>${cells.length ? wkDias(cells, s => s.day, celda) : '<span class="muted">Este grupo no tiene turnos cargados.</span>'}</div></div>`;
+    h += `<div class="card" data-gid="${esc(g.id)}"><div class="card-b gbloque"><h3>${esc(g.nombre)}${g.prioridad ? pill('mejores profes', 'acc') : ''}${horasGrupo(g, cells.map(c => c.turno))}${flechasGrupo(g, gs.map(x => x.id))}</h3>${cells.length ? wkDias(cells, s => s.day, celda) : '<span class="muted">Este grupo no tiene turnos cargados.</span>'}</div></div>`;
   });
   const pend = !w.publicada || S.borr.generado > w.publicada;
   h += `<div class="card"><div class="card-h"><h2>Publicar y mandar al grupo</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
@@ -2912,7 +2921,7 @@ async function horarioPNG() {
       const x = padX + ci * (cellW + gap), y = y0 + row * (cellH + gap); rr(x, y, cellW, cellH, 8); ctx.fillStyle = s.feriado ? '#fef2f2' : '#f8f7f4'; ctx.fill(); ctx.strokeStyle = '#E4E0D9'; ctx.lineWidth = 1; ctx.stroke();
       ctx.textAlign = 'center'; ctx.fillStyle = '#17140F'; ctx.font = 'bold 12px Figtree, sans-serif'; if (dia) ctx.fillText(`${s.day} ${dm(fDia(l, s.day))}`, x + cellW / 2, y + 10);
       if (s.feriado) { ctx.fillStyle = '#BF3328'; ctx.fillText('FERIADO', x + cellW / 2, y + 56); return; }
-      ctx.fillStyle = '#94a3b8'; ctx.font = '10px Figtree, sans-serif'; ctx.fillText(s.turno === 'Mañana' ? 'Mañana · 8–12' : 'Tarde · 13:30–17:30', x + cellW / 2, y + 26);
+      ctx.fillStyle = '#94a3b8'; ctx.font = '10px Figtree, sans-serif'; ctx.fillText(`${s.turno} · ${horasT(g, s.turno).map(hCorta).join('–')}`, x + cellW / 2, y + 26);
       if (!s.materia) { ctx.fillStyle = '#cbd5e1'; ctx.font = '13px sans-serif'; ctx.fillText('—', x + cellW / 2, y + 60); return; }
       const col = MATS[s.materia] || { bg: '#eee', fg: '#333' }; rr(x + 12, y + 42, cellW - 24, 24, 6); ctx.fillStyle = col.bg; ctx.fill();
       ctx.fillStyle = col.fg; ctx.font = 'bold 12px Figtree, sans-serif'; ctx.fillText(matL(s.materia), x + cellW / 2, y + 48);
@@ -2931,7 +2940,9 @@ async function horarioPNG() {
 
 // ---------- imagen del horario para alumnos (sin profes): una fila por día y una columna por grupo y turno, como la planilla de siempre ----------
 const IMG_MAT = { alg: ['#000000', '#ffffff'], arit: ['#595959', '#ffffff'], trig: ['#FFFF00', '#000000'], fis: ['#FF0000', '#000000'], calc: ['#BFBFBF', '#000000'], geo: ['#70AD47', '#000000'], examen: ['#ffffff', '#000000'] };
-const TURNO_IMG = { Mañana: 'MAÑANA 8hs a 12hs', Tarde: 'TARDE 13:30 a 17:30hs' };
+// "MAÑANA 8hs a 12hs" · "TARDE 13:30 a 17:30hs" · "TARDE 14hs a 18hs", con las horas del grupo
+const turnoImg = (g, t) => { const [a, b] = horasT(g, t).map(hTxt), ent = v => v.endsWith(':00') ? v.slice(0, -3) : v;
+  return `${t.toUpperCase()} ${ent(a)}${a.endsWith(':00') ? 'hs' : ''} a ${ent(b)}hs`; };
 // de dónde salen las clases: el borrador que se está armando o lo publicado en esa semana
 function datosImgAlumnos(fuente, l) {
   if (fuente === 'borr') {
@@ -2972,7 +2983,7 @@ async function horarioAlumnosPNG({ l, feriados, cols }) {
   celda(x, y, cD, hG + hT, '#ffffff', '#000000', ['Días'], `bold 15px ${F}`); x += cD;
   celda(x, y, cF, hG + hT, '#ffffff', '#000000', ['Fecha'], `bold 15px ${F}`); x += cF;
   cols.forEach(c => { const w = c.turnos.length * cT; celda(x, y, w, hG, '#ffffff', '#000000', envolver(c.g.nombre, `bold 15px ${F}`, w - 12).slice(0, 1), `bold 15px ${F}`);
-    c.turnos.forEach((t, i) => celda(x + i * cT, y + hG, cT, hT, '#ffffff', '#000000', [TURNO_IMG[t] || t], `bold 13px ${F}`)); x += w; });
+    c.turnos.forEach((t, i) => celda(x + i * cT, y + hG, cT, hT, '#ffffff', '#000000', [turnoImg(c.g, t)], `bold 13px ${F}`)); x += w; });
   // una fila por día
   y = yTab + hG + hT;
   DK.forEach((d, i) => {
@@ -3020,7 +3031,7 @@ function mensajesProfes() {
   return Object.entries(out).map(([pid, items]) => {
     items.sort((a, b) => DK.indexOf(a.s.day) - DK.indexOf(b.s.day) || a.s.turno.localeCompare(b.s.turno));
     const p = S.prof[pid] || {};
-    const txt = `Hola ${(p.nombre || '').split(' ')[0]}, ¿cómo estás? Estas son tus clases de la semana del ${rangoSem(l)}:\n` + items.map(({ g, s }) => `• ${DK_FULL[DK.indexOf(s.day)]} ${dm(fDia(l, s.day))} · ${s.turno} (${TURNO_H[s.turno]}) · ${g.nombre} · ${matL(s.materia)}${s.tema ? ' — ' + s.tema : ''}`).join('\n') + `\n\nAcordate de llamar lista desde la app en cada clase: así queda registrada. ¡Gracias!`;
+    const txt = `Hola ${(p.nombre || '').split(' ')[0]}, ¿cómo estás? Estas son tus clases de la semana del ${rangoSem(l)}:\n` + items.map(({ g, s }) => `• ${DK_FULL[DK.indexOf(s.day)]} ${dm(fDia(l, s.day))} · ${s.turno} (${rangoT(g, s.turno)}) · ${g.nombre} · ${matL(s.materia)}${s.tema ? ' — ' + s.tema : ''}`).join('\n') + `\n\nAcordate de llamar lista desde la app en cada clase: así queda registrada. ¡Gracias!`;
     return { pid, p, txt, n: items.length };
   }).sort((a, b) => (a.p.nombre || '').localeCompare(b.p.nombre || '', 'es'));
 }
@@ -3093,10 +3104,10 @@ function vEval() {
   if (!I.clases.length) return card(h + `<p class="muted" style="margin:0">Ese día no hay clases para evaluar.</p>`);
   let pend = 0;
   I.clases.forEach(c => {
-    const R = S.evR[c.id] || {}; const tit = `${esc(c.turno)} · ${c.materia ? esc(matL(c.materia)) : 'Clase'}`;
+    const R = S.evR[c.id] || {}; const tit = `${esc(c.turno)}${c.hora ? ' ' + esc(c.hora) : ''} · ${c.materia ? esc(matL(c.materia)) : 'Clase'}`;
     h += `<section class="evc"><h2>${tit}</h2>${c.tema ? `<small class="muted" style="margin-top:-8px">${esc(c.tema)}</small>` : ''}`;
     if (S.evDone[c.id]) h += `<div class="ev-ok">✓ Ya respondiste esta clase. ¡Gracias!</div>`;
-    else if (!c.abierta) h += `<div class="muted">Se puede evaluar desde que empieza la clase (${c.turno === 'Tarde' ? '13:30' : '8:00'}).</div>`;
+    else if (!c.abierta) h += `<div class="muted">Se puede evaluar desde que empieza la clase (${esc(c.hora || (c.turno === 'Tarde' ? '13:30' : '8:00'))}).</div>`;
     else if (!c.lista) h += `<div class="muted">Todavía no se llamó lista de esta clase. La evaluación se habilita cuando el profe la llama (solo responden los que estuvieron presentes).</div>`;
     else if (c.llena) h += `<div class="muted">Ya respondieron todos los presentes de esta clase. ¡Gracias!</div>`;
     else if (R.skip) h += `<div class="muted">Marcaste que no estuviste en esta clase. <button class="linkbtn" data-act="ev-skip" data-c="${esc(c.id)}">Deshacer</button></div>`;
@@ -3480,7 +3491,7 @@ function rowClaseProfe(c) {
   else if (c.materia === 'examen') r = pill('Examen');
   else if (c.fecha === t) r = `<button class="btn sm primary" data-act="tomar" data-g="${esc(c.grupo_id)}" data-t="${esc(c.turno)}">${ic('check')}Llamar lista</button>`;
   else if (c.fecha < t) r = pill('Sin lista', 'bad');
-  return `<div class="row"><div class="t">${c.fecha === t ? '<b>Hoy</b>' : dkDe(c.fecha) + ' ' + dm(c.fecha)} · ${esc(c.turno)} · ${esc(gName(c.grupo_id))}<small>${c.materia ? esc(matL(c.materia)) : 'Sin clase publicada'}${c.tema ? ' — ' + esc(c.tema) : ''}${x ? ' · pedido de cambio' : ''}${tieneNotas(c) ? ' · ✎ con observaciones' : ''}</small></div><div class="r">${r}</div></div>`;
+  return `<div class="row"><div class="t">${c.fecha === t ? '<b>Hoy</b>' : dkDe(c.fecha) + ' ' + dm(c.fecha)} · ${esc(turnoHs(S.grupos[c.grupo_id], c.turno))} · ${esc(gName(c.grupo_id))}<small>${c.materia ? esc(matL(c.materia)) : 'Sin clase publicada'}${c.tema ? ' — ' + esc(c.tema) : ''}${x ? ' · pedido de cambio' : ''}${tieneNotas(c) ? ' · ✎ con observaciones' : ''}</small></div><div class="r">${r}</div></div>`;
 }
 
 /* horario del alumno: materia y tema, sin el profe */
@@ -3491,7 +3502,7 @@ VIEWS['mi-horario'] = () => {
   const l = lunesDe(hoy());
   [[l, 'Esta semana'], [addDays(l, 7), 'La semana que viene']].forEach(([ls, tit]) => {
     const cl = S.miHor.filter(c => c.fecha >= ls && c.fecha <= addDays(ls, 6));
-    h += `<div class="card"><div class="card-h"><h2>${tit}</h2><small>${rangoSem(ls)}</small></div><div class="rows">${cl.map(c => `<div class="row" ${c.fecha === hoy() ? 'style="background:var(--accent-soft)"' : ''}><div class="t">${c.fecha === hoy() ? '<b>Hoy</b> · ' : ''}${DK_FULL[DK.indexOf(dkDe(c.fecha))]} ${dm(c.fecha)} · ${esc(c.turno)}<small>${c.materia === 'examen' ? '<b>Examen</b>' + (c.tema ? ' — ' + esc(c.tema) : '') : esc(c.tema || 'Tema a confirmar')}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('') || `<div class="empty">${ls > l ? 'Todavía no se publicó el horario de la semana que viene.' : 'No hay clases publicadas esta semana.'}</div>`}</div></div>`;
+    h += `<div class="card"><div class="card-h"><h2>${tit}</h2><small>${rangoSem(ls)}</small></div><div class="rows">${cl.map(c => `<div class="row" ${c.fecha === hoy() ? 'style="background:var(--accent-soft)"' : ''}><div class="t">${c.fecha === hoy() ? '<b>Hoy</b> · ' : ''}${DK_FULL[DK.indexOf(dkDe(c.fecha))]} ${dm(c.fecha)} · ${esc(turnoHs(S.grupos[a.grupoId], c.turno))}<small>${c.materia === 'examen' ? '<b>Examen</b>' + (c.tema ? ' — ' + esc(c.tema) : '') : esc(c.tema || 'Tema a confirmar')}</small></div><div class="r">${mchip(c.materia)}</div></div>`).join('') || `<div class="empty">${ls > l ? 'Todavía no se publicó el horario de la semana que viene.' : 'No hay clases publicadas esta semana.'}</div>`}</div></div>`;
   });
   return h;
 };
@@ -3540,7 +3551,7 @@ function cardPushAjustes() {
     <div class="form"><div class="fld"><label for="pu-noche">Recordatorio de la noche (clases de mañana)</label><input class="inp" type="time" id="pu-noche" value="${esc(c.noche)}"></div>
     <div class="fld"><label for="pu-manana">Recordatorio de la mañana (clases de hoy)</label><input class="inp" type="time" id="pu-manana" value="${esc(c.manana)}"></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px 18px"><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Alumnos</b>${chk('alNoche', 'A la noche: “Mañana tenés Física… prepará tus cosas”')}${chk('alManana', 'A la mañana: “Hoy tenés Física… no te olvides tus materiales”')}</div>
-    <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Profes</b>${chk('prNoche', 'A la noche: “Mañana das Física en CPI2, 8:00”')}${chk('prManana', 'A la mañana: “Hoy das Física… buena clase”')}${chk('prEntrada', 'Al empezar la clase (8:00 / 13:30): “Empieza tu clase… marcá tu entrada” (si no la marcó)')}${chk('prSalida', 'Al terminar (12:00 / 17:30): “Terminó tu clase… marcá tu salida” (si no la marcó)')}${chk('disp', 'Disponibilidad: mié 17:00, jue y vie 13:00, sáb 11:00 (a los que no cargaron)')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Profes</b>${chk('prNoche', 'A la noche: “Mañana das Física en CPI2, 8:00” (con la hora del grupo)')}${chk('prManana', 'A la mañana: “Hoy das Física… buena clase”')}${chk('prEntrada', 'Al empezar la clase (a la hora de su grupo): “Empieza tu clase… marcá tu entrada” (si no la marcó)')}${chk('prSalida', 'Al terminar la clase: “Terminó tu clase… marcá tu salida” (si no la marcó)')}${chk('disp', 'Disponibilidad: mié 17:00, jue y vie 13:00, sáb 11:00 (a los que no cargaron)')}</div>
     <div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">Oficina</b>${chk('ofNoche', 'A la noche: “Mañana te toca la oficina, turno de la tarde”')}${chk('ofManana', 'A la mañana: “Hoy te toca la oficina… marcá tu turno”')}${chk('ofDisp', 'Disponibilidad: los mismos días que los profes')}</div></div>
     <small class="muted">Cuando publicás el horario también se puede avisar a profes y alumnos (casilla al lado de Publicar). Los turnos de la semana de la oficina se mandan desde Turnos oficina → Avisar al celular.</small>
     <div><button class="btn primary" data-act="push-cfg">Guardar avisos</button></div></div></div>`;
@@ -3563,7 +3574,11 @@ function openGrupoForm(gid) {
     <label class="chk full"><input type="checkbox" id="g-act" ${g.activo !== false ? 'checked' : ''}>Grupo activo (desmarcá para archivarlo)</label>
     <div class="fsec">Horario de clases</div>
     <div class="full" style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px">${DK.map(k => `<div class="fld"><label for="g-d-${k}" style="text-align:center">${k}</label><select class="inp" id="g-d-${k}" style="padding:7px 4px">${['-', 'M', 'T', 'MT'].map(c => `<option value="${c}" ${(g.dias?.[k] || '-') === c ? 'selected' : ''}>${CODE_LBL[c]}</option>`).join('')}</select></div>`).join('')}</div>
-    <span class="full hint muted" style="font-size:13px">Mañana 8:00–12:00 · Tarde 13:30–17:30 · Doble = los dos turnos (cada uno cuenta como una clase).</span>
+    <span class="full hint muted" style="font-size:13px">Doble = los dos turnos (cada uno cuenta como una clase).</span>
+    <div class="fsec">Horas de clase</div>
+    ${TURNOS.map(t => { const [a, b] = horasT(g, t), k = t === 'Mañana' ? 'm' : 't';
+      return `<div class="fld"><label for="g-${k}i">${t}: empieza</label><input type="time" class="inp" id="g-${k}i" value="${esc(a)}" step="300"></div><div class="fld"><label for="g-${k}f">${t}: termina</label><input type="time" class="inp" id="g-${k}f" value="${esc(b)}" step="300"></div>`; }).join('')}
+    <span class="full hint muted" style="font-size:13px">Salen en la imagen del horario (profes y alumnos), en el mensaje a cada profe y en los avisos al celular: “empieza tu clase, marcá tu entrada” llega a la hora de inicio y “marcá tu salida”, a la de fin.</span>
     <label class="chk full"><input type="checkbox" id="g-prio" ${g.prioridad ? 'checked' : ''}>Recibe primero a los mejores profes (alumnos nuevos)</label>
     <div class="fld full"><label for="g-desc">Descripción para armar el horario</label><input class="inp" id="g-desc" value="${esc(g.descripcion || '')}" placeholder="Ej: alumnos nuevos, sin base"></div>
     <div class="fld"><label for="g-ord">Orden en el horario</label><input class="inp" id="g-ord" type="number" min="0" value="${num(g.orden)}"><span class="hint">Más fácil: en el horario, con las flechas ▲▼ de cada grupo.</span></div>
@@ -3955,7 +3970,12 @@ const A = {
   'grupo-guardar': async el => {
     const nombre = $('#g-nombre').value.trim(); if (!nombre) { $('#g-nombre').focus(); toast('Poné un nombre al grupo.', 'error'); return; }
     const dias = {}; DK.forEach(k => { dias[k] = $('#g-d-' + k).value || '-'; });
-    const row = { nombre, programa: $('#g-prog').value, horario: $('#g-hor').value.trim(), inicio: $('#g-ini').value || null, fin: $('#g-fin').value || null, activo: $('#g-act').checked,
+    const horas = {};
+    for (const t of TURNOS) { const k = t === 'Mañana' ? 'm' : 't', ini = $(`#g-${k}i`).value, fin = $(`#g-${k}f`).value;
+      if (!/^\d{2}:\d{2}$/.test(ini) || !/^\d{2}:\d{2}$/.test(fin)) { $(`#g-${k}${ini ? 'f' : 'i'}`).focus(); toast(`Completá a qué hora empieza y termina la ${t.toLowerCase()}.`, 'error'); return; }
+      if (ini >= fin) { $(`#g-${k}f`).focus(); toast(`La ${t.toLowerCase()} tiene que terminar después de empezar.`, 'error'); return; }
+      horas[t] = { ini, fin }; }
+    const row = { nombre, horas, programa: $('#g-prog').value, horario: $('#g-hor').value.trim(), inicio: $('#g-ini').value || null, fin: $('#g-fin').value || null, activo: $('#g-act').checked,
       dias, prioridad: $('#g-prio').checked, descripcion: $('#g-desc').value.trim() || null, orden: Math.max(0, Math.round(num($('#g-ord').value))),
       plan: PF.items.filter(i => i.concepto || i.monto).map(i => ({ id: i.id, concepto: (i.concepto || '').trim() || 'Pago', monto: num(i.monto), venc: i.venc || '' })) };
     el.classList.add('disabled');

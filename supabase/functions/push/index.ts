@@ -5,8 +5,8 @@
 //   tipo "oficina":   la dirección manda a cada persona de la oficina sus turnos de la semana.
 //   tipo "auto":      lo llama el cron cada 15 minutos. Manda el recordatorio de la noche, el de la mañana
 //                     (profes, alumnos y oficina), el de disponibilidad (mié a sáb) y, a los profes, el de marcar
-//                     la entrada al empezar la clase (8:00 / 13:30) y la salida al terminar (12:00 / 17:30);
-//                     cada uno una sola vez por día y solo en su horario.
+//                     la entrada al empezar la clase y la salida al terminar, con las horas de cada grupo
+//                     (Editar grupo → Horas de clase); cada uno una sola vez y solo en su horario.
 // No usa secretos propios: las claves VAPID se generan solas y quedan en config_privada (solo la base las lee).
 // Se despliega con "Verify JWT" apagado (igual que invitar y notificar): el código valida usuario y rol.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -137,26 +137,22 @@ Deno.serve(async (req) => {
     if (t.min >= manana && t.min < manana + 120) tareas.push({ tipo: 'manana', f: t.ymd, ttl: 4 * 3600 });
     const DISP: Record<number, number> = { 3: 17 * 60, 4: 13 * 60, 5: 13 * 60, 6: 11 * 60 }; // mié 17:00, jue y vie 13:00, sáb 11:00
     if (DISP[t.dow] !== undefined && t.min >= DISP[t.dow] && t.min < DISP[t.dow] + 120) tareas.push({ tipo: 'disp', f: t.ymd, ttl: 6 * 3600 });
-    // marcar la clase: al empezar (hasta 1 hora después) y al terminar (hasta 1 h 30 después). Horas de clase cambiables en config.
-    const MARCAR = [
-      { tipo: 'entrada_m', min: aMin(cfg.entM, '08:00'), hasta: 60, ttl: 3600 },
-      { tipo: 'salida_m', min: aMin(cfg.salM, '12:00'), hasta: 90, ttl: 2 * 3600 },
-      { tipo: 'entrada_t', min: aMin(cfg.entT, '13:30'), hasta: 60, ttl: 3600 },
-      { tipo: 'salida_t', min: aMin(cfg.salT, '17:30'), hasta: 90, ttl: 2 * 3600 },
-    ];
-    for (const m of MARCAR) if (t.min >= m.min && t.min < m.min + m.hasta) tareas.push({ tipo: m.tipo, f: t.ymd, ttl: m.ttl });
     const hechos = [];
     for (const x of tareas) {
       const clave = x.tipo + '|' + x.f;
       const { data: nuevo } = await db.rpc('push_tomar', { k: clave });
       if (!nuevo) continue; // ya se mandó hoy
-      const marcar = /^(entrada|salida)_/.test(x.tipo);
-      const { data: msgs, error } = marcar
-        ? await db.rpc('push_marcar', { tipo: x.tipo, f: x.f })
-        : await db.rpc('push_mensajes', { tipo: x.tipo, f: x.f, sem: null, actualizado: false });
+      const { data: msgs, error } = await db.rpc('push_mensajes', { tipo: x.tipo, f: x.f, sem: null, actualizado: false });
       if (error) { await db.from('push_log').delete().eq('clave', clave); throw error; } // se reintenta en 15 minutos
-      const tag = marcar ? x.tipo.split('_')[0] : x.tipo === 'disp' ? 'disp' : 'clase';
-      hechos.push({ tipo: x.tipo, fecha: x.f, ...(await mandar(db, (await claves(db)).v, (msgs || []) as Msg[], appUrl, tag, x.ttl)) });
+      hechos.push({ tipo: x.tipo, fecha: x.f, ...(await mandar(db, (await claves(db)).v, (msgs || []) as Msg[], appUrl, x.tipo === 'disp' ? 'disp' : 'clase', x.ttl)) });
+    }
+    // marcar la clase: al empezar (hasta 1 hora después) y al terminar (hasta 1 h 30 después), con las horas de cada grupo.
+    // push_marcar_ahora elige las clases de este momento y anota lo que devuelve (sale una sola vez por profe, día, turno y tipo).
+    const { data: mk, error: mkErr } = await db.rpc('push_marcar_ahora', { f: t.ymd, m: t.min });
+    if (mkErr) throw mkErr;
+    for (const aviso of ['entrada', 'salida']) {
+      const msgs = ((mk || []) as (Msg & { aviso: string })[]).filter((x) => x.aviso === aviso);
+      if (msgs.length) hechos.push({ tipo: aviso, fecha: t.ymd, ...(await mandar(db, (await claves(db)).v, msgs, appUrl, aviso, aviso === 'entrada' ? 3600 : 2 * 3600)) });
     }
     return json({ ok: true, hora: t.hora, hechos });
   } catch (e) {
