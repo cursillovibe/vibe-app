@@ -78,6 +78,15 @@ En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la pl
 - **Exportar**: **Excel** (.xlsx con título, cédula, grupo, nota, porcentaje y resultado; hoja "Por grupo") y **PDF con el logo** (A4, encabezado naranja, pie con página). Las librerías se cargan solo al exportar (SheetJS desde cdnjs; jsPDF y autotable desde jsdelivr).
 - Archivo `supabase/examen-comun.sql`.
 
+## Simulacros del ingreso
+
+- En **Exámenes → Simulacros del ingreso**, la dirección o la oficina tocan **Iniciar simulacro**: nombre ("Simulacro 1"), grupos que lo rinden y los 5 exámenes con su fecha (**1 Álgebra y Aritmética · 2 Geometría · 3 Trigonometría · 4 Cálculo · 5 Física**; se pueden renombrar o dejar vacío el que no va). Cada examen vale **20 puntos** e **ingresa quien suma 60 de 100**.
+- Cada examen del simulacro es un examen común a los grupos (una fila por grupo en `examenes`, mismo `comun`, más `simulacro` y `sim_n`), llamado "Simulacro 1 · Física". Las notas se cargan como en cualquier examen: a mano o **con la cámara** (hoja de Ingeniería de 20 preguntas). Tocando un examen en el simulacro se va a cargar sus notas y se vuelve al simulacro.
+- La pantalla del simulacro va sumando a medida que se cargan los exámenes: **ranking** con puesto 1, 2, 3… (empates por orden alfabético), puntos de cada examen, total y resultado (**Ingresa** ≥ 60 · **No ingresa** · **En curso** con "le faltan N" mientras quedan exámenes sin notas; "—" = no rindió, 0 puntos); por examen: cargadas, promedio y **mayor puntaje** (quién). Filtro por grupo (el puesto sigue siendo entre todos), orden por puesto/nombre/grupo y "mostrar los que no rindieron".
+- **Exportar**: **PDF con logo** (resumen, mayor puntaje de cada examen y la tabla con el resultado en verde/rojo; sin cédula, para mandar por WhatsApp) y **Excel** (con cédula; hojas "Por examen" y "Por grupo"). Exporta lo que se ve (grupo elegido y orden).
+- **Editar** (dirección y oficina): cambiar el nombre (también el de sus exámenes) y **sumar grupos** (se les crean los mismos exámenes, con la clave de la cámara). La fecha o el puntaje de un examen se cambian en ese examen. **Borrar**: solo la dirección (borra sus exámenes y notas).
+- Los profes ven los simulacros de sus grupos (solo sus alumnos) y cargan notas; no los inician. Funciones `crear_simulacro`, `simulacro_grupos`, `simulacro_renombrar`; tabla `simulacros`. Archivo `supabase/simulacros.sql`.
+
 ## Horario: grupos sin clases y días extra de una semana
 
 - En **Armar horario**, un grupo **sin materias cargadas esa semana no entra** en el armado, el borrador, la imagen, los mensajes ni la publicación (por ejemplo, un grupo creado que todavía no empezó). Esos grupos quedan en la tarjeta compacta **"Sin clases esta semana"** con **Cargar materias**.
@@ -136,6 +145,7 @@ supabase/caja-cobros.sql  parte del cobro para la caja chica (también está en 
 supabase/pedir-acceso.sql  alumnos que piden acceso sin invitación (también está en schema.sql)
 supabase/examen-comun.sql  examen común a varios grupos (también está en schema.sql)
 supabase/correccion-omr.sql  clave de respuestas y hojas leídas con la cámara (también está en schema.sql)
+supabase/simulacros.sql  simulacros del ingreso (también está en schema.sql)
 omr.js                  hoja de respuestas VIBE: el PDF para imprimir y el lector de la cámara
 supabase/importar-horarios.sql  trae los datos de la app vibe-horarios
 supabase/functions/     invitar (manda invitaciones), notificar (avisa fichas nuevas) y push (avisos al celular)

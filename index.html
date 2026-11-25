@@ -385,6 +385,7 @@ code.aj{font-size:12px;white-space:pre-wrap;word-break:break-all}
 .lnk{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 .gbloque{display:flex;flex-direction:column;gap:8px}
 .gbloque h3{margin:0;font-family:var(--font-display);font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sim-t td:nth-child(2),.sim-t th:nth-child(2){min-width:150px}
 .gbloque h3 .g-hs{font-family:var(--font-body, inherit);font-weight:400;font-size:12px;color:var(--muted)}
 .dispg{border-collapse:collapse;width:100%}
 .dispg th,.dispg td{padding:6px 4px;text-align:center;border-top:1px solid var(--line)}
@@ -622,7 +623,7 @@ const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n
 /* ---------- estado ---------- */
 const S = {
   sb: null, session: null, perfil: null, authView: CODIGO ? 'registro' : 'login', authMsg: '', needPassword: false, linkInfo: null, links: {},
-  grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {}, cambios: {},
+  grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, sims: {}, cfg: {}, perfiles: {}, profeGrupos: [], resultados: {}, cambios: {},
   loaded: {}, lastLoad: 0, idx: { pagosByAlumno: {}, asisByGrupo: {}, examsByGrupo: {} },
   view: 'inicio', selAlumno: null, selGrupo: null,
   ui: { q: '', fGrupo: '', fEstado: 'activos', fDeuda: false, asisTab: 'tomar', asisGrupo: '', asisFecha: hoy(), asisTurno: '', histGrupo: '',
@@ -961,7 +962,8 @@ const LOADERS = {
   },
   exams: async () => {
     const ex = await fetchAll('examenes', '*', q => q.order('id')); const ns = await fetchAll('notas', '*', q => q.order('examen_id').order('alumno_id'));
-    const m = {}; ex.forEach(e => m[e.id] = { id: e.id, grupoId: e.grupo_id, nombre: e.nombre, materia: e.materia || '', fecha: e.fecha || '', max: num(e.maximo) || 100, comun: e.comun || '', notas: {} });
+    S.sims = idx(await fetchAll('simulacros', 'id,nombre,creado', q => q.order('id')));
+    const m = {}; ex.forEach(e => m[e.id] = { id: e.id, grupoId: e.grupo_id, nombre: e.nombre, materia: e.materia || '', fecha: e.fecha || '', max: num(e.maximo) || 100, comun: e.comun || '', sim: e.simulacro || '', simN: e.sim_n || 0, notas: {} });
     ns.forEach(n => { const x = m[n.examen_id]; if (!x) return; x.notas[n.alumno_id] = num(n.nota); if (n.respuestas) (x.hojas ||= {})[n.alumno_id] = { resp: n.respuestas, fila: n.fila }; });
     S.exams = m; rebuild('exams');
   },
@@ -1089,7 +1091,7 @@ async function entrar() {
     if (S.perfil && S.perfil.activo) { await load(); tiempoReal(); pushRevisar(); }
   } finally { entrando = false; }
 }
-function limpiar() { if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) { } } S.rt = null; S.push = null; S.pushRes = null; if (S.rtPend) S.rtPend.clear(); Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
+function limpiar() { if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) { } } S.rt = null; S.push = null; S.pushRes = null; if (S.rtPend) S.rtPend.clear(); Object.assign(S, { session: null, perfil: null, grupos: {}, alumnos: {}, pagos: {}, asis: {}, exams: {}, sims: {}, cfg: {}, perfiles: {}, profeGrupos: [], cambios: {}, oTurnos: {}, oDisp: [], oMontos: {}, oSem: null, oMiDisp: null, oDispDraft: null, oRango: null, resultados: {}, loaded: {}, needPassword: false, draftAsis: null, draftExam: null, selAlumno: null, selGrupo: null,
   prof: {}, punt: {}, clases: {}, clRango: null, tareas: {}, act: [], actKey: null, actAl: {}, marcas: {}, mRango: null, caja: {}, miProf: null, sem: null, dispRows: [], pool: {}, borr: null, semProf: null, miDisp: null, miHor: [] }); S.ui.armLunes = ''; S.ui.horLunes = ''; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.perfil && Date.now() - S.lastLoad > 60000 && !ocupado()) load(); else if (document.visibilityState === 'visible') aplicarRemoto(); if (document.visibilityState === 'visible' && S.perfil) pushRevisar(); });
 
@@ -2204,14 +2206,16 @@ VIEWS.examenes = () => {
   const u = S.ui; const gs = gruposActivos();
   if (u.exLista && S.exams[u.exLista]) return vExamenLista(S.exams[u.exLista]);
   if (u.exSel && S.exams[u.exSel]) return vExamen(S.exams[u.exSel]);
+  if (u.simSel && simExams(u.simSel).length) return vSim(u.simSel);
   if (!u.exGrupo || !S.grupos[u.exGrupo]) u.exGrupo = gs[0]?.id || '';
   let h = ph('Exámenes', 'Notas por grupo y evolución de cada alumno', `<button class="btn" data-act="ex-hojas">${ic('download')}Hoja de respuestas</button>` + (u.exGrupo ? `<button class="btn primary" data-act="examen-nuevo">${ic('plus')}Nuevo examen</button>` : ''));
   if (!gs.length) return h + `<div class="card"><div class="empty">${isProfe() ? 'Todavía no tenés grupos asignados.' : 'No hay grupos activos.'}</div></div>`;
+  h += cardSimulacros();
   h += `<div class="chips">${gs.map(x => `<button class="chip" data-act="ex-grupo" data-v="${esc(x.id)}" aria-pressed="${x.id === u.exGrupo}">${esc(x.nombre)}</button>`).join('')}</div>`;
   const ex = S.idx.examsByGrupo[u.exGrupo] || []; const n = alumnosDe(u.exGrupo).length;
   h += `<div class="card">${ex.length ? `<div class="tw"><table><thead><tr><th>Examen</th><th>Fecha</th><th class="n">Cargadas</th><th class="n">Promedio</th><th class="n">Aprobados (≥60%)</th></tr></thead><tbody>${ex.map(e => { const v = Object.values(e.notas || {}).map(x => num(x) / num(e.max || 100) * 100); const prom = v.length ? Math.round(sum(v) / v.length) : null;
     const otros = examHermanos(e).filter(x => x.id !== e.id).map(x => gName(x.grupoId));
-    return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td><b>${esc(e.nombre)}</b>${e.materia || otros.length ? `<br><small>${esc([e.materia, otros.length ? 'también ' + otros.join(', ') : ''].filter(Boolean).join(' · '))}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n">${v.length}/${n}</td><td class="n">${prom == null ? '—' : `<span class="${prom < 60 ? 'bad-t' : 'ok-t'} num">${prom}%</span>`}</td><td class="n">${v.length ? v.filter(x => x >= 60).length + ' de ' + v.length : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty"><b>Sin exámenes en este grupo</b>Creá uno y cargá las notas.</div>'}</div>`;
+    return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td><b>${esc(e.nombre)}</b>${e.sim ? ' ' + pill('simulacro', 'acc') : ''}${e.materia || otros.length ? `<br><small>${esc([e.materia, otros.length ? 'también ' + otros.join(', ') : ''].filter(Boolean).join(' · '))}</small>` : ''}</td><td>${fmtF(e.fecha)}</td><td class="n">${v.length}/${n}</td><td class="n">${prom == null ? '—' : `<span class="${prom < 60 ? 'bad-t' : 'ok-t'} num">${prom}%</span>`}</td><td class="n">${v.length ? v.filter(x => x >= 60).length + ' de ' + v.length : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty"><b>Sin exámenes en este grupo</b>Creá uno y cargá las notas.</div>'}</div>`;
   return h;
 };
 function vExamen(e) {
@@ -2219,9 +2223,10 @@ function vExamen(e) {
   if (!S.draftExam || S.draftExam.eid !== e.id) S.draftExam = { eid: e.id, notas: { ...(e.notas || {}) }, dirty: false };
   const D = S.draftExam;
   const rank = Object.entries(e.notas || {}).filter(([id]) => S.alumnos[id]).sort((a, b) => num(b[1]) - num(a[1]));
-  let h = `<div><button class="back" data-act="back-examenes">${ic('back')}Exámenes</button></div>`;
+  const sim = e.sim && S.sims[e.sim];
+  let h = `<div><button class="back" data-act="back-examenes">${ic('back')}${sim && S.ui.simSel === e.sim ? esc(sim.nombre) : 'Exámenes'}</button></div>`;
   const her = examHermanos(e);
-  h += ph(e.nombre, `${esc(gName(e.grupoId))} · ${fmtF(e.fecha)}${e.materia ? ' · ' + esc(e.materia) : ''} · puntaje máximo ${fmtN(max)}`, `<button class="btn" data-act="examen-editar" data-id="${esc(e.id)}">${ic('edit')}Editar</button><button class="btn" data-act="ex-corregir" data-id="${esc(e.id)}">${ic('camera')}Corregir con la cámara</button><button class="btn primary" data-act="ex-lista" data-id="${esc(e.id)}">${ic('list')}${her.length > 1 ? 'Lista completa (' + her.length + ' grupos)' : 'Lista y exportar'}</button>`);
+  h += ph(e.nombre, `${esc(gName(e.grupoId))} · ${fmtF(e.fecha)}${e.materia ? ' · ' + esc(e.materia) : ''} · puntaje máximo ${fmtN(max)}${sim ? ` · <button class="lnk" data-act="sim-abrir" data-id="${esc(e.sim)}">ver el ${esc(sim.nombre)} completo</button>` : ''}`, `<button class="btn" data-act="examen-editar" data-id="${esc(e.id)}">${ic('edit')}Editar</button><button class="btn" data-act="ex-corregir" data-id="${esc(e.id)}">${ic('camera')}Corregir con la cámara</button><button class="btn primary" data-act="ex-lista" data-id="${esc(e.id)}">${ic('list')}${her.length > 1 ? 'Lista completa (' + her.length + ' grupos)' : 'Lista y exportar'}</button>`);
   if (her.length > 1) h += `<div class="chips" style="margin-bottom:12px"><small class="muted" style="align-self:center">Mismo examen en:</small>${her.map(x => `<button class="chip" data-act="ex-hermano" data-id="${esc(x.id)}" aria-pressed="${x.id === e.id}">${esc(gName(x.grupoId))}</button>`).join('')}</div>`;
   h += `<div class="grid2"><div class="card"><div class="card-h"><h2>Cargar notas</h2><small>Dejá vacío si no rindió</small></div><div class="rows">${al.map(a => { const v = D.notas[a.id]; const p = v === '' || v == null ? null : Math.round(num(v) / max * 100); return `<div class="row"><div class="t">${esc(nombreA(a))}${e.hojas?.[a.id] ? `<br><button class="lnk" data-act="ver-hoja" data-id="${esc(e.id)}" data-a="${esc(a.id)}">${ic('camera')}ver hoja</button>` : ''}</div><div class="r">${p == null ? '' : `<small class="${p < 60 ? 'bad-t' : 'ok-t'}">${p}%</small>`}<input class="inp nota" id="nota-${esc(a.id)}" data-in="nota" data-id="${esc(a.id)}" inputmode="decimal" value="${v == null ? '' : esc(v)}" aria-label="Nota de ${esc(nombreA(a))}"><small>/ ${fmtN(max)}</small></div></div>`; }).join('') || '<div class="empty">El grupo no tiene alumnos.</div>'}</div>
     <div class="savebar"><small>${D.dirty ? 'Hay cambios sin guardar' : 'Todo guardado'}</small><button class="btn primary ${D.dirty ? '' : 'disabled'}" data-act="notas-guardar">Guardar notas</button></div></div>
@@ -2330,6 +2335,168 @@ async function exportExamenPDF(e) {
   doc.save(nombreArchivoEx(e) + '.pdf');
 }
 
+/* ---------- simulacros del examen de ingreso: 5 exámenes de 20 puntos, ingresa con 60 de 100 ---------- */
+// Cada examen del simulacro es un examen común a los grupos que lo rinden (sim = id del simulacro, simN = su número).
+const SIM_PTS = 20, SIM_INGRESA = 60;
+const SIM_MATERIAS = ['Álgebra y Aritmética', 'Geometría', 'Trigonometría', 'Cálculo', 'Física'];
+const SIM_CORTO = { 'álgebra y aritmética': 'Álg. y Arit.', 'geometría': 'Geom.', 'trigonometría': 'Trig.', 'cálculo': 'Cálc.', 'física': 'Fís.' };
+const simCorto = (m, n) => SIM_CORTO[String(m || '').trim().toLowerCase()] || (m && m.length <= 10 ? m : `Ex. ${n}`);
+const fmtPt = v => v == null ? '—' : String(Math.round(num(v) * 10) / 10).replace('.', ',');
+const simLista = () => Object.values(S.sims || {}).sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
+const simExams = sid => Object.values(S.exams).filter(e => e.sim === sid);
+const simGrupos = sid => { const s = new Set(simExams(sid).map(e => e.grupoId)); return gruposOrden().filter(g => s.has(g.id)).map(g => g.id); };
+// puntos de cada alumno en cada examen, total, puesto (1, 2, 3… seguidos; empates por orden alfabético) y resultado
+function datosSim(sid) {
+  const exs = simExams(sid);
+  const cols = [...new Set(exs.map(e => e.simN))].sort((a, b) => a - b).map(n => {
+    const her = exs.filter(e => e.simN === n).sort((a, b) => gName(a.grupoId).localeCompare(gName(b.grupoId), 'es')); const e0 = her[0];
+    return { n, her, e0, nombre: e0.materia || e0.nombre, corto: simCorto(e0.materia, n), fecha: e0.fecha, cargado: new Set(her.filter(e => Object.keys(e.notas || {}).length).map(e => e.grupoId)) };
+  });
+  const gids = simGrupos(sid);
+  const al = new Map();
+  gids.forEach(g => alumnosDe(g).forEach(a => al.set(a.id, g)));
+  // también cuentan las notas de alumnos que después cambiaron de grupo o se dieron de baja
+  exs.forEach(e => Object.keys(e.notas || {}).forEach(id => { if (!al.has(id) && S.alumnos[id]) al.set(id, e.grupoId); }));
+  const maxTotal = cols.length * SIM_PTS, umbral = Math.round(maxTotal * SIM_INGRESA) / 100;
+  const filas = [...al.entries()].map(([id, g]) => {
+    const pts = cols.map(c => {   // número = puntos · 'nr' = no rindió (0) · null = el examen todavía no tiene notas en su grupo
+      const e = c.her.find(x => x.notas && x.notas[id] != null);
+      if (e) return Math.round(num(e.notas[id]) / num(e.max || SIM_PTS) * SIM_PTS * 100) / 100;
+      return c.cargado.has(g) ? 'nr' : null;
+    });
+    const nums = pts.filter(p => typeof p === 'number'); const total = Math.round(sum(nums) * 100) / 100; const pend = pts.filter(p => p == null).length;
+    return { a: S.alumnos[id], g, pts, total, rindio: nums.length, pend, res: nums.length && total >= umbral ? 'ingresa' : pend ? 'curso' : 'no' };
+  });
+  const rank = filas.filter(f => f.rindio).sort((x, y) => y.total - x.total || nombreA(x.a).localeCompare(nombreA(y.a), 'es'));
+  rank.forEach((f, i) => { f.puesto = i + 1; });
+  return { s: S.sims[sid] || { id: sid, nombre: exs[0]?.nombre.split(' · ')[0] || 'Simulacro' }, cols, gids, filas, rank, maxTotal, umbral };
+}
+// lo que se ve (y se exporta): filtro de grupo, orden y si se muestran los que no rindieron
+function simVista(d) {
+  const u = S.ui; const o = u.simOrden || 'puesto'; const g = d.gids.includes(u.simGrupo) ? u.simGrupo : '';
+  const cmpN = (a, b) => nombreA(a.a).localeCompare(nombreA(b.a), 'es');
+  let L = u.simTodos ? [...d.rank, ...d.filas.filter(f => !f.rindio).sort(cmpN)] : [...d.rank];
+  if (g) L = L.filter(f => f.g === g);
+  if (o === 'nombre') L.sort(cmpN);
+  if (o === 'grupo') L.sort((a, b) => d.gids.indexOf(a.g) - d.gids.indexOf(b.g) || (a.puesto || 1e9) - (b.puesto || 1e9) || cmpN(a, b));
+  const R = d.rank.filter(f => !g || f.g === g);
+  const cols = d.cols.map((c, i) => {   // promedio y mayor puntaje de cada examen (del grupo elegido, o de todos)
+    const v = d.filas.filter(f => (!g || f.g === g) && typeof f.pts[i] === 'number'); const top = v.length ? Math.max(...v.map(f => f.pts[i])) : null;
+    return { ...c, rind: v.length, deben: d.filas.filter(f => (!g || f.g === g) && c.her.some(e => e.grupoId === f.g)).length, prom: v.length ? Math.round(sum(v.map(f => f.pts[i])) / v.length * 10) / 10 : null, top, mejores: v.filter(f => f.pts[i] === top).sort(cmpN) };
+  });
+  return { g, L, R, cols, alumnos: d.filas.filter(f => !g || f.g === g).length, ingresan: R.filter(f => f.res === 'ingresa').length, prom: R.length ? Math.round(sum(R.map(f => f.total)) / R.length * 10) / 10 : null };
+}
+const simResTxt = f => f.res === 'ingresa' ? 'Ingresa' : !f.rindio ? (f.pend ? 'Pendiente' : 'No rindió') : f.res === 'curso' ? 'En curso' : 'No ingresa';
+const simCelda = p => typeof p === 'number' ? `<span class="num">${fmtPt(p)}</span>` : p === 'nr' ? '<span class="muted" title="No rindió (0 puntos)">—</span>' : '';
+const nombresMejores = (M, k = 3) => M.length ? M.slice(0, k).map(f => nombreA(f.a)).join(', ') + (M.length > k ? ` y ${M.length - k} más` : '') : '';
+function cardSimulacros() {
+  const sims = simLista(); if (!sims.length && !isStaff()) return '';
+  const u = S.ui; const ver = u.simVerTodos ? sims : sims.slice(0, 3);
+  const fila = s => { const exs = simExams(s.id); const ns = new Set(exs.map(e => e.simN)); const con = new Set(exs.filter(e => Object.keys(e.notas || {}).length).map(e => e.simN)); const gs = simGrupos(s.id).map(gName);
+    return `<div class="row click" data-act="sim-abrir" data-id="${esc(s.id)}"><div class="t"><b>${esc(s.nombre)}</b><small class="muted">${esc(gs.join(', ') || 'sin grupos')} · iniciado el ${fmtF(String(s.creado || '').slice(0, 10))}</small></div><div class="r">${pill(`${con.size} de ${ns.size} exámenes con notas`, ns.size && con.size === ns.size ? 'ok' : '')}</div></div>`; };
+  return `<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>Simulacros del ingreso</h2>${isStaff() ? `<button class="btn primary sm" data-act="sim-nuevo">${ic('plus')}Iniciar simulacro</button>` : ''}</div>
+    ${sims.length ? `<div class="rows">${ver.map(fila).join('')}</div>${sims.length > 3 ? `<div style="padding:8px 16px"><button class="lnk" data-act="sim-ver-todos">${u.simVerTodos ? 'Ver solo los últimos' : `Ver los ${sims.length} simulacros`}</button></div>` : ''}`
+    : `<div class="empty"><b>Todavía no hay simulacros</b>${SIM_MATERIAS.length} exámenes de ${SIM_PTS} puntos (${SIM_MATERIAS.join(', ')}). Elegís los grupos, cargás las notas de cada examen y la app va sumando: ingresa con ${SIM_INGRESA} de 100.</div>`}</div>`;
+}
+function vSim(sid) {
+  const d = datosSim(sid); const u = S.ui; const V = simVista(d); const varios = d.gids.length > 1;
+  let h = `<div><button class="back" data-act="sim-volver">${ic('back')}Exámenes</button></div>`;
+  h += ph(d.s.nombre, `${esc(d.gids.map(gName).join(', '))} · ${d.cols.length} exámenes de ${SIM_PTS} puntos · ingresa con ${fmtPt(d.umbral)} de ${d.maxTotal}`,
+    `${isStaff() ? `<button class="btn" data-act="sim-editar" data-id="${esc(sid)}">${ic('edit')}Editar</button>` : ''}<button class="btn" data-act="sim-xlsx" data-id="${esc(sid)}">${ic('download')}Excel</button><button class="btn primary" data-act="sim-pdf" data-id="${esc(sid)}">${ic('download')}PDF con logo</button>`);
+  if (varios) h += `<div class="chips" style="margin-bottom:12px"><button class="chip" data-act="sim-grupo" data-v="" aria-pressed="${!V.g}">Todos los grupos</button>${d.gids.map(g => `<button class="chip" data-act="sim-grupo" data-v="${esc(g)}" aria-pressed="${V.g === g}">${esc(gName(g))}</button>`).join('')}</div>`;
+  const top = V.R[0];
+  h += `<div class="kpis">${kpi('Rindieron', V.R.length, `de ${V.alumnos} alumnos`)}${kpi('Ingresan', V.ingresan, V.R.length ? `${Math.round(V.ingresan / V.R.length * 100)}% de los que rindieron` : `con ${fmtPt(d.umbral)} o más`)}${kpi('Promedio', V.prom == null ? '—' : fmtPt(V.prom), `de ${d.maxTotal} puntos`, V.prom != null && V.prom < d.umbral ? 'bad' : '')}${kpi('Mayor puntaje', top ? fmtPt(top.total) : '—', top ? esc(nombresMejores(V.R.filter(f => f.total === top.total), 2)) : '')}</div>`;
+  h += `<div class="card"><div class="card-h"><h2>Exámenes</h2><small>Tocá un examen para cargar sus notas (a mano o con la cámara)</small></div><div class="tw"><table><thead><tr><th>Examen</th><th>Fecha</th><th class="n">Cargadas</th><th class="n">Promedio</th><th>Mayor puntaje</th></tr></thead><tbody>${V.cols.map(c => { const e = c.her.find(x => x.grupoId === V.g) || c.her.find(x => x.grupoId === u.exGrupo) || c.e0;
+    return `<tr class="click" data-act="ver-examen" data-id="${esc(e.id)}"><td><b>${c.n}. ${esc(c.nombre)}</b></td><td>${fmtF(c.fecha)}</td><td class="n">${c.rind}/${c.deben}</td><td class="n">${c.prom == null ? '<span class="muted">sin notas</span>' : `<span class="num ${c.prom < SIM_PTS * SIM_INGRESA / 100 ? 'bad-t' : 'ok-t'}">${fmtPt(c.prom)}</span><small class="muted"> / ${SIM_PTS}</small>`}</td><td>${c.top == null ? '—' : `<b class="num">${fmtPt(c.top)}</b> · ${esc(nombresMejores(c.mejores))}`}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+  h += `<div class="filters"><div class="chips">${[['puesto', 'Por puesto'], ['nombre', 'Por nombre'], ...(varios ? [['grupo', 'Por grupo']] : [])].map(([k, l]) => `<button class="chip" data-act="sim-orden" data-v="${k}" aria-pressed="${(u.simOrden || 'puesto') === k}">${l}</button>`).join('')}</div><div class="chips"><button class="chip" data-act="sim-todos" aria-pressed="${!!u.simTodos}">Mostrar también los que no rindieron</button></div></div>`;
+  const nc = 4 + d.cols.length;
+  h += `<div class="card"><div class="tw"><table class="sim-t"><thead><tr><th class="n">Puesto</th><th>Alumno</th>${d.cols.map(c => `<th class="n" title="${esc(c.nombre)}">${esc(c.corto)}</th>`).join('')}<th class="n">Total</th><th>Resultado</th></tr></thead><tbody>${V.L.map(f => { const [t, k] = [simResTxt(f), f.res === 'ingresa' ? 'ok' : f.res === 'no' && f.rindio ? 'bad' : ''];
+      return `<tr class="click" data-act="ver-alumno" data-id="${esc(f.a.id)}"><td class="n num" style="width:56px">${f.puesto ? f.puesto + '°' : ''}</td><td><b>${esc(nombreA(f.a))}</b>${varios && !V.g ? `<br><small class="muted">${esc(gName(f.g))}</small>` : ''}</td>${f.pts.map(p => `<td class="n">${simCelda(p)}</td>`).join('')}<td class="n"><b class="num">${f.rindio ? fmtPt(f.total) : ''}</b></td><td style="white-space:nowrap">${pill(t, k)}${f.res === 'curso' ? `<br><small class="muted">le faltan ${fmtPt(d.umbral - f.total)}</small>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="${nc}"><div class="empty">Todavía no hay notas cargadas. Tocá un examen de arriba para cargarlas.</div></td></tr>`}</tbody></table></div>
+    <div style="padding:8px 16px"><small class="muted">— = no rindió ese examen (0 puntos) · vacío = ese examen todavía no tiene notas en su grupo. Puesto entre todos los grupos del simulacro.</small></div></div>`;
+  return h;
+}
+let SF = null;   // formulario de simulacro abierto
+function openSimForm() {
+  SF = { sel: new Set() };
+  const n = simLista().length + 1; const fechas = []; const dt = new Date(hoy() + 'T12:00:00');
+  while (fechas.length < SIM_MATERIAS.length) { if (dt.getDay() !== 0) fechas.push(ymd(dt)); dt.setDate(dt.getDate() + 1); }
+  openModal('Iniciar simulacro', `<div class="form">
+    <div class="fld full"><label for="sm-nom">Nombre *</label><input class="inp" id="sm-nom" value="Simulacro ${n}"></div>
+    <div class="fld full"><label>Grupos que lo rinden *</label><div class="chips">${gruposActivos().map(g => `<button class="chip" data-act="sim-g" data-v="${esc(g.id)}" aria-pressed="false">${esc(g.nombre)}</button>`).join('')}</div></div>
+    <div class="fsec">Exámenes · ${SIM_PTS} puntos cada uno</div>
+    ${SIM_MATERIAS.map((m, i) => `<div class="fld"><label for="sm-m${i}">Examen ${i + 1}</label><input class="inp" id="sm-m${i}" value="${esc(m)}"></div><div class="fld"><label for="sm-f${i}">Fecha</label><input type="date" class="inp" id="sm-f${i}" value="${fechas[i]}"></div>`).join('')}
+    <span class="full hint muted">Ingresa con ${SIM_INGRESA} de 100. Cada examen se crea en todos los grupos elegidos: las notas se cargan en cada examen (a mano o con la cámara, hoja de Ingeniería de 20 preguntas) y el simulacro las va sumando. Si un examen no va, dejá su nombre vacío.</span>
+    <div class="full err" id="sm-err"></div></div>`,
+    `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="sim-crear">Iniciar simulacro</button>`);
+}
+function openSimEditar(sid) {
+  const s = S.sims[sid]; if (!s) return; const ya = new Set(simGrupos(sid)); SF = { sid, sel: new Set() };
+  const otros = gruposActivos().filter(g => !ya.has(g.id));
+  openModal('Editar simulacro', `<div class="form">
+    <div class="fld full"><label for="sm-nom">Nombre *</label><input class="inp" id="sm-nom" value="${esc(s.nombre)}"><span class="hint">También cambia el nombre de sus exámenes.</span></div>
+    <div class="fld full"><label>Grupos</label><div style="display:flex;flex-wrap:wrap;gap:6px">${[...ya].map(g => pill(gName(g), 'acc')).join('') || '—'}</div></div>
+    ${otros.length ? `<div class="fld full"><label>Sumar grupos que también lo rinden</label><div class="chips">${otros.map(g => `<button class="chip" data-act="sim-g" data-v="${esc(g.id)}" aria-pressed="false">+ ${esc(g.nombre)}</button>`).join('')}</div><span class="hint">Se les crean los mismos exámenes (con la misma clave de la cámara).</span></div>` : ''}
+    <span class="full hint muted">La fecha o el puntaje de un examen se cambian en ese examen (Editar).</span>
+    <div class="full err" id="sm-err"></div></div>`,
+    `${isAdmin() ? `<button class="btn ghost danger" data-act="sim-borrar" data-id="${esc(sid)}" style="margin-right:auto">${ic('trash')}Borrar</button>` : ''}<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="sim-guardar" data-id="${esc(sid)}">Guardar</button>`);
+}
+const nombreArchivoSim = (d, g) => (`${d.s.nombre} - Resultados${g ? ' ' + gName(g) : ''}`).replace(/[\\/:*?"<>|]+/g, ' ').trim();
+async function exportSimXLSX(sid) {
+  await loadXLSX();
+  const d = datosSim(sid); const V = simVista(d); const varios = d.gids.length > 1 && !V.g; const gTxt = V.g ? gName(V.g) : d.gids.map(gName).join(', ');
+  const head = ['Puesto', 'Alumno', 'Cédula', ...(varios ? ['Grupo'] : []), ...d.cols.map(c => `${c.n}. ${c.nombre}`), 'Total', 'Resultado'];
+  const aoa = [[S.cfg.nombre || 'Cursillo VIBE'], [`${d.s.nombre} · Resultados`], [`${gTxt} · ${d.cols.length} exámenes de ${SIM_PTS} puntos · ingresa con ${fmtPt(d.umbral)} de ${d.maxTotal}`],
+    [`Rindieron ${V.R.length} · Ingresan ${V.ingresan} · Promedio ${fmtPt(V.prom)} de ${d.maxTotal} · — = no rindió (0 puntos)`], [], head,
+    ...V.L.map(f => [f.puesto || '', nombreA(f.a), f.a.ci || '', ...(varios ? [gName(f.g)] : []), ...f.pts.map(p => typeof p === 'number' ? p : p === 'nr' ? '—' : ''), f.rindio ? f.total : '', simResTxt(f)])];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 8 }, { wch: 34 }, { wch: 12 }, ...(varios ? [{ wch: 18 }] : []), ...d.cols.map(() => ({ wch: 13 })), { wch: 8 }, { wch: 12 }];
+  ws['!merges'] = [0, 1, 2, 3].map(r => ({ s: { r, c: 0 }, e: { r, c: head.length - 1 } }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Simulacro');
+  const w2 = XLSX.utils.aoa_to_sheet([['Examen', 'Fecha', 'Rindieron', `Promedio (de ${SIM_PTS})`, 'Mayor puntaje', 'Quién'], ...V.cols.map(c => [`${c.n}. ${c.nombre}`, fmtF(c.fecha), c.rind, c.prom ?? '', c.top ?? '', c.mejores.map(f => nombreA(f.a)).join(', ')])]);
+  w2['!cols'] = [{ wch: 26 }, { wch: 11 }, { wch: 10 }, { wch: 15 }, { wch: 14 }, { wch: 48 }]; XLSX.utils.book_append_sheet(wb, w2, 'Por examen');
+  if (varios) {
+    const w3 = XLSX.utils.aoa_to_sheet([['Grupo', 'Alumnos', 'Rindieron', 'Ingresan', `Promedio (de ${d.maxTotal})`], ...d.gids.map(g => { const R = d.rank.filter(f => f.g === g); return [gName(g), d.filas.filter(f => f.g === g).length, R.length, R.filter(f => f.res === 'ingresa').length, R.length ? Math.round(sum(R.map(f => f.total)) / R.length * 10) / 10 : '']; })]);
+    w3['!cols'] = [{ wch: 22 }, { wch: 9 }, { wch: 10 }, { wch: 10 }, { wch: 16 }]; XLSX.utils.book_append_sheet(wb, w3, 'Por grupo');
+  }
+  XLSX.writeFile(wb, nombreArchivoSim(d, V.g) + '.xlsx');
+}
+async function exportSimPDF(sid) {
+  await loadPDF();
+  const d = datosSim(sid); const V = simVista(d); const varios = d.gids.length > 1 && !V.g; const gTxt = V.g ? gName(V.g) : d.gids.map(gName).join(', ');
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' }); const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 12;
+  const NAR = [251, 133, 0], NEG = [26, 26, 26], GRIS = [110, 110, 110], VERDE = [21, 128, 61], ROJO = [190, 30, 45];
+  let y = 12;
+  try { const lg = await imgData('img/logo-vibe.png'); const lw = 42, lh = lw * lg.h / lg.w; doc.addImage(lg.data, 'PNG', M, y, lw, lh); y += lh + 5; } catch (err) { doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(...NEG); doc.text('Cursillo VIBE', M, y + 6); y += 12; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...NEG);
+  doc.splitTextToSize(`${d.s.nombre} · Resultados`, W - 2 * M).forEach(l => { doc.text(l, M, y); y += 7; });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...GRIS);
+  doc.splitTextToSize(`${gTxt} · ${d.cols.length} exámenes de ${SIM_PTS} puntos · ingresa con ${fmtPt(d.umbral)} de ${d.maxTotal}`, W - 2 * M).forEach(l => { doc.text(l, M, y); y += 5; });
+  y += 1; doc.setDrawColor(...NAR); doc.setLineWidth(0.8); doc.line(M, y, W - M, y); y += 6;
+  doc.setFontSize(10.5); doc.setTextColor(...NEG);
+  doc.text(`Rindieron: ${V.R.length}     Ingresan: ${V.ingresan}${V.R.length ? ' (' + Math.round(V.ingresan / V.R.length * 100) + '%)' : ''}     Promedio: ${fmtPt(V.prom)} de ${d.maxTotal}`, M, y); y += 6;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text('Mayor puntaje en cada examen', M, y); y += 4.5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  V.cols.forEach(c => { doc.splitTextToSize(`${c.n}. ${c.nombre}${c.fecha ? ' (' + fmtF(c.fecha) + ')' : ''}: ${c.top == null ? 'sin notas todavía' : fmtPt(c.top) + ' de ' + SIM_PTS + ' · ' + nombresMejores(c.mejores, 4)}`, W - 2 * M).forEach(l => { doc.text(l, M, y); y += 4.2; }); });
+  const hayRaro = V.L.some(f => f.pts.some(p => p === 'nr' || p == null));
+  if (hayRaro) { doc.setTextColor(...GRIS); doc.setFontSize(8.5); doc.text('— = no rindió ese examen (0 puntos) · vacío = ese examen todavía no tiene notas', M, y + 1); y += 4.5; }
+  const head = [['Puesto', 'Alumno', ...(varios ? ['Grupo'] : []), ...d.cols.map(c => c.corto), 'Total', 'Resultado']];
+  const body = V.L.map(f => [f.puesto ? f.puesto + '°' : '', nombreA(f.a), ...(varios ? [gName(f.g)] : []), ...f.pts.map(p => typeof p === 'number' ? fmtPt(p) : p === 'nr' ? '—' : ''), f.rindio ? fmtPt(f.total) : '', simResTxt(f)]);
+  const c0 = varios ? 3 : 2, cT = c0 + d.cols.length, cR = cT + 1; const cs = { 0: { halign: 'center', cellWidth: 13 }, [cT]: { halign: 'right', cellWidth: 14, fontStyle: 'bold' }, [cR]: { cellWidth: 21 } };
+  if (varios) cs[2] = { cellWidth: 30 };
+  d.cols.forEach((_, i) => { cs[c0 + i] = { halign: 'right', cellWidth: 14 }; });
+  doc.autoTable({ startY: y + 1, head, body, theme: 'striped', margin: { left: M, right: M, bottom: 18 },
+    styles: { font: 'helvetica', fontSize: 8.6, cellPadding: 1.6, textColor: NEG }, headStyles: { fillColor: NAR, textColor: 255, fontStyle: 'bold', halign: 'center' }, alternateRowStyles: { fillColor: [253, 243, 231] }, columnStyles: cs,
+    didParseCell: x => { if (x.section === 'body' && x.column.index === cR) { const t = x.cell.raw; x.cell.styles.textColor = t === 'Ingresa' ? VERDE : t === 'No ingresa' ? ROJO : GRIS; x.cell.styles.fontStyle = t === 'Ingresa' ? 'bold' : 'normal'; } } });
+  const n = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i); doc.setDrawColor(...NAR); doc.setLineWidth(0.4); doc.line(M, H - 13, W - M, H - 13);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GRIS);
+    doc.text(`${S.cfg.nombre || 'Cursillo VIBE'} · ${S.cfg.dir || 'Coronel Oviedo'}${S.cfg.tel ? ' · ' + S.cfg.tel : ''}`, M, H - 8);
+    doc.text(`Generado el ${fmtF(hoy())} · página ${i} de ${n}`, W - M, H - 8, { align: 'right' });
+  }
+  doc.save(nombreArchivoSim(d, V.g) + '.pdf');
+}
+
 /* ---------- corrección con la cámara (hoja de respuestas VIBE, ver omr.js) ---------- */
 const OMR_V = '2';
 function loadOMR() {
@@ -2358,8 +2525,9 @@ let OC = null;   // la pantalla de corrección abierta
 async function abrirCorrector(eid) {
   const e = S.exams[eid]; if (!e || OC) return;
   try { await loadOMR(); } catch (err) { toast(errText(err), 'error'); return; }
-  const { data, error } = await S.sb.from('examen_claves').select('formato,claves').eq('examen_id', e.id).maybeSingle();
+  const { data: ks, error } = await S.sb.from('examen_claves').select('examen_id,formato,claves').in('examen_id', examHermanos(e).map(x => x.id));
   if (error) { toast(errText(error), 'error'); return; }
+  const data = (ks || []).find(k => k.examen_id === e.id) || (ks || [])[0] || null;   // un grupo sumado después usa la clave de los otros
   OC = { eid: e.id, her: examHermanos(e).map(x => x.id), clave: data ? { formato: data.formato, claves: data.claves } : null, lista: [], seq: 0, modo: null, edit: null };
   document.body.insertAdjacentHTML('beforeend', '<div id="omr" class="omr" role="dialog" aria-modal="true" aria-label="Corregir con la cámara"></div>');
   document.body.classList.add('omr-on');
@@ -2578,7 +2746,8 @@ function hdPintar() {
 async function verHoja(eid, aid) {
   const e = S.exams[eid], h = e?.hojas?.[aid]; if (!h) return;
   try { await loadOMR(); } catch (err) { toast(errText(err), 'error'); return; }
-  const { data, error } = await S.sb.from('examen_claves').select('formato,claves').eq('examen_id', eid).maybeSingle();
+  const { data: ks, error } = await S.sb.from('examen_claves').select('examen_id,formato,claves').in('examen_id', examHermanos(e).map(x => x.id));
+  const data = (ks || []).find(k => k.examen_id === eid) || (ks || [])[0] || null;
   if (error || !data) { toast(error ? errText(error) : 'Este examen todavía no tiene clave.', 'error'); return; }
   const it = { resp: h.resp, fila: h.fila, filaUsada: h.fila, alumnoId: aid, eid, dudosas: [], ci: soloDig(S.alumnos[aid]?.ci), guardada: true };
   hojaDetalle(it, data, examHermanos(e).map(x => x.id), async x => {
@@ -3805,7 +3974,7 @@ function openExamForm(eid) {
   const otros = gruposActivos().filter(g => !ya.has(g.id));
   const grupos = !eid ? `<div class="fld full"><label>Grupos que rinden este examen *</label><div class="chips">${gruposActivos().map(g => `<button class="chip" data-act="x-grupo" data-v="${esc(g.id)}" aria-pressed="${XF.sel.has(g.id)}">${esc(g.nombre)}</button>`).join('')}</div><span class="hint">Si varios grupos rinden el mismo examen, elegilos todos: cada uno carga sus notas y después ves la lista completa.</span></div>`
     : `${her.length > 1 ? `<div class="fld full"><label>Grupos</label><div style="display:flex;flex-wrap:wrap;gap:6px">${her.map(x => pill(gName(x.grupoId), 'acc')).join('')}</div></div>` : `<div class="fld"><label for="x-gru">Grupo</label><select class="inp" id="x-gru">${optGrupos(e.grupoId)}</select></div>`}
-      ${otros.length ? `<div class="fld full"><label>Sumar otros grupos que rinden el mismo examen</label><div class="chips">${otros.map(g => `<button class="chip" data-act="x-grupo" data-v="${esc(g.id)}" aria-pressed="false">+ ${esc(g.nombre)}</button>`).join('')}</div></div>` : ''}`;
+      ${e.sim ? `<span class="full hint muted">Es un examen del ${esc(S.sims[e.sim]?.nombre || 'simulacro')}: para sumar grupos, usá Editar en el simulacro.</span>` : otros.length ? `<div class="fld full"><label>Sumar otros grupos que rinden el mismo examen</label><div class="chips">${otros.map(g => `<button class="chip" data-act="x-grupo" data-v="${esc(g.id)}" aria-pressed="false">+ ${esc(g.nombre)}</button>`).join('')}</div></div>` : ''}`;
   openModal(eid ? 'Editar examen' : 'Nuevo examen', `<div class="form">
     <div class="fld full"><label for="x-nom">Nombre *</label><input class="inp" id="x-nom" value="${esc(e.nombre)}" placeholder="Examen 3 · Álgebra"></div>
     ${grupos}
@@ -4438,7 +4607,45 @@ const A = {
   'ex-grupo': el => { S.ui.exGrupo = el.dataset.v; render(); },
   'examen-nuevo': () => openExamForm(),
   'examen-editar': el => openExamForm(el.dataset.id),
-  'ver-examen': el => go('examenes', () => { S.ui.exSel = el.dataset.id; S.draftExam = null; }),
+  'ver-examen': el => go('examenes', () => { S.ui.exSel = el.dataset.id; S.draftExam = null; if (S.exams[el.dataset.id]?.sim !== S.ui.simSel) S.ui.simSel = null; }),
+  'sim-abrir': el => { const f = () => go('examenes', () => Object.assign(S.ui, { simSel: el.dataset.id, exSel: null, exLista: null, simGrupo: '', simOrden: 'puesto', simTodos: false })); if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Salir igual?', 'Salir sin guardar', () => { S.draftExam = null; f(); }); else { S.draftExam = null; f(); } },
+  'sim-volver': () => { S.ui.simSel = null; render(); window.scrollTo(0, 0); },
+  'sim-ver-todos': () => { S.ui.simVerTodos = !S.ui.simVerTodos; render(); },
+  'sim-grupo': el => { S.ui.simGrupo = el.dataset.v; render(); },
+  'sim-orden': el => { S.ui.simOrden = el.dataset.v; render(); },
+  'sim-todos': () => { S.ui.simTodos = !S.ui.simTodos; render(); },
+  'sim-nuevo': () => openSimForm(),
+  'sim-editar': el => openSimEditar(el.dataset.id),
+  'sim-g': el => { const v = el.dataset.v; if (SF.sel.has(v)) SF.sel.delete(v); else SF.sel.add(v); el.setAttribute('aria-pressed', String(SF.sel.has(v))); },
+  'sim-crear': async el => {
+    const err = t => { $('#sm-err').textContent = t; };
+    const nom = $('#sm-nom').value.trim(); if (!nom) return err('Poné un nombre.');
+    const gids = gruposActivos().map(g => g.id).filter(g => SF.sel.has(g)); if (!gids.length) return err('Elegí al menos un grupo.');
+    const exs = SIM_MATERIAS.map((_, i) => ({ materia: $('#sm-m' + i).value.trim(), fecha: $('#sm-f' + i).value || '' })).filter(x => x.materia);
+    if (!exs.length) return err('Poné al menos un examen.');
+    el.classList.add('disabled');
+    const sid = await run(S.sb.rpc('crear_simulacro', { nom, gids, exs }), `${nom} iniciado: ${exs.length} exámenes en ${gids.length} grupo${gids.length === 1 ? '' : 's'}`);
+    if (!sid) { el.classList.remove('disabled'); return; }
+    closeModal(); Object.assign(S.ui, { simSel: sid, exSel: null, exLista: null, simGrupo: '', simOrden: 'puesto', simTodos: false }); S.draftExam = null; await load(['exams']); window.scrollTo(0, 0);
+  },
+  'sim-guardar': async el => {
+    const sid = el.dataset.id, s = S.sims[sid]; const err = t => { $('#sm-err').textContent = t; };
+    const nom = $('#sm-nom').value.trim(); if (!nom) return err('Poné un nombre.');
+    const gids = gruposActivos().map(g => g.id).filter(g => SF.sel.has(g));
+    el.classList.add('disabled');
+    if (nom !== s.nombre && !(await run(S.sb.rpc('simulacro_renombrar', { sid, nom })))) { el.classList.remove('disabled'); return; }
+    if (gids.length && !(await run(S.sb.rpc('simulacro_grupos', { sid, gids })))) { el.classList.remove('disabled'); await load(['exams']); return; }
+    toast(gids.length ? `Simulacro guardado y sumado a ${gids.length} grupo${gids.length === 1 ? '' : 's'} más` : 'Simulacro guardado');
+    closeModal(); await load(['exams']);
+  },
+  'sim-borrar': el => {
+    const sid = el.dataset.id, s = S.sims[sid]; const exs = simExams(sid); const nn = sum(exs.map(e => Object.keys(e.notas || {}).length));
+    confirmDlg(`¿Borrar "${s?.nombre}"? Se borran sus ${exs.length} exámenes (${simGrupos(sid).length} grupos)${nn ? ` y las ${nn} notas cargadas` : ''}. No se puede deshacer.`, 'Borrar simulacro', async () => {
+      if (await run(S.sb.from('simulacros').delete().eq('id', sid), 'Simulacro borrado')) { closeModal(); S.ui.simSel = null; S.ui.exSel = null; await load(['exams']); }
+    });
+  },
+  'sim-xlsx': async el => { el.classList.add('disabled'); try { await exportSimXLSX(el.dataset.id); } catch (e) { toast('No se pudo armar el Excel: ' + errText(e), 'error'); } el.classList.remove('disabled'); },
+  'sim-pdf': async el => { el.classList.add('disabled'); try { await exportSimPDF(el.dataset.id); } catch (e) { toast('No se pudo armar el PDF: ' + errText(e), 'error'); } el.classList.remove('disabled'); },
   'back-examenes': () => { const f = () => { S.ui.exSel = null; S.ui.exLista = null; S.draftExam = null; render(); }; if (S.draftExam?.dirty) confirmDlg('Hay notas sin guardar. ¿Salir igual?', 'Salir sin guardar', f); else f(); },
   'x-grupo': el => { const v = el.dataset.v; if (XF.sel.has(v)) XF.sel.delete(v); else XF.sel.add(v); el.setAttribute('aria-pressed', String(XF.sel.has(v))); },
   'examen-guardar': async el => {
