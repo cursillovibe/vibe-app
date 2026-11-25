@@ -78,6 +78,11 @@ En **Caja chica** (dirección y oficina; resumen en el Inicio de las dos): la pl
 - **Exportar**: **Excel** (.xlsx con título, cédula, grupo, nota, porcentaje y resultado; hoja "Por grupo") y **PDF con el logo** (A4, encabezado naranja, pie con página). Las librerías se cargan solo al exportar (SheetJS desde cdnjs; jsPDF y autotable desde jsdelivr).
 - Archivo `supabase/examen-comun.sql`.
 
+## Exportar la lista de alumnos
+
+- En **Alumnos → Exportar Excel** (dirección y oficina): se eligen los grupos (chips, "Marcar todos" / "Desmarcar todos", también "Sin grupo") y qué alumnos (activos, en inscripción, de baja o todos). Siempre van Nº, apellidos, nombres, cédula, grupo, celular, encargado y su celular, correo y estado; opcional: **datos de la ficha**, **cuotas** (pagado, vencido, pendiente) y **asistencia** (%, faltas, tardanzas).
+- Orden por grupo (el orden del horario) y apellido; filtro de Excel en el encabezado. Con varios grupos: hoja "Todos" y, si se marca, **una hoja por grupo** con su propia numeración (para imprimir). Archivo "Alumnos <grupo o por grupo> <fecha>.xlsx". Solo app.
+
 ## Simulacros del ingreso
 
 - En **Exámenes → Simulacros del ingreso**, la dirección o la oficina tocan **Iniciar simulacro**: nombre ("Simulacro 1"), grupos que lo rinden y los 5 exámenes con su fecha (**1 Álgebra y Aritmética · 2 Geometría · 3 Trigonometría · 4 Cálculo · 5 Física**; se pueden renombrar o dejar vacío el que no va). Cada examen vale **20 puntos** e **ingresa quien suma 60 de 100**.

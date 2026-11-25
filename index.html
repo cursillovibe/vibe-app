@@ -2049,7 +2049,7 @@ VIEWS.alumnos = () => {
   }).sort(cmpA);
   const rows = list.map(a => ({ a, c: isStaff() ? cuenta(a) : null })).filter(x => !u.fDeuda || (x.c && x.c.vencido > 0));
   const sinCuenta = isStaff() ? Object.values(S.alumnos).filter(a => a.email && !a.userId && a.estado !== 'baja') : [];
-  let h = ph(isProfe() ? 'Mis alumnos' : 'Alumnos', `${activos().length} activos`, isStaff() ? `${sinCuenta.length ? `<button class="btn" data-act="invitar-masivo">${ic('mail')}Enviar acceso a ${sinCuenta.length}</button>` : ''}<button class="btn" data-act="importar">${ic('upload')}Importar</button><button class="btn primary" data-act="invitar-alumno">${ic('mail')}Invitar alumno</button>` : '');
+  let h = ph(isProfe() ? 'Mis alumnos' : 'Alumnos', `${activos().length} activos`, isStaff() ? `${sinCuenta.length ? `<button class="btn" data-act="invitar-masivo">${ic('mail')}Enviar acceso a ${sinCuenta.length}</button>` : ''}<button class="btn" data-act="al-exportar">${ic('download')}Exportar Excel</button><button class="btn" data-act="importar">${ic('upload')}Importar</button><button class="btn primary" data-act="invitar-alumno">${ic('mail')}Invitar alumno</button>` : '');
   h += `<div class="filters"><div class="search">${ic('search')}<input class="inp" id="q" data-in="q" placeholder="Buscar por nombre, CI, teléfono, colegio…" value="${esc(u.q)}" autocomplete="off"></div>
     <select class="inp" id="fGrupo" data-ch="fGrupo" aria-label="Grupo">${optGrupos(u.fGrupo, isProfe() ? 'Todos mis grupos' : 'Todos los grupos')}</select>
     ${isStaff() ? `<select class="inp" id="fEstado" data-ch="fEstado" aria-label="Estado"><option value="activos" ${u.fEstado === 'activos' ? 'selected' : ''}>Activos</option><option value="inscripcion" ${u.fEstado === 'inscripcion' ? 'selected' : ''}>En inscripción</option><option value="bajas" ${u.fEstado === 'bajas' ? 'selected' : ''}>De baja</option><option value="todos" ${u.fEstado === 'todos' ? 'selected' : ''}>Todos</option></select>
@@ -2333,6 +2333,78 @@ async function exportExamenPDF(e) {
     doc.text(`Generado el ${fmtF(hoy())} · página ${i} de ${n}`, W - M, H - 8, { align: 'right' });
   }
   doc.save(nombreArchivoEx(e) + '.pdf');
+}
+
+/* ---------- exportar la lista de alumnos a Excel (dirección y oficina) ---------- */
+const AX_ESTADOS = [['activos', 'Activos'], ['inscripcion', 'En inscripción'], ['bajas', 'De baja'], ['todos', 'Todos']];
+const estadoTxt = a => a.estado === 'activo' ? 'Activo' : a.estado === 'baja' ? 'De baja' : a.estado === 'pendiente' ? 'Ficha lista, sin grupo' : (a.pidioAcceso ? 'Pidió acceso, sin ficha' : 'Invitado, sin ficha');
+const axEstadoOk = (a, e) => e === 'todos' || (e === 'activos' ? a.estado === 'activo' : e === 'bajas' ? a.estado === 'baja' : ['invitado', 'pendiente'].includes(a.estado));
+let AX = null;   // opciones del modal de exportar
+function openExportAlumnos() {
+  const u = S.ui; const gs = gruposOrden();
+  AX = { sel: new Set(u.fGrupo ? [u.fGrupo] : gruposActivos().map(g => g.id)), sinGrupo: !u.fGrupo && u.fEstado !== 'activos' };
+  const chip = (v, l, on) => `<button class="chip" data-act="ax-g" data-v="${esc(v)}" aria-pressed="${on}">${esc(l)}</button>`;
+  openModal('Exportar lista de alumnos', `<div class="form">
+    <div class="fld full"><label>Grupos</label><div class="chips" id="ax-chips">${gs.map(g => chip(g.id, g.nombre + (g.activo === false ? ' (inactivo)' : ''), AX.sel.has(g.id))).join('')}${chip('-', 'Sin grupo', AX.sinGrupo)}</div>
+      <div style="display:flex;gap:14px;margin-top:6px"><button class="lnk" data-act="ax-todos" data-v="1">Marcar todos</button><button class="lnk" data-act="ax-todos" data-v="0">Desmarcar todos</button></div></div>
+    <div class="fld"><label for="ax-estado">Alumnos</label><select class="inp" id="ax-estado" data-ch="axEstado">${AX_ESTADOS.map(([k, l]) => `<option value="${k}" ${u.fEstado === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="fld full"><label>Qué columnas</label>
+      <span class="hint" style="margin:0 0 6px">Siempre: Nº, apellidos, nombres, cédula, grupo, celular, encargado y su celular, correo y estado.</span>
+      <label class="chk"><input type="checkbox" id="ax-ficha"> Datos de la ficha (nacimiento, ciudad, dirección, colegio, carrera, padres, factura…)</label>
+      <label class="chk"><input type="checkbox" id="ax-cuotas"> Cuotas (pagado, vencido y pendiente)</label>
+      <label class="chk"><input type="checkbox" id="ax-asis"> Asistencia (%, faltas y tardanzas)</label></div>
+    <div class="fld full"><label class="chk"><input type="checkbox" id="ax-hojas" checked> Además, una hoja por grupo (para imprimir la lista de cada uno)</label></div>
+    <div class="full muted" id="ax-cuenta" style="font-size:13px"></div>
+    <div class="full err" id="ax-err"></div></div>`,
+    `<button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="ax-bajar">${ic('download')}Bajar Excel</button>`);
+  axCuenta();
+}
+function axLista() {
+  const e = $('#ax-estado')?.value || 'activos';
+  return Object.values(S.alumnos).filter(a => axEstadoOk(a, e) && (a.grupoId && S.grupos[a.grupoId] ? AX.sel.has(a.grupoId) : AX.sinGrupo));
+}
+function axCuenta() { const el = $('#ax-cuenta'); if (el) { const n = axLista().length; el.textContent = `${n} alumno${n === 1 ? '' : 's'} en la lista.`; } const er = $('#ax-err'); if (er) er.textContent = ''; }
+async function exportAlumnosXLSX() {
+  const err = t => { $('#ax-err').textContent = t; };
+  const L = axLista(); if (!L.length) { err('No hay alumnos con esos grupos y ese estado.'); return false; }
+  const op = { ficha: $('#ax-ficha').checked, cuotas: $('#ax-cuotas').checked, asis: $('#ax-asis').checked, hojas: $('#ax-hojas').checked, estado: $('#ax-estado').value };
+  await loadXLSX();
+  const orden = gruposOrden().map(g => g.id);
+  const posG = a => { const i = orden.indexOf(a.grupoId); return i < 0 ? 1e6 : i; };
+  const cmpAp = (x, y) => norm(`${x.apellido} ${x.nombre}`).localeCompare(norm(`${y.apellido} ${y.nombre}`), 'es');
+  const extra = FICHA.filter(f => f.k && !['nombre', 'apellido', 'ci', 'tel', 'encargado', 'encargado_tel'].includes(f.k));
+  const head = ['Nº', 'Apellidos', 'Nombres', 'Cédula', 'Grupo', 'Celular', 'Encargado', 'Cel. encargado', 'Correo', 'Estado',
+    ...(op.ficha ? ['Fecha de nacimiento', ...extra.map(f => f.l.replace(/^¿|\?$/g, '')), 'Curso', 'Inscripción', 'Observaciones'] : []),
+    ...(op.cuotas ? ['Total pagado (Gs.)', 'Vencido (Gs.)', 'Cuotas vencidas', 'Pendiente (Gs.)'] : []),
+    ...(op.asis ? ['Asistencia (%)', 'Faltas', 'Tardanzas'] : [])];
+  const fila = (a, i) => {
+    const r = [i + 1, a.apellido, a.nombre, a.ci, a.grupoId ? gName(a.grupoId) : 'Sin grupo', a.tel, a.encargado, a.encargadoTel, a.email, estadoTxt(a)];
+    if (op.ficha) r.push(fmtF(a.fechaNac) === '—' ? '' : fmtF(a.fechaNac), ...extra.map(f => String(valorFicha(a, f) ?? '')), progDe(a), fmtF(a.inscripcion) === '—' ? '' : fmtF(a.inscripcion), a.obs);
+    if (op.cuotas) { const c = a.grupoId ? cuenta(a) : null; r.push(c ? c.pagado : 0, c ? c.vencido : 0, c ? c.nVenc : 0, c ? c.pendiente : 0); }
+    if (op.asis) { const s = asisAlumno(a); r.push(s.pct ?? '', s.A, s.T); }
+    return r;
+  };
+  const estTxt = AX_ESTADOS.find(x => x[0] === op.estado)[1].toLowerCase();
+  const hoja = (titulo, lista) => {
+    const gTxt = [...new Set(lista.map(a => a.grupoId ? gName(a.grupoId) : 'Sin grupo'))].join(', ');
+    const aoa = [[`${S.cfg.nombre || 'Cursillo VIBE'} · Lista de alumnos`], [`${titulo} · ${estTxt} · ${lista.length} alumno${lista.length === 1 ? '' : 's'} · ${fmtF(hoy())}`], ...(titulo !== gTxt ? [[gTxt]] : []), [], head, ...lista.map(fila)];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const w = { 'Nº': 5, 'Apellidos': 22, 'Nombres': 22, 'Cédula': 11, 'Grupo': 18, 'Celular': 14, 'Encargado': 24, 'Cel. encargado': 14, 'Correo': 28, 'Estado': 14 };
+    ws['!cols'] = head.map(hh => ({ wch: w[hh] || Math.min(34, Math.max(12, hh.length + 2)) }));
+    const top = titulo !== gTxt ? 3 : 2;
+    ws['!merges'] = Array.from({ length: top }, (_, r) => ({ s: { r, c: 0 }, e: { r, c: Math.min(head.length, 10) - 1 } }));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: top + 1, c: 0 }, e: { r: top + 1 + lista.length, c: head.length - 1 } }) };
+    return ws;
+  };
+  const todos = [...L].sort((x, y) => posG(x) - posG(y) || cmpAp(x, y));
+  const grupos = [...new Set(todos.map(a => a.grupoId && S.grupos[a.grupoId] ? a.grupoId : ''))];
+  const wb = XLSX.utils.book_new(); const usados = new Set();
+  const nombreHoja = t => { let n = String(t).replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31) || 'Grupo'; let k = 2; while (usados.has(n.toLowerCase())) n = n.slice(0, 28) + ' ' + k++; usados.add(n.toLowerCase()); return n; };
+  const titTodos = grupos.length === 1 ? (grupos[0] ? gName(grupos[0]) : 'Sin grupo') : (gruposActivos().every(g => AX.sel.has(g.id)) ? 'Todos los grupos' : `${grupos.length} grupos`);
+  XLSX.utils.book_append_sheet(wb, hoja(titTodos, todos), nombreHoja(grupos.length === 1 ? titTodos : 'Todos'));
+  if (op.hojas && grupos.length > 1) grupos.forEach(g => { const l = todos.filter(a => (a.grupoId && S.grupos[a.grupoId] ? a.grupoId : '') === g); XLSX.utils.book_append_sheet(wb, hoja(g ? gName(g) : 'Sin grupo', l), nombreHoja(g ? gName(g) : 'Sin grupo')); });
+  XLSX.writeFile(wb, `Alumnos ${grupos.length === 1 ? titTodos : 'por grupo'} ${hoy()}.xlsx`.replace(/[\\/:*?"<>|]+/g, ' '));
+  return todos.length;
 }
 
 /* ---------- simulacros del examen de ingreso: 5 exámenes de 20 puntos, ingresa con 60 de 100 ---------- */
@@ -4615,6 +4687,10 @@ const A = {
   'sim-orden': el => { S.ui.simOrden = el.dataset.v; render(); },
   'sim-todos': () => { S.ui.simTodos = !S.ui.simTodos; render(); },
   'sim-nuevo': () => openSimForm(),
+  'al-exportar': () => openExportAlumnos(),
+  'ax-g': el => { const v = el.dataset.v; if (v === '-') AX.sinGrupo = !AX.sinGrupo; else if (AX.sel.has(v)) AX.sel.delete(v); else AX.sel.add(v); el.setAttribute('aria-pressed', String(v === '-' ? AX.sinGrupo : AX.sel.has(v))); axCuenta(); },
+  'ax-todos': el => { const on = el.dataset.v === '1'; AX.sel = new Set(on ? gruposOrden().map(g => g.id) : []); AX.sinGrupo = on; $$('#ax-chips [data-act=ax-g]').forEach(b => b.setAttribute('aria-pressed', String(on))); axCuenta(); },
+  'ax-bajar': async el => { el.classList.add('disabled'); try { const n = await exportAlumnosXLSX(); if (n) { closeModal(); toast(`Lista de ${n} alumno${n === 1 ? '' : 's'} descargada`); } } catch (e) { toast('No se pudo armar el Excel: ' + errText(e), 'error'); } el.classList.remove('disabled'); },
   'sim-editar': el => openSimEditar(el.dataset.id),
   'sim-g': el => { const v = el.dataset.v; if (SF.sel.has(v)) SF.sel.delete(v); else SF.sel.add(v); el.setAttribute('aria-pressed', String(SF.sel.has(v))); },
   'sim-crear': async el => {
@@ -4828,6 +4904,7 @@ const CH = {
   'hd-al': t => { const [a, x] = (t.value || '|').split('|'); HD.alumnoId = a || null; HD.eid = x || null; },
   fGrupo: el => { S.ui.fGrupo = el.value; render(); },
   fEstado: el => { S.ui.fEstado = el.value; render(); },
+  axEstado: () => axCuenta(),
   fDeuda: el => { S.ui.fDeuda = el.checked; render(); },
   asisFecha: el => { const v = el.value || hoy(); if (S.draftAsis?.dirty) { el.value = S.ui.asisFecha; confirmDlg('La lista tiene cambios sin guardar. ¿Descartarlos?', 'Descartar', () => { S.draftAsis = null; S.ui.asisFecha = v; render(); }); return; } S.ui.asisFecha = v; render(); },
   histGrupo: el => { S.ui.histGrupo = el.value; render(); },
